@@ -15,6 +15,48 @@ env:
   REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
+  supabase-config:
+    name: التحقق من ربط Supabase
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: فحص العنوان والمفتاح
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
+        run: |
+          fail=0
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error title=Supabase::السرّان SUPABASE_URL و SUPABASE_ANON_KEY غير موجودين في إعدادات المستودع"; exit 1
+          fi
+          URL="${URL%/}"
+          case "$URL" in
+            https://*.supabase.co) ;;
+            *) echo "::error title=Supabase::SUPABASE_URL ليس بالصيغة https://xxxx.supabase.co"; fail=1 ;;
+          esac
+          case "$KEY" in
+            sb_secret_*) echo "::error title=Supabase::المفتاح المضاف هو المفتاح السري. احذفه فوراً واستبدله بالمفتاح العام sb_publishable"; exit 1 ;;
+            sb_publishable_*) ;;
+            eyJ*)
+              p=$(echo "$KEY" | cut -d. -f2 | tr '_-' '/+'); while [ $(( ${#p} % 4 )) -ne 0 ]; do p="$p="; done
+              if echo "$p" | base64 -d 2>/dev/null | grep -q service_role; then
+                echo "::error title=Supabase::المفتاح المضاف هو service_role السري. احذفه فوراً واستبدله بالمفتاح العام"; exit 1
+              fi ;;
+            *) echo "::error title=Supabase::صيغة SUPABASE_ANON_KEY غير معروفة"; fail=1 ;;
+          esac
+          body=$(curl -s -w "\n%{http_code}" "$URL/auth/v1/settings" -H "apikey: $KEY")
+          code=$(echo "$body" | tail -1)
+          if [ "$code" != "200" ]; then
+            echo "::error title=Supabase::رفض Supabase الاتصال (HTTP $code). تحقق من العنوان والمفتاح"; exit 1
+          fi
+          if echo "$body" | grep -q '"mailer_autoconfirm":true'; then
+            echo "::notice title=Supabase::الاتصال ناجح، وتأكيد البريد متوقف (الحسابات الجديدة تنتظر تفعيل المدير فقط)"
+          else
+            echo "::notice title=Supabase::الاتصال ناجح، وتأكيد البريد مفعّل (يصل للموظف بريد تأكيد قبل أول دخول)"
+          fi
+          exit $fail
+
   android:
     name: أندرويد (APK)
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
