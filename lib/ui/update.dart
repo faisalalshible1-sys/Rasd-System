@@ -23,7 +23,7 @@ Future<void> openUpdate(BuildContext context, AppRelease r) async {
 }
 
 Future<void> _openLink(BuildContext context, AppRelease r) async {
-  final uri = Uri.parse(r.url);
+  final uri = Uri.parse(self_update.adjustDownloadUrl(r.url));
   bool ok;
   try {
     ok = kIsWeb

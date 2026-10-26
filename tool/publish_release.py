@@ -5,7 +5,7 @@
 يُشغَّل من سير العمل release على GitHub. المتغيرات:
   SUPABASE_URL, SUPABASE_SERVICE_KEY   عنوان المشروع ومفتاح الخدمة (سرّ في GitHub فقط)
   VERSION, BUILD, NOTES, MANDATORY      بيانات الإصدار
-  APK, WINDOWS_SETUP                    ملف أندرويد وبرنامج تثبيت ويندوز
+  APK, APK_ARM32, WINDOWS_SETUP         أندرويد (64 و32 بت) وبرنامج تثبيت ويندوز
   WEB_URL                               رابط نسخة الويب بعد نشرها (اختياري)
 """
 import json
@@ -33,6 +33,7 @@ BUILD = int(env("BUILD"))
 NOTES = os.environ.get("NOTES", "").strip()
 MANDATORY = os.environ.get("MANDATORY", "false").lower() == "true"
 APK = os.environ.get("APK", "")
+APK32 = os.environ.get("APK_ARM32", "")
 WIN = os.environ.get("WINDOWS_SETUP", "")
 WEB_URL = os.environ.get("WEB_URL", "").strip()
 
@@ -80,20 +81,24 @@ def upload(local, remote, ctype):
     code, res = request("POST", f"/storage/v1/object/releases/{remote}", raw=blob,
                         extra={"Content-Type": ctype, "x-upsert": "true", "Cache-Control": "max-age=300"})
     if code not in (200, 201):
-        print(f"::error title=رفع {remote}::HTTP {code}: {res}")
+        hint = ""
+        if "EntityTooLarge" in str(res) or "413" in str(res):
+            hint = (f" — حجم الملف {len(blob) / 1e6:.1f} ميغابايت أكبر من حد الرفع في Supabase. "
+                    "ارفع الحد من Storage ← Settings ← Upload file size limit إلى 50 MB.")
+        print(f"::error title=رفع {remote}::HTTP {code}: {res}{hint}")
         sys.exit(1)
     url = f"{URL}/storage/v1/object/public/releases/{remote}"
     print(f"رُفع {remote} ({len(blob) / 1e6:.1f} MB)")
     return url
 
 
-def cleanup(prefix):
+def cleanup(prefix, keep=KEEP):
     code, res = request("POST", "/storage/v1/object/list/releases",
                         {"prefix": prefix, "limit": 100, "sortBy": {"column": "created_at", "order": "desc"}})
     if code != 200 or not isinstance(res, list):
         return
     files = [o["name"] for o in res if o.get("name") and not o["name"].startswith("latest")]
-    old = [f"{prefix}/{n}" for n in files[KEEP:]]
+    old = [f"{prefix}/{n}" for n in files[keep:]]
     if old:
         request("DELETE", "/storage/v1/object/releases", {"prefixes": old})
         print(f"حُذفت ملفات قديمة: {', '.join(old)}")
@@ -103,8 +108,11 @@ def main():
     ensure_bucket()
     rows = []
     if APK and os.path.exists(APK):
-        url = upload(APK, f"android/dc-app-{VERSION}.apk", "application/vnd.android.package-archive")
+        url = upload(APK, f"android/dc-app-{VERSION}-arm64.apk", "application/vnd.android.package-archive")
         upload(APK, "android/latest.apk", "application/vnd.android.package-archive")
+        if APK32 and os.path.exists(APK32):
+            upload(APK32, f"android/dc-app-{VERSION}-arm32.apk", "application/vnd.android.package-archive")
+            upload(APK32, "android/latest-arm32.apk", "application/vnd.android.package-archive")
         rows.append(("android", url))
     if WIN and os.path.exists(WIN):
         url = upload(WIN, f"windows/dc-app-setup-{VERSION}.exe", "application/octet-stream")
@@ -124,7 +132,7 @@ def main():
         print(f"::error title=تسجيل الإصدار::HTTP {code}: {res}{hint}")
         sys.exit(1)
 
-    cleanup("android")
+    cleanup("android", KEEP * 2)
     cleanup("windows")
 
     lines = [f"## الإصدار {VERSION}{' (إلزامي)' if MANDATORY else ''}", "", NOTES or "—", ""]

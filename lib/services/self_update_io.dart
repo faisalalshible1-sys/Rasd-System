@@ -4,6 +4,14 @@ import 'dart:io';
 /// فيثبّت الإصدار الجديد فوق القديم ويعيد تشغيل البرنامج.
 bool get canSelfUpdate => Platform.isWindows;
 
+/// رابط التنزيل المناسب لهذا الجهاز: الهواتف القديمة بمعالج 32 بت تحتاج نسخة arm32.
+String adjustDownloadUrl(String url) {
+  if (Platform.isAndroid && Platform.version.contains('"android_arm"') && url.contains('-arm64.apk')) {
+    return url.replaceFirst('-arm64.apk', '-arm32.apk');
+  }
+  return url;
+}
+
 Future<void> downloadAndInstall(String url, void Function(double progress) onProgress) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
   try {

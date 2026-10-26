@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter build apk --release --build-name=$VERSION --build-number=$BUILD \
+          flutter build apk --release --split-per-abi --build-name=$VERSION --build-number=$BUILD \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
             --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
@@ -84,11 +84,14 @@ jobs:
       - name: التوقيع بمفتاح المؤسسة
         env:
           ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
-        run: bash tool/sign_apk.sh build/app/outputs/flutter-apk/app-release.apk dc-app.apk
+        run: |
+          bash tool/sign_apk.sh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk dc-app-arm64.apk
+          bash tool/sign_apk.sh build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk dc-app-arm32.apk
+          ls -la dc-app-*.apk
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
-          path: dc-app.apk
+          path: dc-app-*.apk
 
   windows:
     name: ويندوز
@@ -186,7 +189,8 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NOTES: ${{ inputs.notes }}
           MANDATORY: ${{ inputs.mandatory }}
-          APK: dist/dc-app.apk
+          APK: dist/dc-app-arm64.apk
+          APK_ARM32: dist/dc-app-arm32.apk
           WINDOWS_SETUP: dist/dc-app-setup.exe
           WEB_URL: ${{ needs.web.outputs.url }}
         run: python3 tool/publish_release.py
