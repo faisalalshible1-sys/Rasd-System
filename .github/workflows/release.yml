@@ -1,0 +1,188 @@
+# «إصدار جديد» — يُشغَّل يدوياً بقرار مدير المكتب من تبويب Actions ← release ← Run workflow.
+# يبني أندرويد وويندوز والويب برقم إصدار جديد، ويرفع الملفات إلى Supabase، وينشر الويب على Netlify،
+# ثم يسجّل الإصدار فيظهر للموظفين «يتوفر تحديث» داخل التطبيق.
+#
+# الأسرار المطلوبة (Settings ← Secrets and variables ← Actions):
+#   SUPABASE_URL, SUPABASE_ANON_KEY   (موجودان)
+#   SUPABASE_SERVICE_KEY              المفتاح السري لـ Supabase (sb_secret_...) — يُستخدم هنا فقط لرفع الملفات
+#   ANDROID_SIGNING_PASSWORD          كلمة سر مفتاح توقيع أندرويد
+#   NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID   لنشر الويب (اختياريان)
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'ما الجديد في هذا الإصدار؟ (يظهر للموظفين)'
+        required: true
+        type: string
+      mandatory:
+        description: 'تحديث إلزامي (لا يعمل التطبيق القديم حتى يُحدَّث)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  VERSION: 1.0.${{ github.run_number }}
+  BUILD: ${{ github.run_number }}
+
+jobs:
+  checks:
+    name: التحقق قبل الإصدار
+    runs-on: ubuntu-latest
+    steps:
+      - name: الأسرار المطلوبة
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+          SERVICE: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SIGN: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+          NOTES: ${{ inputs.notes }}
+        shell: bash
+        run: |
+          missing=""
+          [ -z "$URL" ] && missing="$missing SUPABASE_URL"
+          [ -z "$ANON" ] && missing="$missing SUPABASE_ANON_KEY"
+          [ -z "$SERVICE" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          [ -z "$SIGN" ] && missing="$missing ANDROID_SIGNING_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=أسرار ناقصة::أضف في إعدادات المستودع:$missing"; exit 1
+          fi
+          case "$SERVICE" in sb_publishable_*) echo "::error title=SUPABASE_SERVICE_KEY::هذا هو المفتاح العام. ضع المفتاح السري sb_secret_..."; exit 1;; esac
+          echo "::notice title=الإصدار $VERSION::$NOTES"
+
+  android:
+    name: أندرويد
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash tool/prepare_platforms.sh
+      - run: flutter pub get
+      - name: flutter build apk
+        shell: bash
+        run: |
+          set +e
+          flutter build apk --release --build-name=$VERSION --build-number=$BUILD \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
+            --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build apk"
+          exit $code
+      - name: التوقيع بمفتاح المؤسسة
+        env:
+          ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+        run: bash tool/sign_apk.sh build/app/outputs/flutter-apk/app-release.apk dc-app.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: dc-app.apk
+
+  windows:
+    name: ويندوز
+    needs: checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash tool/prepare_platforms.sh
+        shell: bash
+      - run: flutter pub get
+      - name: flutter build windows
+        shell: bash
+        run: |
+          set +e
+          flutter build windows --release --build-name=$VERSION --build-number=$BUILD \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
+            --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build windows"
+          exit $code
+      - name: ضغط البرنامج
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dc-app-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dc-app-windows.zip
+
+  web:
+    name: الويب
+    needs: checks
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash tool/prepare_platforms.sh
+      - run: flutter pub get
+      - run: >-
+          flutter build web --release --build-name=$VERSION --build-number=$BUILD
+          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-web
+          path: build/web
+      - name: النشر على Netlify
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        shell: bash
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::notice title=الويب::لم يُنشر الويب لأن سرّي NETLIFY_AUTH_TOKEN و NETLIFY_SITE_ID غير موجودين. النسخة متاحة في ملفات التشغيل (release-web)."
+            exit 0
+          fi
+          set +e
+          npx --yes netlify-cli deploy --prod --dir=build/web --site="$NETLIFY_SITE_ID" --message="v$VERSION" --json > deploy.json 2> deploy.err; code=$?
+          if [ $code -ne 0 ]; then cat deploy.err; bash tool/ci_annotate.sh deploy.err "netlify"; exit $code; fi
+          url=$(python3 -c "import json; d=json.load(open('deploy.json')); print(d.get('url') or d.get('deploy_url') or '')")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "::notice title=الويب::$url"
+
+  publish:
+    name: نشر الإصدار
+    needs: [android, windows, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-android
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: dist
+      - name: رفع الملفات وتسجيل الإصدار
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NOTES: ${{ inputs.notes }}
+          MANDATORY: ${{ inputs.mandatory }}
+          APK: dist/dc-app.apk
+          WINDOWS_ZIP: dist/dc-app-windows.zip
+          WEB_URL: ${{ needs.web.outputs.url }}
+        run: python3 tool/publish_release.py

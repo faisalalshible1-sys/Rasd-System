@@ -25,6 +25,9 @@ if [ -f "$M" ]; then
   grep -q 'android.permission.INTERNET' "$M" || \
     perl -0pi -e 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' "$M"
   perl -pi -e "s/android:label=\"[^\"]*\"/android:label=\"$APP_NAME\"/" "$M"
+  # فتح روابط التحديث في المتصفح (أندرويد 11 وما بعده)
+  grep -q 'android:scheme="https"' "$M" || \
+    perl -0pi -e 's#</manifest>#    <queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW" />\n            <data android:scheme="https" />\n        </intent>\n    </queries>\n</manifest>#' "$M"
 fi
 
 # آيفون: اسم التطبيق على الشاشة

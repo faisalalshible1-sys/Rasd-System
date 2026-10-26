@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config.dart';
 import 'models.dart';
 
 /// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
@@ -36,8 +38,14 @@ class AppState extends ChangeNotifier {
   bool formFilterNextOnly = false;
   String sort = 'order';
 
+  // التحديث
+  AppRelease? latestRelease; // أحدث إصدار أعلى من الإصدار الحالي
+  bool updateMandatory = false;
+  bool updateDismissed = false;
+
   RealtimeChannel? _channel;
   Timer? _debounce;
+  Timer? _updateTimer;
   bool _disposed = false;
   final Map<String, Progress> _progressCache = {};
 
@@ -148,6 +156,48 @@ class AppState extends ChangeNotifier {
   Future<void> start() async {
     await loadAll();
     _subscribe();
+    _updateTimer?.cancel();
+    _updateTimer = Timer.periodic(const Duration(hours: 3), (_) => checkForUpdate());
+  }
+
+  /// منصة هذه النسخة كما تُسجَّل في جدول الإصدارات.
+  static String? get currentPlatform {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.windows => 'windows',
+      TargetPlatform.iOS => 'ios',
+      _ => null,
+    };
+  }
+
+  /// يبحث عن إصدار أحدث لهذه المنصة. لا يوقف التطبيق إن لم يكن جدول الإصدارات موجوداً.
+  Future<void> checkForUpdate() async {
+    final platform = currentPlatform;
+    if (!AppConfig.isRelease || platform == null) return;
+    try {
+      final newer = await client
+          .from('app_releases')
+          .select()
+          .eq('platform', platform)
+          .gt('build', AppConfig.appBuild)
+          .order('build', ascending: false)
+          .limit(20);
+      final list = newer.map(AppRelease.fromMap).toList();
+      final latest = list.isEmpty ? null : list.first;
+      final mandatory = list.any((r) => r.mandatory);
+      if (latest?.build != latestRelease?.build) updateDismissed = false;
+      latestRelease = latest;
+      updateMandatory = mandatory;
+      _notify();
+    } catch (_) {
+      // جدول الإصدارات غير مُنشأ بعد، أو لا اتصال: نتجاهل بهدوء.
+    }
+  }
+
+  void dismissUpdate() {
+    updateDismissed = true;
+    _notify();
   }
 
   Future<void> loadAll() async {
@@ -181,6 +231,7 @@ class AppState extends ChangeNotifier {
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
+      unawaited(checkForUpdate());
     } catch (e) {
       loadError = friendlyError(e);
     } finally {
@@ -193,7 +244,7 @@ class AppState extends ChangeNotifier {
     final old = _channel;
     if (old != null) client.removeChannel(old);
     final ch = client.channel('dc-changes');
-    for (final t in const ['projects', 'project_forms', 'change_requests', 'notifications', 'form_defs']) {
+    for (final t in const ['projects', 'project_forms', 'change_requests', 'notifications', 'form_defs', 'app_releases']) {
       ch.onPostgresChanges(
         event: PostgresChangeEvent.all,
         schema: 'public',
@@ -217,6 +268,7 @@ class AppState extends ChangeNotifier {
     if (old != null) client.removeChannel(old);
     _channel = null;
     _debounce?.cancel();
+    _updateTimer?.cancel();
     me = null;
     departments = [];
     formDefs = [];
@@ -240,6 +292,7 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _debounce?.cancel();
+    _updateTimer?.cancel();
     final old = _channel;
     if (old != null) client.removeChannel(old);
     super.dispose();

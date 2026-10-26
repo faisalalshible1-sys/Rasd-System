@@ -10,4 +10,11 @@ class AppConfig {
   static const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
 
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+  /// رقم الإصدار ورقم البناء، يضعهما سير عمل «release». النسخ التجريبية رقم بنائها 0.
+  static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'نسخة تجريبية');
+  static const int appBuild = int.fromEnvironment('APP_BUILD', defaultValue: 0);
+
+  /// النسخ التجريبية لا تعرض تنبيه التحديث.
+  static bool get isRelease => appBuild > 0;
 }

@@ -204,6 +204,20 @@ select public.admin_set_email(auth.uid(), 'director.new@test.ly');
 reset role;
 select pg_temp.check((select role = 'director' from public.profiles where email = 'director.new@test.ly'), 'المدير يغيّر بريده ويبقى مديراً');
 
+-- الإصدارات: قراءة للجميع، والكتابة لمفتاح الخدمة فقط
+reset role;
+insert into public.app_releases (platform, version, build, url, notes, mandatory)
+values ('android', '1.0.3', 3, 'https://example.test/a.apk', 'إصلاحات', false),
+       ('android', '1.0.4', 4, 'https://example.test/b.apk', 'إصلاح مهم', true);
+set role anon;
+select pg_temp.check((select count(*) = 2 from public.app_releases), 'الزائر يقرأ قائمة الإصدارات للتحقق من التحديث');
+select pg_temp.expect_error($$insert into public.app_releases (platform, version, build, url) values ('android','9',9,'x')$$, 'الزائر يضيف إصداراً');
+reset role; set role authenticated;
+select pg_temp.as_user('director@test.ly');
+select pg_temp.expect_error($$insert into public.app_releases (platform, version, build, url) values ('android','9',9,'x')$$, 'حتى المدير لا يضيف إصداراً من التطبيق');
+select pg_temp.expect_no_change($$delete from public.app_releases$$, 'حذف الإصدارات من التطبيق');
+select pg_temp.check((select build = 4 and mandatory from public.app_releases where platform = 'android' order by build desc limit 1), 'أحدث إصدار إلزامي يُقرأ بترتيب رقم البناء');
+
 reset role;
 select pg_temp.check((select count(*) = 1 from profiles where role = 'director'), 'مدير واحد فقط في المنظومة');
 \echo 'ALL TESTS PASSED'

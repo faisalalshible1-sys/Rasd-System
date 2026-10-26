@@ -6,6 +6,7 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
+drop table if exists public.app_releases cascade;
 drop table if exists
   public.audit_log, public.notifications, public.quality_notes, public.change_requests,
   public.project_forms, public.projects, public.form_defs, public.profiles, public.departments

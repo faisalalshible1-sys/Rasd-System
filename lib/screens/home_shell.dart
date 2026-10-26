@@ -8,6 +8,8 @@ import '../ui/widgets.dart';
 import 'admin.dart';
 import 'analysis.dart';
 import 'dashboard.dart';
+import '../config.dart';
+import '../ui/update.dart';
 import 'project_detail.dart';
 import 'projects.dart';
 import 'requests.dart';
@@ -46,8 +48,14 @@ class HomeShell extends StatelessWidget {
       return d.badge > 0 ? Badge(label: Text('${d.badge}'), child: i) : i;
     }
 
+    final release = app.latestRelease;
+    if (release != null && app.updateMandatory) {
+      return UpdateRequiredScreen(release: release);
+    }
+
     final body = Column(
       children: [
+        if (release != null && !app.updateDismissed) UpdateBanner(app: app, release: release),
         if (app.loadError != null)
           MaterialBanner(
             content: Text(app.loadError!),
@@ -266,6 +274,8 @@ class _AccountMenu extends StatelessWidget {
             children: [
               Text(me?.displayName ?? '', style: const TextStyle(fontWeight: FontWeight.w700)),
               Text(roleText, style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 4),
+              Text('الإصدار ${AppConfig.appVersion}', style: const TextStyle(fontSize: 11.5)),
             ],
           ),
         ),

@@ -396,6 +396,37 @@ class AppNotification {
       );
 }
 
+/// إصدار منشور من سير عمل «release».
+class AppRelease {
+  const AppRelease({
+    required this.platform,
+    required this.version,
+    required this.build,
+    required this.url,
+    required this.notes,
+    required this.mandatory,
+    this.publishedAt,
+  });
+
+  final String platform;
+  final String version;
+  final int build;
+  final String url;
+  final String notes;
+  final bool mandatory;
+  final DateTime? publishedAt;
+
+  factory AppRelease.fromMap(Map<String, dynamic> m) => AppRelease(
+        platform: _str(m['platform']),
+        version: _str(m['version']),
+        build: (m['build'] as num?)?.toInt() ?? 0,
+        url: _str(m['url']),
+        notes: _str(m['notes']),
+        mandatory: m['mandatory'] == true,
+        publishedAt: _date(m['published_at']),
+      );
+}
+
 // ---------------------------------------------------------------------
 // حساب الإنجاز
 // ---------------------------------------------------------------------
