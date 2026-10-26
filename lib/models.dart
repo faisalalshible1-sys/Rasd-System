@@ -324,6 +324,7 @@ const Map<String, String> auditActionLabels = {
   'user.deactivate': 'أوقف مستخدماً',
   'user.update': 'عدّل صلاحيات مستخدم',
   'user.claim_director': 'تولّى إدارة المنظومة',
+  'user.email': 'غيّر بريد الدخول',
   'form_def.update': 'عدّل صلاحيات نموذج',
   'system.import': 'استيراد أولي للمشاريع',
 };

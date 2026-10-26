@@ -41,6 +41,8 @@ String auditDescription(AppState app, AuditEntry e) {
               ? 'أوقف حساب'
               : 'عدّل صلاحيات';
       return '$verb ${e.projectLabel}${roleTo != null && e.action != 'user.deactivate' ? ' — $roleTo' : ''}';
+    case 'user.email':
+      return 'غيّر بريد الدخول لـ ${e.projectLabel}: ${text(d['from'])} ← ${text(d['to'])}';
     case 'user.claim_director':
       return 'تولّى إدارة المنظومة (${e.projectLabel})';
     case 'form_def.update':

@@ -129,6 +129,7 @@ class _UserEditorState extends State<_UserEditor> {
   late String _department;
   late bool _active;
   late final TextEditingController _name;
+  late final TextEditingController _email;
   bool _busy = false;
   String? _error;
 
@@ -142,11 +143,13 @@ class _UserEditorState extends State<_UserEditor> {
     _department = u.department ?? 'supervision';
     _active = u.active || u.role == null;
     _name = TextEditingController(text: u.fullName);
+    _email = TextEditingController(text: u.email);
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _email.dispose();
     super.dispose();
   }
 
@@ -161,6 +164,10 @@ class _UserEditorState extends State<_UserEditor> {
       _error = null;
     });
     try {
+      final newEmail = _email.text.trim().toLowerCase();
+      if (newEmail.isNotEmpty && newEmail != widget.user.email.toLowerCase()) {
+        await widget.app.setUserEmail(widget.user.id, newEmail);
+      }
       await widget.app.setUserAccess(widget.user.id,
           role: role, department: _department, active: _active, fullName: _name.text.trim());
       if (!mounted) return;
@@ -188,9 +195,15 @@ class _UserEditorState extends State<_UserEditor> {
           children: [
             Text(u.role == null ? 'تفعيل حساب' : 'صلاحيات المستخدم',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-            Text(u.email, textDirection: TextDirection.ltr, textAlign: TextAlign.end, style: TextStyle(color: sem.muted)),
             const SizedBox(height: 16),
             TextField(controller: _name, decoration: fieldDeco('الاسم الكامل')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              textDirection: TextDirection.ltr,
+              decoration: fieldDeco('بريد الدخول', hint: 'تغييره فوري، وكلمة المرور تبقى كما هي'),
+            ),
             const SizedBox(height: 12),
             SelectField(
               label: 'الدور',

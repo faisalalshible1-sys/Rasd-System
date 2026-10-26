@@ -7,7 +7,8 @@ end $$;
 grant usage on schema public to anon, authenticated, service_role;
 create schema auth;
 grant usage on schema auth to anon, authenticated, service_role;
-create table auth.users (id uuid primary key default gen_random_uuid(), email text unique, raw_user_meta_data jsonb default '{}'::jsonb);
+create table auth.users (id uuid primary key default gen_random_uuid(), email text unique, raw_user_meta_data jsonb default '{}'::jsonb, updated_at timestamptz);
+create table auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, provider text, identity_data jsonb, updated_at timestamptz);
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant execute on function auth.uid() to anon, authenticated, service_role;

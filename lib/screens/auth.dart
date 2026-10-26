@@ -176,23 +176,38 @@ class _LoginScreenState extends State<LoginScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(maxWidth: 480),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: barColor(context), borderRadius: BorderRadius.circular(18)),
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: sem.rule),
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('مكتب الشؤون الهندسية', style: t.bodySmall?.copyWith(color: Colors.white70)),
-                        const SizedBox(height: 4),
-                        Text('الدورة المستندية للمشاريع',
-                            style: t.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 4),
-                        Text('لجنة إعادة إعمار منطقة الصابري ووسط البلاد',
-                            style: t.bodySmall?.copyWith(color: Colors.white70)),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 18, 14, 10),
+                          child: Image.asset(Brand.banner, fit: BoxFit.contain, filterQuality: FilterQuality.medium),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          child: Column(
+                            children: [
+                              Text('مكتب الشؤون الهندسية',
+                                  style: t.bodyMedium?.copyWith(color: const Color(0xFF5E5C57))),
+                              const SizedBox(height: 2),
+                              Text('منظومة متابعة الدورة المستندية للمشاريع',
+                                  textAlign: TextAlign.center,
+                                  style: t.titleLarge?.copyWith(color: Brand.ink, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                        const BrandStripe(),
                       ],
                     ),
                   ),
@@ -279,7 +294,7 @@ class PendingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     return Scaffold(
-      appBar: brandAppBar(context, title: const Text('الدورة المستندية')),
+      appBar: brandAppBar(context, showEmblem: true, title: const Text('الدورة المستندية')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -336,7 +351,7 @@ class SetupMissingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: brandAppBar(context, title: const Text('الدورة المستندية')),
+      appBar: brandAppBar(context, showEmblem: true, title: const Text('الدورة المستندية')),
       body: const Center(
         child: EmptyState(
           icon: Icons.settings_outlined,

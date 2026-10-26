@@ -432,8 +432,16 @@ Future<bool> confirmDialog(BuildContext context,
 
 /// نافذة إدخال نص (سبب، ملاحظة...). تُرجع null عند الإلغاء.
 Future<String?> textInputDialog(BuildContext context,
-    {required String title, String? message, required String label, required String confirmLabel, bool required = false}) async {
-  final controller = TextEditingController();
+    {required String title,
+    String? message,
+    required String label,
+    required String confirmLabel,
+    bool required = false,
+    String? initial,
+    bool multiline = true,
+    TextInputType? keyboardType,
+    TextDirection? textDirection}) async {
+  final controller = TextEditingController(text: initial ?? '');
   final result = await showDialog<String>(
     context: context,
     builder: (ctx) {
@@ -451,8 +459,10 @@ Future<String?> textInputDialog(BuildContext context,
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  minLines: 2,
-                  maxLines: 5,
+                  minLines: multiline ? 2 : 1,
+                  maxLines: multiline ? 5 : 1,
+                  keyboardType: keyboardType,
+                  textDirection: textDirection,
                   decoration: fieldDeco(label, error: error),
                 ),
               ],

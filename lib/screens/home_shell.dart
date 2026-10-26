@@ -60,18 +60,22 @@ class HomeShell extends StatelessWidget {
     return Scaffold(
       appBar: brandAppBar(
         context,
+        showEmblem: true,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(dests[index].label, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const Text('الدورة المستندية · مكتب الشؤون الهندسية', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
+            Text('الدورة المستندية · مكتب الشؤون الهندسية',
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: Sem.of(context).muted)),
           ],
         ),
         actions: [
-          if (app.loading) const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70)),
-          ),
+          if (app.loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Sem.of(context).muted)),
+            ),
           IconButton(
             tooltip: 'الإشعارات',
             onPressed: () => _showNotifications(context),
@@ -226,6 +230,28 @@ class _AccountMenu extends StatelessWidget {
           } catch (e) {
             if (context.mounted) showToast(context, friendlyError(e), error: true);
           }
+        } else if (v == 'email') {
+          if (!app.isDirector) {
+            showToast(context, 'يغيّر مدير المكتب بريد الدخول من شاشة الإدارة. تواصل معه.');
+            return;
+          }
+          final email = await textInputDialog(context,
+              title: 'تغيير بريد الدخول',
+              message: 'سيُستخدم البريد الجديد للدخول من الآن. كلمة المرور لا تتغير.',
+              label: 'البريد الجديد',
+              confirmLabel: 'حفظ',
+              required: true,
+              initial: me?.email,
+              multiline: false,
+              keyboardType: TextInputType.emailAddress,
+              textDirection: TextDirection.ltr);
+          if (email == null || me == null) return;
+          try {
+            await app.setUserEmail(me.id, email);
+            if (context.mounted) showToast(context, 'تغيّر بريد الدخول. استخدمه عند الدخول القادم.');
+          } catch (e) {
+            if (context.mounted) showToast(context, friendlyError(e), error: true);
+          }
         } else if (v == 'refresh') {
           await app.loadAll();
         } else if (v == 'logout') {
@@ -245,6 +271,7 @@ class _AccountMenu extends StatelessWidget {
         ),
         const PopupMenuDivider(),
         const PopupMenuItem<String>(value: 'name', child: Text('تعديل اسمي')),
+        const PopupMenuItem<String>(value: 'email', child: Text('تغيير بريد الدخول')),
         const PopupMenuItem<String>(value: 'refresh', child: Text('تحديث البيانات')),
         const PopupMenuItem<String>(value: 'logout', child: Text('تسجيل الخروج')),
       ],

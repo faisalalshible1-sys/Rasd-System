@@ -33,7 +33,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter --version
-      - run: bash tool/prepare_platforms.sh
+      - name: تجهيز المنصات والأيقونات
+        shell: bash
+        run: |
+          set +e
+          bash tool/prepare_platforms.sh > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "prepare"
+          exit $code
       - name: flutter pub get
         shell: bash
         run: |

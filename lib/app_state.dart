@@ -393,6 +393,12 @@ class AppState extends ChangeNotifier {
     await loadAll();
   }
 
+  /// تغيير بريد الدخول (للمدير وحده؛ تتحقق قاعدة البيانات من ذلك).
+  Future<void> setUserEmail(String userId, String email) async {
+    await client.rpc('admin_set_email', params: {'p_user': userId, 'p_email': email.trim()});
+    await loadAll();
+  }
+
   Future<void> updateFormDef(String key, {bool? sensitive, List<String>? responsible}) async {
     final data = <String, dynamic>{};
     if (sensitive != null) data['sensitive'] = sensitive;

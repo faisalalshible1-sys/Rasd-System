@@ -182,6 +182,28 @@ select public.set_user_access((select id from profiles where email='contracts@te
 select pg_temp.as_user('contracts@test.ly');
 select pg_temp.check((select count(*) = 0 from projects), 'المستخدم الموقوف يفقد الوصول فوراً');
 
+-- تغيير بريد الدخول
+reset role;
+insert into auth.identities (user_id, provider, identity_data)
+select id, 'email', jsonb_build_object('email', email, 'sub', id::text) from auth.users where email = 'staff@test.ly';
+set role authenticated;
+select pg_temp.as_user('staff@test.ly');
+select pg_temp.expect_error($$select public.admin_set_email((select id from profiles where email='headsup@test.ly'), 'x@test.ly')$$, 'غير المدير يغيّر بريد مستخدم');
+select pg_temp.as_user('director@test.ly');
+select pg_temp.expect_error($$select public.admin_set_email((select id from profiles where email='staff@test.ly'), 'بريد خطأ')$$, 'بريد بصيغة خاطئة');
+select pg_temp.expect_error($$select public.admin_set_email((select id from profiles where email='staff@test.ly'), 'headsup@test.ly')$$, 'بريد مستخدم لحساب آخر');
+select public.admin_set_email((select id from profiles where email='staff@test.ly'), ' Staff.New@Test.ly ');
+reset role;
+select pg_temp.check((select count(*) = 1 from auth.users where email = 'staff.new@test.ly'), 'تغيّر بريد الدخول في حسابات المصادقة');
+select pg_temp.check((select identity_data->>'email' = 'staff.new@test.ly' from auth.identities where provider = 'email'), 'تغيّر البريد في هوية الدخول');
+select pg_temp.check((select count(*) = 1 from public.profiles where email = 'staff.new@test.ly' and role = 'office_staff' and active), 'الملف بالبريد الجديد بنفس الدور');
+select pg_temp.check(exists (select 1 from audit_log where action = 'user.email'), 'تغيير البريد مسجّل في السجل');
+set role authenticated;
+select pg_temp.as_user('director@test.ly');
+select public.admin_set_email(auth.uid(), 'director.new@test.ly');
+reset role;
+select pg_temp.check((select role = 'director' from public.profiles where email = 'director.new@test.ly'), 'المدير يغيّر بريده ويبقى مديراً');
+
 reset role;
 select pg_temp.check((select count(*) = 1 from profiles where role = 'director'), 'مدير واحد فقط في المنظومة');
 \echo 'ALL TESTS PASSED'

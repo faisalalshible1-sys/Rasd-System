@@ -1,6 +1,6 @@
 -- =====================================================================
 --  إعادة ضبط قاعدة البيانات: يحذف كل ما أنشأه ملف المخطط (الجداول والدوال والأنواع)
---  لإعادة تشغيل ملفي migrations من البداية.
+--  لإعادة تشغيل ملفات migrations من البداية.
 --  لا يحذف حسابات المستخدمين المسجلة في Authentication.
 --  تحذير: يحذف كل المشاريع والسجلات المدخلة. استخدمه فقط عند الإعداد الأول.
 -- =====================================================================
@@ -24,7 +24,7 @@ begin
         'write_audit', 'notify_user', 'notify_director', 'status_label', 'handle_new_user', 'profiles_guard',
         'projects_stamp', 'projects_audit', 'form_defs_audit', 'form_defs_guard', 'quality_notes_audit',
         'quality_notes_after', 'apply_form_status', 'set_form_status', 'decide_request', 'withdraw_request',
-        'set_engineer', 'set_user_access', 'claim_director')
+        'set_engineer', 'set_user_access', 'claim_director', 'admin_set_email')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;
@@ -32,4 +32,4 @@ end $$;
 
 drop type if exists public.app_role, public.form_status, public.request_state cascade;
 
-select 'تمت إعادة الضبط. شغّل الآن ملفي migrations بالترتيب.' as result;
+select 'تمت إعادة الضبط. شغّل الآن ملفات migrations بالترتيب.' as result;

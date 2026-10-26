@@ -42,7 +42,13 @@ fi
 J=web/manifest.json
 if [ -f "$J" ]; then
   perl -pi -e "s/\"name\": \"[^\"]*\"/\"name\": \"$APP_NAME\"/; s/\"short_name\": \"[^\"]*\"/\"short_name\": \"$APP_NAME\"/" "$J"
-  perl -pi -e 's/"theme_color": "[^"]*"/"theme_color": "#0B4650"/; s/"background_color": "[^"]*"/"background_color": "#EEF2F4"/' "$J"
+  perl -pi -e 's/"theme_color": "[^"]*"/"theme_color": "#8A6A1E"/; s/"background_color": "[^"]*"/"background_color": "#FFFFFF"/' "$J"
+fi
+
+# أيقونة التطبيق من ختم المؤسسة لكل المنصات
+if command -v flutter >/dev/null 2>&1; then
+  flutter pub get >/dev/null
+  dart run flutter_launcher_icons
 fi
 
 echo "تم تجهيز المنصات: android ios web windows"

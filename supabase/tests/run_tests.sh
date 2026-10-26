@@ -7,4 +7,5 @@ psql -h "$H" -p "$PORT" -U postgres -qc "drop database if exists dctest" -c "cre
 $P -d dctest -f "$DIR/tests/00_supabase_shim.sql" 2>&1 | grep -v -e wal_level -e 'Set wal_level' || true
 $P -d dctest -f "$DIR/migrations/20261026000001_schema.sql"
 $P -d dctest -f "$DIR/migrations/20261026000002_import_projects.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261026000003_admin_email.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/10_rules_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
