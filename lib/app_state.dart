@@ -431,6 +431,10 @@ String friendlyError(Object e) {
     if (m.contains('invalid login')) return 'البريد أو كلمة المرور غير صحيحة.';
     if (m.contains('already registered') || m.contains('already been registered')) return 'هذا البريد مسجّل مسبقاً. سجّل الدخول به.';
     if (m.contains('not confirmed')) return 'أكّد بريدك من الرسالة المرسلة إليك، ثم سجّل الدخول.';
+    if (m.contains('signups') || m.contains('signup')) {
+      return 'إنشاء الحسابات متوقف في إعدادات Supabase. على مدير المنظومة تفعيل الدخول بالبريد والسماح بالتسجيل.';
+    }
+    if (m.contains('logins are disabled')) return 'الدخول بالبريد متوقف في إعدادات Supabase. تواصل مع مدير المنظومة.';
     if (m.contains('password')) return 'كلمة المرور قصيرة أو ضعيفة. استخدم 8 أحرف على الأقل.';
     if (m.contains('rate limit')) return 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.';
     return e.message;
