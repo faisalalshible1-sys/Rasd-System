@@ -308,6 +308,12 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- ملفات للحسابات المسجلة قبل تشغيل هذا الملف (إن وُجدت)
+insert into public.profiles (id, email, full_name)
+select u.id, u.email, coalesce(nullif(btrim(u.raw_user_meta_data ->> 'full_name'), ''), '')
+from auth.users u
+on conflict (id) do nothing;
+
 -- منع المستخدم من تغيير أي شيء في ملفه غير الاسم (احتياط إضافي فوق صلاحيات الأعمدة)
 create or replace function public.profiles_guard()
 returns trigger
