@@ -1,0 +1,10 @@
+# إعدادات تحليل الشيفرة (دون اعتماد على حزم إضافية)
+analyzer:
+  exclude:
+    - build/**
+  language:
+    strict-casts: false
+linter:
+  rules:
+    - avoid_print
+    - use_build_context_synchronously

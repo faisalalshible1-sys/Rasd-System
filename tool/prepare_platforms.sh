@@ -14,6 +14,10 @@ done
 if [ -n "$missing" ]; then
   flutter create --project-name dc_app --org ly.sabri.engineering --platforms="${missing#,}" .
 fi
+# حذف ملف الاختبار النموذجي الذي يضيفه flutter create (يشير إلى MyApp غير الموجود)
+if [ -f test/widget_test.dart ] && grep -q "MyApp" test/widget_test.dart; then
+  rm -f test/widget_test.dart
+fi
 
 # أندرويد: إذن الإنترنت لنسخة الإصدار، واسم التطبيق
 M=android/app/src/main/AndroidManifest.xml
