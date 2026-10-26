@@ -1,37 +1,29 @@
-# البناء الآلي لكل المنصات عند كل رفع إلى الفرع main، أو يدوياً من تبويب Actions.
-# قبل أول تشغيل أضف في Settings → Secrets and variables → Actions:
+# البناء الكامل لكل المنصات. يبدأ تلقائياً بعد نجاح الفحص (check) على الفرع main، أو يدوياً من تبويب Actions.
+# لكي يعمل التطبيق المبني، أضف في Settings ← Secrets and variables ← Actions:
 #   SUPABASE_URL       عنوان مشروع Supabase
 #   SUPABASE_ANON_KEY  المفتاح العام (anon أو publishable) — وليس مفتاح service_role
 name: build
 
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: [check]
+    types: [completed]
     branches: [main]
 
-jobs:
-  database-tests:
-    name: اختبار قاعدة البيانات
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash supabase/tests/run_tests.sh localhost 5432
+env:
+  REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
+jobs:
   android:
     name: أندرويد (APK)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.REF }}
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -41,12 +33,15 @@ jobs:
           cache: true
       - run: bash tool/prepare_platforms.sh
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - run: flutter test
-      - run: >-
-          flutter build apk --release
-          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+      - name: flutter build apk
+        shell: bash
+        run: |
+          set +e
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build apk"
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -54,9 +49,12 @@ jobs:
 
   web:
     name: الويب
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.REF }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -74,9 +72,12 @@ jobs:
 
   windows:
     name: ويندوز
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.REF }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -84,10 +85,15 @@ jobs:
       - run: bash tool/prepare_platforms.sh
         shell: bash
       - run: flutter pub get
-      - run: >-
-          flutter build windows --release
-          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+      - name: flutter build windows
+        shell: bash
+        run: |
+          set +e
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build windows"
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -95,19 +101,27 @@ jobs:
 
   ios:
     name: آيفون (غير موقّع)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.REF }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
       - run: bash tool/prepare_platforms.sh
       - run: flutter pub get
-      - run: >-
-          flutter build ios --release --no-codesign
-          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+      - name: flutter build ios
+        shell: bash
+        run: |
+          set +e
+          flutter build ios --release --no-codesign \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build ios"
+          exit $code
       - run: cd build/ios/iphoneos && zip -qr Runner-unsigned.zip Runner.app
       - uses: actions/upload-artifact@v4
         with:

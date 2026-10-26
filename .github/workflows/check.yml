@@ -1,0 +1,64 @@
+# فحص سريع عند كل رفع: تحليل الشيفرة، الاختبارات، اختبار قاعدة البيانات، وتجميع نسخة الويب.
+# عند نجاحه على الفرع main يبدأ البناء الكامل لكل المنصات (build.yml).
+name: check
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  database-tests:
+    name: اختبار قاعدة البيانات
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash supabase/tests/run_tests.sh localhost 5432
+
+  flutter:
+    name: تحليل الشيفرة والاختبارات
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: bash tool/prepare_platforms.sh
+      - name: flutter pub get
+        shell: bash
+        run: |
+          set +e
+          flutter pub get > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "pub get"
+          exit $code
+      - name: flutter analyze
+        shell: bash
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "analyze"
+          exit $code
+      - name: flutter test
+        shell: bash
+        run: |
+          set +e
+          flutter test > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "test"
+          exit $code
+      - name: flutter build web
+        shell: bash
+        run: |
+          set +e
+          flutter build web --release > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build web"
+          exit $code
