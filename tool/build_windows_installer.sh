@@ -11,6 +11,8 @@ if [ ! -f "$ISCC" ]; then
   choco install innosetup -y --no-progress >/dev/null
 fi
 mkdir -p dist
+# منع Git Bash من تحويل المفاتيح /D... إلى مسارات ملفات
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*"
 "$ISCC" /Q \
   "/DAppVersion=$VERSION" \
   "/DSourceDir=$(cygpath -w "$PWD/build/windows/x64/runner/Release")" \
