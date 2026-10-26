@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>نموذج حالات الاستخدام</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@500;600;700&display=swap">
+<style>
+/* Layout: one reading column for an analysis document; diagrams and the permissions matrix break out wider and scroll inside their own frames on phones. */
+:root{
+  --bg:#EEF2F4; --paper:#FFFFFF; --paper-2:#F5F8F9; --ink:#13232E; --muted:#5A6B77; --rule:#D3DCE1;
+  --accent:#0B5C68; --accent-soft:#DAECEE; --accent-ink:#FFFFFF; --band:#0B4650; --band-ink:#FFFFFF; --band-muted:#A9CBD0;
+  --zone-dir:#E3F0F1; --zone-edit:#F3EEE4; --zone-read:#EDF1F4;
+  --ok:#1E7A4C; --ok-soft:#DCEFE4; --wip:#B0690F; --wip-soft:#F7E8D0; --danger:#B4232F; --danger-soft:#F6DDE0;
+  --font-display:"Reem Kufi","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;
+  --font-body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1215; --paper:#141C21; --paper-2:#1A242A; --ink:#E2E9ED; --muted:#91A2AD; --rule:#2A3740;
+  --accent:#5CB6C2; --accent-soft:#15343A; --accent-ink:#04262B; --band:#0E2A30; --band-ink:#E2E9ED; --band-muted:#7FA7AE;
+  --zone-dir:#12292D; --zone-edit:#2A2418; --zone-read:#1A2329;
+  --ok:#4BB57E; --ok-soft:#163226; --wip:#E2A04A; --wip-soft:#3A2913; --danger:#EE6E79; --danger-soft:#3A1C20; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0C1215; --paper:#141C21; --paper-2:#1A242A; --ink:#E2E9ED; --muted:#91A2AD; --rule:#2A3740;
+  --accent:#5CB6C2; --accent-soft:#15343A; --accent-ink:#04262B; --band:#0E2A30; --band-ink:#E2E9ED; --band-muted:#7FA7AE;
+  --zone-dir:#12292D; --zone-edit:#2A2418; --zone-read:#1A2329;
+  --ok:#4BB57E; --ok-soft:#163226; --wip:#E2A04A; --wip-soft:#3A2913; --danger:#EE6E79; --danger-soft:#3A1C20; color-scheme:dark;}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15.5px;line-height:1.75}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.band{background:var(--band);color:var(--band-ink)}
+header.band .wrap{padding-block:28px 26px;display:flex;flex-direction:column;gap:6px}
+.kicker{font-size:12.5px;color:var(--band-muted);font-weight:500}
+h1{margin:0;font-family:var(--font-display);font-weight:600;font-size:clamp(26px,4.4vw,38px);line-height:1.3;text-wrap:balance}
+.lede{margin:0;max-width:70ch;color:var(--band-muted);font-size:15px}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.meta span{font-size:12px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--band-ink) 12%,transparent)}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+nav.toc .wrap::-webkit-scrollbar{display:none}
+nav.toc a{flex:none;font-size:13px;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:8px;white-space:nowrap}
+nav.toc a:hover{background:var(--paper);color:var(--ink)}
+main .wrap{display:flex;flex-direction:column;gap:40px;padding-block:28px 64px}
+section{display:flex;flex-direction:column;gap:14px;scroll-margin-top:60px}
+h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:23px;line-height:1.4;display:flex;align-items:baseline;gap:10px}
+h2 .no{font-family:var(--font-mono);font-size:13px;color:var(--accent);font-weight:600}
+h3{margin:0;font-size:16px;font-weight:700}
+p{margin:0;max-width:72ch}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:14px;padding:18px;min-width:0}
+.figure{background:var(--paper);border:1px solid var(--rule);border-radius:14px;overflow:hidden;min-width:0}
+.figure .scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.figure svg{display:block;width:100%;min-width:900px;height:auto}
+.figure.small svg{min-width:640px}
+.figcap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:1px solid var(--rule);background:var(--paper-2);font-size:13px;color:var(--muted)}
+.figcap b{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:9px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.legend-row{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
+.legend-row span{display:inline-flex;align-items:center;gap:8px}
+.legend-row svg{width:44px;height:14px;overflow:visible}
+
+/* Actor cards */
+.actors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.actor{background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.actor.lead{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.actor .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.actor h3{font-size:15.5px}
+.tag{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.t-pri{background:var(--accent-soft);color:var(--accent)}
+.t-abs{background:var(--paper-2);color:var(--muted);border:1px dashed var(--rule)}
+.t-sec{background:var(--wip-soft);color:var(--wip)}
+.actor p{font-size:14px;color:var(--muted)}
+
+/* Tables */
+.tablewrap{overflow-x:auto;background:var(--paper);border:1px solid var(--rule);border-radius:14px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:10px 12px;text-align:start;vertical-align:top;border-bottom:1px solid var(--rule)}
+thead th{font-size:12px;color:var(--muted);font-weight:600;background:var(--paper-2);white-space:nowrap;position:sticky;top:0}
+tbody tr:last-child td{border-bottom:0}
+td.id{font-family:var(--font-mono);font-weight:600;color:var(--accent);white-space:nowrap;font-size:13px}
+td.name{font-weight:600;min-width:170px}
+td.note{color:var(--muted);font-size:13.5px;min-width:220px}
+.grp td{background:var(--paper-2);font-size:12.5px;font-weight:700;color:var(--muted);padding-block:6px}
+.rel{font-family:var(--font-mono);font-size:11.5px;color:var(--accent);white-space:nowrap}
+
+/* Matrix */
+table.matrix{min-width:820px}
+table.matrix th,table.matrix td{text-align:center;vertical-align:middle;padding:8px 6px}
+table.matrix th:first-child,table.matrix td:first-child{text-align:start;padding-inline-start:14px;position:sticky;right:0;background:var(--paper);z-index:1}
+table.matrix thead th:first-child{background:var(--paper-2);z-index:2}
+table.matrix thead th{white-space:normal;line-height:1.4;min-width:84px;font-size:11.5px}
+.mk{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;font-size:13px;font-weight:700}
+.mk.d{background:var(--ok-soft);color:var(--ok)}
+.mk.a{background:var(--wip-soft);color:var(--wip)}
+.mk.n{color:var(--rule)}
+.stage-row td{background:var(--paper-2)!important;font-weight:700;font-size:12.5px;color:var(--muted);text-align:start!important}
+.sens{font-size:10.5px;font-weight:700;color:var(--wip);border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-inline-start:6px;white-space:nowrap}
+
+/* Flow */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.state{border:1.5px solid var(--rule);background:var(--paper);border-radius:999px;padding:6px 14px;font-weight:600;font-size:14px;white-space:nowrap}
+.state.pending{border-color:var(--wip);color:var(--wip);background:var(--wip-soft)}
+.state.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+.state.no{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.arrow{color:var(--muted);font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.branches{display:flex;flex-direction:column;gap:8px}
+
+/* Specs */
+.spec{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:12px}
+.spec .panel{display:flex;flex-direction:column;gap:10px}
+.spec h3{display:flex;gap:8px;align-items:baseline}
+.spec h3 .mono{color:var(--accent);font-size:13px}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
+dl.kv dt{color:var(--muted);font-size:13px;white-space:nowrap}
+dl.kv dd{margin:0;min-width:0}
+ol.steps{margin:0;padding-inline-start:22px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+ol.steps li::marker{font-family:var(--font-mono);color:var(--accent);font-weight:600}
+.alt{font-size:13.5px;display:flex;flex-direction:column;gap:4px;border-top:1px dashed var(--rule);padding-top:8px}
+.alt b{font-family:var(--font-mono);color:var(--wip);font-size:12.5px}
+
+/* Guarantees */
+.guar{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:10px;counter-reset:g}
+.guar div{background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:14px 16px;font-size:14.5px;display:flex;gap:12px;align-items:flex-start}
+.guar div::before{counter-increment:g;content:counter(g);font-family:var(--font-mono);font-weight:600;color:var(--accent-ink);background:var(--accent);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;flex:none;font-size:13px;margin-top:2px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:.2s;background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:13.5px;pointer-events:none;z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div dir="rtl" lang="ar">
+<header class="band">
+  <div class="wrap">
+    <span class="kicker">مكتب الشؤون الهندسية · لجنة إعادة إعمار منطقة الصابري ووسط البلاد</span>
+    <h1>نموذج حالات الاستخدام لمنظومة متابعة الدورة المستندية</h1>
+    <p class="lede">تحليل الفاعلين وصلاحياتهم ومسار اعتماد النماذج الحساسة، أساساً لبناء التطبيق متعدد المنصات. مدير المكتب هو المسؤول الأول والأخير: لا يدخل أحد إلا بتفعيله، ولا يتغير نموذج حساس إلا بقراره.</p>
+    <div class="meta"><span>Flutter</span><span>Supabase</span><span>أندرويد · آيفون · ويندوز · الويب</span><span>الإصدار 1.0 · أكتوبر 2026</span></div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="المحتويات"><div class="wrap">
+  <a href="#actors">الفاعلون</a><a href="#diagram">مخطط حالات الاستخدام</a><a href="#catalog">فهرس الحالات</a><a href="#matrix">مصفوفة صلاحيات النماذج</a><a href="#approval">مسار الاعتماد</a><a href="#specs">الأوصاف التفصيلية</a><a href="#rules">ضمانات المسؤولية</a>
+</div></nav>
+
+<main><div class="wrap">
+
+<section id="actors">
+  <h2><span class="no">1</span>الفاعلون</h2>
+  <div class="actors">
+    <div class="actor lead"><div class="top"><h3>مدير المكتب</h3><span class="tag t-pri">أساسي · صلاحية كاملة</span></div>
+      <p>المسؤول الأول والأخير. يملك حساب Supabase، يفعّل المستخدمين ويحدد أدوارهم، يضبط صلاحيات النماذج، يعتمد الطلبات أو يرفضها، ويحذف المشاريع. تعديلاته تُنفَّذ مباشرة.</p></div>
+    <div class="actor"><div class="top"><h3>موظف مكتب المدير</h3><span class="tag t-pri">أساسي</span></div>
+      <p>يضيف المشاريع ويعدّل بياناتها ويحدّث حالات النماذج كلها. تغييرات النماذج الحساسة ترفع طلباً لاعتماد المدير.</p></div>
+    <div class="actor"><div class="top"><h3>رئيس القسم</h3><span class="tag t-pri">أساسي</span></div>
+      <p>الإشراف والتنسيق، الشؤون الفنية، الترميم، المطابقة والاستلام. يحدّث نماذج اختصاص قسمه فقط، كما في مصفوفة الصلاحيات.</p></div>
+    <div class="actor"><div class="top"><h3>مكتب العقود والتوريدات والمستخلصات</h3><span class="tag t-pri">أساسي</span></div>
+      <p>يحدّث نماذج التعاقد والمستخلصات المالية وإقفال العقد.</p></div>
+    <div class="actor"><div class="top"><h3>مكتب التخطيط والتقييم وضمان الجودة</h3><span class="tag t-pri">أساسي · اطلاع</span></div>
+      <p>يطّلع على المؤشرات والتحليل ويصدّر التقارير، ويسجّل ملاحظات التقييم والجودة على المشاريع، دون تعديل حالات النماذج.</p></div>
+    <div class="actor"><div class="top"><h3>مستخدم المنظومة · محرّر النماذج</h3><span class="tag t-abs">فاعلان مجرّدان</span></div>
+      <p>تجميع للفاعلين يختصر المخطط: كل الفاعلين يرثون «مستخدم المنظومة»، ومن يحدّث النماذج يرث «محرّر النماذج» (الشكل 1).</p></div>
+    <div class="actor"><div class="top"><h3>Supabase</h3><span class="tag t-sec">ثانوي · نظام خارجي</span></div>
+      <p>المصادقة وتخزين البيانات، وتطبيق قواعد الصلاحيات داخل قاعدة البيانات نفسها.</p></div>
+  </div>
+</section>
+
+<section id="diagram">
+  <h2><span class="no">2</span>مخطط حالات الاستخدام</h2>
+  <div class="legend-row" aria-label="مفتاح الرموز">
+    <span><svg viewBox="0 0 44 14"><line x1="2" y1="7" x2="42" y2="7" stroke="var(--ink)" stroke-width="1.4"/></svg>ارتباط</span>
+    <span><svg viewBox="0 0 44 14"><line x1="42" y1="7" x2="8" y2="7" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="5 4"/><path d="M10 2 L2 7 L10 12" fill="none" stroke="var(--accent)" stroke-width="1.3"/></svg>«تضمين» / «توسيع»</span>
+    <span><svg viewBox="0 0 44 14"><line x1="42" y1="7" x2="12" y2="7" stroke="var(--ink)" stroke-width="1.4"/><path d="M12 1 L2 7 L12 13 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4"/></svg>تعميم (وراثة)</span>
+  </div>
+  <figure class="figure small" style="margin:0">
+    <div class="scroller" id="fig1"></div>
+    <figcaption class="figcap"><span><b>الشكل 1.</b> هرمية الفاعلين: كل فاعل يرث حالات الاستخدام المرتبطة بالفاعل الأعلى منه.</span>
+      <button class="btn" data-dl="fig1" hidden><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>تنزيل PNG</button></figcaption>
+  </figure>
+  <figure class="figure" style="margin:0">
+    <div class="scroller" id="fig2"></div>
+    <figcaption class="figcap"><span><b>الشكل 2.</b> حالات الاستخدام داخل حدود المنظومة، مجمّعة حسب من يملك الصلاحية.</span>
+      <button class="btn" data-dl="fig2" hidden><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>تنزيل PNG</button></figcaption>
+  </figure>
+</section>
+
+<section id="catalog">
+  <h2><span class="no">3</span>فهرس حالات الاستخدام</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>الرقم</th><th>حالة الاستخدام</th><th>الفاعلون</th><th>العلاقات والقواعد</th></tr></thead>
+    <tbody id="catalog-body"></tbody>
+  </table></div>
+</section>
+
+<section id="matrix">
+  <h2><span class="no">4</span>مصفوفة صلاحيات النماذج</h2>
+  <p class="muted">التوزيع الافتراضي عند تشغيل المنظومة. يعدّله المدير من شاشة الإدارة دون تغيير في البرمجة (UC-17). النماذج الموسومة «حساس» هي نماذج المستخلصات والاستلام والإقفال.</p>
+  <div class="legend-row">
+    <span><i class="mk d">●</i>تحديث مباشر</span>
+    <span><i class="mk a">◐</i>يرفع طلب اعتماد للمدير</span>
+    <span><i class="mk n">—</i>اطلاع فقط</span>
+  </div>
+  <div class="tablewrap"><table class="matrix" id="matrix-table"></table></div>
+  <p class="muted" style="font-size:13.5px">«القسم المشرف» هو القسم المسند إليه المشروع: الإشراف والتنسيق، أو الترميم لمشاريع الترميم. يُحدَّد في بيانات كل مشروع.</p>
+</section>
+
+<section id="approval">
+  <h2><span class="no">5</span>مسار اعتماد النماذج الحساسة</h2>
+  <div class="panel" style="display:flex;flex-direction:column;gap:14px">
+    <div class="flow">
+      <span class="state">طلب تغيير حالة نموذج حساس</span><span class="arrow">←</span>
+      <span class="state pending">معلّق</span><span class="arrow">←</span>
+      <div class="branches">
+        <div class="flow"><span class="arrow">اعتماد المدير</span><span class="state ok">معتمد</span><span class="arrow">تُطبَّق الحالة الجديدة وتُسجَّل</span></div>
+        <div class="flow"><span class="arrow">رفض مع ذكر السبب</span><span class="state no">مرفوض</span><span class="arrow">تبقى الحالة كما هي</span></div>
+        <div class="flow"><span class="arrow">سحب من مقدّم الطلب</span><span class="state">مسحوب</span><span class="arrow">يُغلق الطلب</span></div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:14px">أثناء التعليق تبقى حالة النموذج دون تغيير، ويظهر على النموذج وسم «بانتظار الاعتماد». لا يُقبل طلب ثانٍ للنموذج نفسه في المشروع نفسه حتى يُبتّ في الأول. تعديلات المدير على أي نموذج تُنفَّذ مباشرة دون طلب.</p>
+  </div>
+</section>
+
+<section id="specs">
+  <h2><span class="no">6</span>الأوصاف التفصيلية</h2>
+  <div class="spec">
+    <div class="panel">
+      <h3><span class="mono">UC-07</span>تحديث حالة نموذج</h3>
+      <dl class="kv"><dt>الفاعل</dt><dd>محرّر النماذج، ومنه المدير</dd><dt>شرط مسبق</dt><dd>مستخدم مفعّل ومسجّل الدخول</dd><dt>شرط لاحق</dt><dd>الحالة محفوظة ومسجّلة، أو طلب معلّق بانتظار المدير</dd></dl>
+      <ol class="steps">
+        <li>يفتح المستخدم المشروع ويختار حالة جديدة لنموذج: مكتمل، قيد الإجراء، لم يتم، لا ينطبق.</li>
+        <li>تتحقق قاعدة البيانات من أن النموذج ضمن اختصاص المستخدم في هذا المشروع.</li>
+        <li>النموذج غير حساس، أو المستخدم هو المدير: تُحفظ الحالة.</li>
+        <li>يعيد النظام حساب نسبة الإنجاز والمرحلة الحالية والمستند التالي.</li>
+        <li>يُسجَّل التعديل في سجل التدقيق باسم المستخدم ووقته (UC-13).</li>
+      </ol>
+      <div class="alt">
+        <span><b>2أ</b> النموذج خارج اختصاص المستخدم: يُرفض التعديل وتُعرض الجهة المختصة.</span>
+        <span><b>3أ</b> النموذج حساس والمستخدم ليس المدير: يُنفَّذ UC-08 وتبقى الحالة كما هي حتى القرار.</span>
+        <span><b>3ب</b> يوجد طلب معلّق للنموذج نفسه: يُعرض الطلب القائم ولا يُقبل طلب ثانٍ.</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="mono">UC-15</span>البتّ في طلبات الاعتماد</h3>
+      <dl class="kv"><dt>الفاعل</dt><dd>مدير المكتب وحده</dd><dt>شرط مسبق</dt><dd>وجود طلب معلّق</dd><dt>شرط لاحق</dt><dd>لا يتغير نموذج حساس دون قرار المدير</dd></dl>
+      <ol class="steps">
+        <li>يفتح المدير صندوق الطلبات؛ عدد المعلّق ظاهر على أيقونته.</li>
+        <li>يطّلع على الطلب: المشروع، النموذج، الحالة الحالية والمطلوبة، مقدّم الطلب وملاحظته.</li>
+        <li>يعتمد الطلب.</li>
+        <li>تُطبَّق الحالة الجديدة وتُسجَّل باسم مقدّم الطلب مع اعتماد المدير.</li>
+        <li>يُشعَر مقدّم الطلب بالقرار (UC-14).</li>
+      </ol>
+      <div class="alt">
+        <span><b>3أ</b> يرفض المدير ويكتب السبب: تبقى الحالة كما هي ويصل السبب لمقدّم الطلب.</span>
+        <span><b>3ب</b> سحب مقدّم الطلب طلبه قبل القرار: يُغلق الطلب ويختفي من الصندوق.</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span class="mono">UC-16</span>إدارة المستخدمين والأدوار</h3>
+      <dl class="kv"><dt>الفاعل</dt><dd>مدير المكتب وحده</dd><dt>شرط مسبق</dt><dd>مستخدم أنشأ حساباً من التطبيق</dd><dt>شرط لاحق</dt><dd>المستخدم مفعّل بدور محدد، أو موقوف</dd></dl>
+      <ol class="steps">
+        <li>ينشئ الموظف حساباً بالبريد وكلمة المرور، فيظهر له «بانتظار التفعيل».</li>
+        <li>يظهر الحساب في قائمة «بانتظار التفعيل» لدى المدير.</li>
+        <li>يختار المدير الدور، والقسم لرئيس القسم، ثم يفعّل الحساب.</li>
+        <li>يدخل المستخدم بصلاحيات دوره فوراً.</li>
+      </ol>
+      <div class="alt">
+        <span><b>3أ</b> إيقاف مستخدم: يفقد الوصول فوراً ويبقى اسمه في سجل التدقيق.</span>
+        <span><b>3ب</b> دور «مدير المكتب» لا يظهر في قائمة الأدوار، فلا يُمنح لأحد من داخل التطبيق.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="rules">
+  <h2><span class="no">7</span>ضمانات «المسؤول الأول والأخير»</h2>
+  <p class="muted">هذه القواعد مفروضة داخل قاعدة البيانات، فتسري على أندرويد وآيفون وويندوز والويب بالقدر نفسه، ولا يمكن تجاوزها بتعديل التطبيق.</p>
+  <div class="guar">
+    <div>دور «مدير المكتب» واحد فقط، يُمنح مرة واحدة لحسابك عند الإعداد، ولا يستطيع أي مستخدم منحه أو سحبه.</div>
+    <div>لا يدخل أحد المنظومة إلا بعد أن تفعّل حسابه وتحدد دوره، ويمكنك إيقافه في أي وقت.</div>
+    <div>النماذج الحساسة لا تتغير إلا بقرارك، وكل قرار مسجّل مع سببه.</div>
+    <div>حذف المشاريع وتغيير صلاحيات النماذج حصريان لك.</div>
+    <div>سجل التدقيق لا يُعدّل ولا يُحذف، ويظهر لك كاملاً: من غيّر ماذا ومتى.</div>
+    <div>حساب Supabase باسمك، وأنت وحدك تملك مفتاح الخدمة والنسخ الاحتياطية.</div>
+  </div>
+</section>
+
+</div></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+document.documentElement.lang = "ar"; document.documentElement.dir = "rtl";
+
+/* ---------- Catalogue ---------- */
+const UCS = [
+  {g:"المتابعة والاستعلام"},
+  {id:"UC-01", n:"تسجيل الدخول", a:"جميع المستخدمين، Supabase", r:"الحساب الجديد يبقى «بانتظار التفعيل» حتى يفعّله المدير (UC-16)."},
+  {id:"UC-02", n:"عرض لوحة المؤشرات", a:"مستخدم المنظومة", r:"تصفية حسب مالك المشروع والشركة المنفذة."},
+  {id:"UC-03", n:"البحث والاستعلام عن المشاريع", a:"مستخدم المنظومة", r:"برقم التكليف أو الاسم أو الشركة أو المهندس، مع تصفية بحالة الدورة والمرحلة والنموذج."},
+  {id:"UC-04", n:"عرض المشروع وسجل تعديلاته", a:"مستخدم المنظومة", r:"حالة كل نموذج، المستند التالي، ومن عدّل ماذا ومتى."},
+  {id:"UC-05", n:"تصدير التقارير", a:"مستخدم المنظومة", r:"ملف Excel بالسجل وفق التصفية الحالية."},
+  {id:"UC-06", n:"تسجيل ملاحظة تقييم وجودة", a:"مكتب التخطيط والتقييم وضمان الجودة، المدير", r:"تظهر في صفحة المشروع باسم كاتبها وتاريخها."},
+  {g:"إدارة المشاريع والنماذج"},
+  {id:"UC-07", n:"تحديث حالة نموذج", a:"محرّر النماذج", rel:"«تضمين» UC-13", r:"يُقبل فقط إذا كان النموذج ضمن اختصاص المستخدم (القسم 4)."},
+  {id:"UC-08", n:"تقديم طلب اعتماد", a:"محرّر النماذج", rel:"«توسيع» UC-07 · «تضمين» UC-14", r:"يحدث عندما يكون النموذج حساساً والمستخدم ليس المدير."},
+  {id:"UC-09", n:"متابعة طلباتي", a:"محرّر النماذج", r:"عرض حالة كل طلب، وسحبه ما دام معلّقاً."},
+  {id:"UC-10", n:"إسناد المهندسين للمشروع", a:"محرّر النماذج", r:"أسماء المشرف والحصر والمتابعة والسلامة، لمن يختص بنموذج التكليف المقابل."},
+  {id:"UC-11", n:"إضافة مشروع", a:"موظف مكتب المدير", rel:"«تضمين» UC-13", r:"رقم التكليف فريد، والقسم المشرف إلزامي."},
+  {id:"UC-12", n:"تعديل بيانات المشروع", a:"موظف مكتب المدير", rel:"«تضمين» UC-13", r:"الرقم، الرمز، الاسم، المالك، الشركة، القسم المشرف."},
+  {id:"UC-13", n:"تسجيل التعديل في سجل التدقيق", a:"داخلي", r:"يُنفَّذ تلقائياً مع كل تعديل؛ لا يُعدَّل ولا يُحذف."},
+  {id:"UC-14", n:"إرسال إشعار", a:"داخلي", r:"للمدير عند طلب جديد، ولمقدّم الطلب عند القرار."},
+  {g:"التحكم والاعتماد · حصري لمدير المكتب"},
+  {id:"UC-15", n:"البتّ في طلبات الاعتماد", a:"مدير المكتب", rel:"«تضمين» UC-14", r:"اعتماد يطبّق الحالة فوراً، أو رفض مع ذكر السبب."},
+  {id:"UC-16", n:"إدارة المستخدمين والأدوار", a:"مدير المكتب", r:"تفعيل الحسابات، تعيين الدور والقسم، الإيقاف."},
+  {id:"UC-17", n:"ضبط صلاحيات النماذج", a:"مدير المكتب", r:"من يحدّث كل نموذج، وأي النماذج حساسة."},
+  {id:"UC-18", n:"حذف مشروع", a:"مدير المكتب", r:"يُحفظ أثر الحذف في سجل التدقيق."},
+  {id:"UC-19", n:"مراجعة سجل التدقيق الكامل", a:"مدير المكتب", r:"تصفية حسب المستخدم ونوع العملية، مع البحث باسم المشروع أو المحتوى."}
+];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+document.getElementById("catalog-body").innerHTML = UCS.map(u => u.g
+  ? `<tr class="grp"><td colspan="4">${esc(u.g)}</td></tr>`
+  : `<tr><td class="id">${u.id}</td><td class="name">${esc(u.n)}</td><td>${esc(u.a)}</td><td class="note">${u.rel?`<span class="rel">${esc(u.rel)}</span><br>`:""}${esc(u.r)}</td></tr>`).join("");
+
+/* ---------- Matrix ---------- */
+const COLS = ["مدير المكتب","موظف مكتب المدير","رئيس القسم المشرف","رئيس قسم الشؤون الفنية","رئيس قسم المطابقة والاستلام","مكتب العقود والتوريدات والمستخلصات","مكتب التخطيط والتقييم وضمان الجودة"];
+// columns: 0 dir, 1 staff, 2 supervising head, 3 technical head, 4 acceptance head, 5 contracts, 6 planning
+const FORMS = [
+  ["التعاقد"],
+  ["أمر تعاقد",0,[1,5]],["أمر عمل",0,[1,5]],["نموذج عقد أشغال عامة",0,[1,5]],
+  ["تكليف المهندسين"],
+  ["تكليف مهندس مشرف",0,[1,2]],["تكليف مهندس حصر",0,[1,3]],["تكليف مهندس متابعة",0,[1,2]],["تكليف مهندس سلامة",0,[1,2]],
+  ["بدء التنفيذ"],
+  ["محضر تسليم واستلام موقع",0,[1,2]],["تصريح عمل",0,[1,2]],
+  ["المستخلصات"],
+  ["ورقة قياس مستخلص نموذج أ",1,[1,2]],["ورقة قياس مستخلص نموذج ب",1,[1,2]],["كشف حصر مستخلص",1,[1,3]],
+  ["شهادة دفع مستخلص",1,[1,5]],["مستند مستخلص جاري",1,[1,5]],["مستند مستخلص ختامي",1,[1,5]],
+  ["الاستلام والإقفال"],
+  ["محضر استلام ابتدائي",1,[1,4]],["محضر استلام نهائي",1,[1,4]],["إقفال عقد",1,[1,5]]
+];
+let mh = `<thead><tr><th>النموذج</th>${COLS.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>`;
+let stageNo = 0;
+for (const f of FORMS){
+  if (f.length===1){ stageNo++; mh += `<tr class="stage-row"><td colspan="${COLS.length+1}">${stageNo}. ${esc(f[0])}</td></tr>`; continue; }
+  const [name, sens, who] = f;
+  mh += `<tr><td>${esc(name)}${sens?`<span class="sens">حساس</span>`:""}</td>` + COLS.map((c,i) => {
+    if (i===0) return `<td><i class="mk d" title="تحديث مباشر">●</i></td>`;
+    if (who.includes(i)) return sens ? `<td><i class="mk a" title="يرفع طلب اعتماد">◐</i></td>` : `<td><i class="mk d" title="تحديث مباشر">●</i></td>`;
+    return `<td><i class="mk n" title="اطلاع فقط">—</i></td>`;
+  }).join("") + `</tr>`;
+}
+document.getElementById("matrix-table").innerHTML = mh + `</tbody>`;
+
+/* ---------- Diagram engine ---------- */
+const PRINT = {ink:"#13232E", muted:"#5A6B77", rule:"#C9D3D9", paper:"#FFFFFF", accent:"#0B5C68", accentSoft:"#DAECEE",
+  zoneDir:"#E3F0F1", zoneEdit:"#F3EEE4", zoneRead:"#EDF1F4", wip:"#B0690F", font:"Tahoma, 'Segoe UI', Arial, sans-serif"};
+const SCREEN = {ink:"var(--ink)", muted:"var(--muted)", rule:"var(--rule)", paper:"var(--paper)", accent:"var(--accent)", accentSoft:"var(--accent-soft)",
+  zoneDir:"var(--zone-dir)", zoneEdit:"var(--zone-edit)", zoneRead:"var(--zone-read)", wip:"var(--wip)", font:"var(--font-body)"};
+
+function ellipsePoint(u, tx, ty){ const dx=tx-u.x, dy=ty-u.y; const t=1/Math.sqrt((dx/u.rx)**2+(dy/u.ry)**2); return [u.x+dx*t, u.y+dy*t]; }
+function actorPoint(a, tx, ty){ const cx=a.x, cy=a.y-4; const dx=tx-cx, dy=ty-cy, d=Math.hypot(dx,dy)||1; const r=a.r||30; return [cx+dx/d*r, cy+dy/d*r]; }
+function boxPoint(b, tx, ty){ const dx=tx-b.x, dy=ty-b.y; const sx=b.w/2/Math.abs(dx||1e-6), sy=b.h/2/Math.abs(dy||1e-6); const s=Math.min(sx,sy); return [b.x+dx*s, b.y+dy*s]; }
+function nodePoint(n, tx, ty){ return n.kind==="uc" ? ellipsePoint(n,tx,ty) : n.kind==="box" ? boxPoint(n,tx,ty) : actorPoint(n,tx,ty); }
+
+function svgText(x, y, lines, cls, size, weight){
+  const lh = size*1.32; const y0 = y - (lines.length-1)*lh/2;
+  return `<text x="${x}" y="${y0}" class="${cls}" font-size="${size}" ${weight?`font-weight="${weight}"`:""} text-anchor="middle" dominant-baseline="central" direction="rtl">` +
+    lines.map((l,i)=>`<tspan x="${x}" ${i?`dy="${lh}"`:""}>${esc(l)}</tspan>`).join("") + `</text>`;
+}
+function drawActor(a){
+  const {x,y} = a; const c = a.lead ? "c-accent" : "c-ink";
+  let s = `<g class="actor ${c}" fill="none" stroke-width="${a.lead?2.2:1.6}" stroke-linecap="round">
+    <circle cx="${x}" cy="${y-30}" r="11" class="fill-paper"/>
+    <line x1="${x}" y1="${y-19}" x2="${x}" y2="${y+8}"/><line x1="${x-17}" y1="${y-9}" x2="${x+17}" y2="${y-9}"/>
+    <line x1="${x}" y1="${y+8}" x2="${x-14}" y2="${y+30}"/><line x1="${x}" y1="${y+8}" x2="${x+14}" y2="${y+30}"/></g>`;
+  if (a.stereo) s += svgText(x, y+46, [a.stereo], "t-muted", 11.5);
+  s += svgText(x, y + (a.stereo?66:50) + (a.name.length-1)*9, a.name, a.lead?"t-accent":"t-ink", 13.5, 700);
+  return s;
+}
+function drawBox(b){
+  return `<rect x="${b.x-b.w/2}" y="${b.y-b.h/2}" width="${b.w}" height="${b.h}" rx="6" class="fill-paper s-ink" stroke-width="1.4"/>` +
+    svgText(b.x, b.y-11, ["«نظام خارجي»"], "t-muted", 11) + svgText(b.x, b.y+10, b.name, "t-ink", 14, 700);
+}
+function drawUC(u){
+  const lead = u.lead;
+  return `<ellipse cx="${u.x}" cy="${u.y}" rx="${u.rx}" ry="${u.ry}" class="${lead?"fill-accentSoft s-accent":"fill-paper s-ink"}" stroke-width="${lead?1.6:1.2}"/>` +
+    svgText(u.x, u.y - u.ry + 12, [u.id], "t-accent mono", 10.5, 600) +
+    svgText(u.x, u.y + 5, u.t, "t-ink", 13, 500);
+}
+function arrowHead(x2,y2,x1,y1,open){ // tip at x2,y2 pointing from x1,y1
+  const a=Math.atan2(y2-y1,x2-x1), L=open?10:13, w=open?0.45:0.5;
+  const p1=[x2-L*Math.cos(a-w), y2-L*Math.sin(a-w)], p2=[x2-L*Math.cos(a+w), y2-L*Math.sin(a+w)];
+  return open ? `<path d="M${p1} L${x2},${y2} L${p2}" fill="none" class="s-accent" stroke-width="1.3"/>`
+              : `<path d="M${p1} L${x2},${y2} L${p2} Z" class="fill-paper s-ink" stroke-width="1.4"/>`;
+}
+function drawEdge(e, N){
+  const A=N[e.from], B=N[e.to];
+  const [x1,y1] = nodePoint(A, B.x, B.y); const [x2,y2] = nodePoint(B, A.x, A.y);
+  if (e.type==="assoc") return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="s-${e.lead?"accent":"ink"}" stroke-width="${e.lead?1.5:1.2}"/>`;
+  if (e.type==="gen"){ const a=Math.atan2(y2-y1,x2-x1); const bx=x2-12*Math.cos(a), by=y2-12*Math.sin(a);
+    return `<line x1="${x1}" y1="${y1}" x2="${bx}" y2="${by}" class="s-ink" stroke-width="1.4"/>` + arrowHead(x2,y2,x1,y1,false); }
+  // include / extend: dashed, open arrow, label
+  const mx=(x1+x2)/2+(e.dx||0), my=(y1+y2)/2+(e.dy||0);
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="s-accent" stroke-width="1.3" stroke-dasharray="6 4"/>` + arrowHead(x2,y2,x1,y1,true) +
+    `<text x="${mx}" y="${my}" class="t-accent halo" font-size="11.5" font-style="italic" text-anchor="middle" dominant-baseline="central">${e.type==="include"?"«include»":"«extend»"}</text>` +
+    (e.cond ? `<text x="${mx}" y="${my+15}" class="t-muted halo" font-size="10.5" text-anchor="middle" dominant-baseline="central" direction="rtl">${esc(e.cond)}</text>` : "");
+}
+function styleBlock(P){
+  return `<style>
+    .c-ink{stroke:${P.ink}} .c-accent{stroke:${P.accent}} .fill-paper{fill:${P.paper}} .fill-accentSoft{fill:${P.accentSoft}}
+    .s-ink{stroke:${P.ink}} .s-accent{stroke:${P.accent}} .s-rule{stroke:${P.rule}}
+    .t-ink{fill:${P.ink}} .t-muted{fill:${P.muted}} .t-accent{fill:${P.accent}} .t-wip{fill:${P.wip}}
+    text{font-family:${P.font}} .mono{font-family:"IBM Plex Mono",Menlo,Consolas,monospace}
+    .halo{paint-order:stroke;stroke:${P.paper};stroke-width:5px;stroke-linejoin:round}
+    .z-dir{fill:${P.zoneDir}} .z-edit{fill:${P.zoneEdit}} .z-read{fill:${P.zoneRead}}
+  </style>`;
+}
+function buildSVG(spec, P){
+  const N = {}; spec.nodes.forEach(n => N[n.key]=n);
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${spec.w} ${spec.h}" role="img" aria-label="${esc(spec.label)}">${styleBlock(P)}`;
+  s += `<rect x="0" y="0" width="${spec.w}" height="${spec.h}" class="fill-paper"/>`;
+  (spec.pre||[]).forEach(f => s += f(P));
+  spec.edges.forEach(e => s += drawEdge(e, N));
+  spec.nodes.forEach(n => s += n.kind==="uc" ? drawUC(n) : n.kind==="box" ? drawBox(n) : drawActor(n));
+  (spec.post||[]).forEach(f => s += f(P));
+  return s + `</svg>`;
+}
+
+/* ---------- Figure 1: actor hierarchy ---------- */
+const FIG1 = { w:980, h:520, label:"هرمية الفاعلين",
+  nodes:[
+    {key:"user", kind:"actor", x:490, y:70, name:["مستخدم المنظومة"], stereo:"«مجرّد»"},
+    {key:"qa", kind:"actor", x:780, y:250, name:["مكتب التخطيط والتقييم","وضمان الجودة"]},
+    {key:"editor", kind:"actor", x:330, y:250, name:["محرّر النماذج"], stereo:"«مجرّد»"},
+    {key:"dir", kind:"actor", x:640, y:430, name:["مدير المكتب"], lead:true},
+    {key:"staff", kind:"actor", x:450, y:430, name:["موظف مكتب المدير"]},
+    {key:"head", kind:"actor", x:260, y:430, name:["رئيس القسم"]},
+    {key:"contracts", kind:"actor", x:80, y:430, name:["مكتب العقود والتوريدات","والمستخلصات"]}
+  ].map(n => ({...n, r:34})),
+  edges:[
+    {from:"qa", to:"user", type:"gen"}, {from:"editor", to:"user", type:"gen"},
+    {from:"dir", to:"editor", type:"gen"}, {from:"staff", to:"editor", type:"gen"}, {from:"head", to:"editor", type:"gen"}, {from:"contracts", to:"editor", type:"gen"}
+  ]
+};
+// Make generalization arrows leave from the top of the child and hit the bottom of the parent's label block
+FIG1.nodes.forEach(n => { n.kind="actor"; });
+function fig1Edges(P){
+  const N={}; FIG1.nodes.forEach(n=>N[n.key]=n);
+  let s="";
+  FIG1.edges.forEach(e => {
+    const A=N[e.from], B=N[e.to];
+    const x1=A.x, y1=A.y-46;                     // above child's head
+    const bottom = B.y + (B.stereo?66:50) + (B.name.length-1)*18 + 14; // below parent's label
+    const x2=B.x + (A.x-B.x)*0.18, y2=bottom;
+    const a=Math.atan2(y2-y1,x2-x1); const bx=x2-12*Math.cos(a), by=y2-12*Math.sin(a);
+    s += `<line x1="${x1}" y1="${y1}" x2="${bx}" y2="${by}" class="s-ink" stroke-width="1.4"/>` + arrowHead(x2,y2,x1,y1,false);
+  });
+  return s;
+}
+const FIG1_SPEC = {...FIG1, edges:[], pre:[fig1Edges]};
+// Mirror for RTL reading? Keep the parent to the right of its children only where natural: the QA office sits right, editors left.
+
+/* ---------- Figure 2: use cases ---------- */
+const UCX = {read:395, mid:690, right:1000};
+const RX = 108, RY = 31;
+const uc = (id, t, x, y, extra={}) => ({key:id, kind:"uc", id, t, x, y, rx:extra.rx||RX, ry:RY, ...extra});
+const FIG2 = { w:1400, h:1000, label:"مخطط حالات الاستخدام",
+  nodes:[
+    {key:"dir", kind:"actor", x:1300, y:284, name:["مدير المكتب"], lead:true},
+    {key:"editor", kind:"actor", x:1300, y:632, name:["محرّر النماذج"], stereo:"«مجرّد»"},
+    {key:"staff", kind:"actor", x:1300, y:842, name:["موظف مكتب المدير"]},
+    {key:"supa", kind:"box", x:115, y:126, w:150, h:58, name:["Supabase"]},
+    {key:"user", kind:"actor", x:115, y:300, name:["مستخدم المنظومة"], stereo:"«مجرّد»"},
+    {key:"qa", kind:"actor", x:115, y:600, name:["مكتب التخطيط والتقييم","وضمان الجودة"]},
+    uc("UC-15", ["البتّ في طلبات الاعتماد"], UCX.right, 140, {lead:true}),
+    uc("UC-16", ["إدارة المستخدمين والأدوار"], UCX.right, 212, {lead:true}),
+    uc("UC-17", ["ضبط صلاحيات النماذج"], UCX.right, 284, {lead:true}),
+    uc("UC-18", ["حذف مشروع"], UCX.right, 356, {lead:true}),
+    uc("UC-19", ["مراجعة سجل التدقيق الكامل"], UCX.right, 428, {lead:true}),
+    uc("UC-07", ["تحديث حالة نموذج"], UCX.right, 560),
+    uc("UC-09", ["متابعة طلباتي"], UCX.right, 632),
+    uc("UC-10", ["إسناد المهندسين للمشروع"], UCX.right, 704),
+    uc("UC-11", ["إضافة مشروع"], UCX.right, 806),
+    uc("UC-12", ["تعديل بيانات المشروع"], UCX.right, 878),
+    uc("UC-14", ["إرسال إشعار"], UCX.mid, 300),
+    uc("UC-08", ["تقديم طلب اعتماد"], UCX.mid, 600),
+    uc("UC-13", ["تسجيل التعديل","في سجل التدقيق"], UCX.mid, 775, {ry:36}),
+    uc("UC-01", ["تسجيل الدخول"], UCX.read, 140),
+    uc("UC-02", ["عرض لوحة المؤشرات"], UCX.read, 212),
+    uc("UC-03", ["البحث والاستعلام عن المشاريع"], UCX.read, 284),
+    uc("UC-04", ["عرض المشروع وسجل تعديلاته"], UCX.read, 356),
+    uc("UC-05", ["تصدير التقارير"], UCX.read, 428),
+    uc("UC-06", ["تسجيل ملاحظة تقييم وجودة"], UCX.read, 600)
+  ],
+  edges:[
+    ...["UC-15","UC-16","UC-17","UC-18","UC-19"].map(t => ({from:"dir", to:t, type:"assoc", lead:true})),
+    ...["UC-07","UC-09","UC-10"].map(t => ({from:"editor", to:t, type:"assoc"})),
+    ...["UC-11","UC-12"].map(t => ({from:"staff", to:t, type:"assoc"})),
+    ...["UC-01","UC-02","UC-03","UC-04","UC-05"].map(t => ({from:"user", to:t, type:"assoc"})),
+    {from:"qa", to:"UC-06", type:"assoc"},
+    {from:"supa", to:"UC-01", type:"assoc"},
+    {from:"UC-08", to:"UC-07", type:"extend", dy:-14},
+    {from:"UC-08", to:"UC-14", type:"include"},
+    {from:"UC-15", to:"UC-14", type:"include", dx:-8, dy:-8},
+    {from:"UC-07", to:"UC-13", type:"include", dy:10},
+    {from:"UC-11", to:"UC-13", type:"include", dy:-9},
+    {from:"UC-12", to:"UC-13", type:"include", dy:9}
+  ],
+  pre:[P => `
+    <rect x="236" y="22" width="958" height="958" rx="10" fill="none" class="s-ink" stroke-width="1.6"/>
+    ${svgText(715, 52, ["منظومة متابعة نماذج الدورة المستندية للمشاريع"], "t-ink", 16, 700)}
+    <rect x="872" y="78" width="256" height="394" rx="12" class="z-dir"/>
+    ${svgText(1000, 94, ["حصري لمدير المكتب"], "t-accent", 11.5, 700)}
+    <rect x="872" y="490" width="256" height="440" rx="12" class="z-edit"/>
+    ${svgText(1000, 506, ["إدارة المشاريع والنماذج"], "t-wip", 11.5, 700)}
+    <rect x="270" y="78" width="250" height="582" rx="12" class="z-read"/>
+    ${svgText(395, 94, ["المتابعة والاستعلام"], "t-muted", 11.5, 700)}
+  `],
+  post:[P => `
+    <line x1="806" y1="664" x2="842" y2="584" class="s-rule" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <path d="M576 664 H794 L806 676 V712 H576 Z" class="fill-paper s-ink" stroke-width="1"/>
+    <path d="M794 664 V676 H806" fill="none" class="s-ink" stroke-width="1"/>
+    ${svgText(691, 688, ["شرط التوسيع: نموذج حساس","والمستخدم ليس المدير"], "t-muted", 11.5)}
+  `]
+};
+
+function render(){
+  document.getElementById("fig1").innerHTML = buildSVG(FIG1_SPEC, SCREEN);
+  document.getElementById("fig2").innerHTML = buildSVG(FIG2, SCREEN);
+}
+render();
+
+/* ---------- Export ---------- */
+let toastT; function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2400); }
+async function toPNG(spec){
+  const svg = buildSVG(spec, PRINT);
+  const url = URL.createObjectURL(new Blob([svg], {type:"image/svg+xml"}));
+  try {
+    const img = new Image(); img.decoding = "sync";
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const scale = 2, c = document.createElement("canvas"); c.width = spec.w*scale; c.height = spec.h*scale;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(res, "image/png"));
+  } finally { URL.revokeObjectURL(url); }
+}
+(async () => {
+  const dl = (window.claude && window.claude.use) ? await window.claude.use("downloads").catch(()=>null) : null;
+  if (!dl) return;
+  document.querySelectorAll("[data-dl]").forEach(b => {
+    b.hidden = false;
+    b.addEventListener("click", async () => {
+      const which = b.dataset.dl; const spec = which==="fig1" ? FIG1_SPEC : FIG2;
+      try {
+        const blob = await toPNG(spec);
+        await dl.save({filename: which==="fig1" ? "هرمية الفاعلين.png" : "مخطط حالات الاستخدام.png", data: blob});
+        toast("حُفظت الصورة");
+      } catch(e){ if (!e || e.code !== "declined") toast("تعذّر حفظ الصورة"); }
+    });
+  });
+})();
+</script>
+
+</body></html>

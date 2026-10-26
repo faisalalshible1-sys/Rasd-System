@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# يُنشئ مجلدات المنصات (أندرويد، آيفون، ويندوز، الويب) إن لم تكن موجودة،
+# ويضبط اسم التطبيق وإذن الإنترنت لأندرويد.
+# يُشغَّل مرة واحدة بعد تنزيل المشروع:  bash tool/prepare_platforms.sh
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+APP_NAME="الدورة المستندية"
+
+missing=""
+for p in android ios web windows; do
+  [ -d "$p" ] || missing="$missing,$p"
+done
+if [ -n "$missing" ]; then
+  flutter create --project-name dc_app --org ly.sabri.engineering --platforms="${missing#,}" .
+fi
+
+# أندرويد: إذن الإنترنت لنسخة الإصدار، واسم التطبيق
+M=android/app/src/main/AndroidManifest.xml
+if [ -f "$M" ]; then
+  grep -q 'android.permission.INTERNET' "$M" || \
+    perl -0pi -e 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' "$M"
+  perl -pi -e "s/android:label=\"[^\"]*\"/android:label=\"$APP_NAME\"/" "$M"
+fi
+
+# آيفون: اسم التطبيق على الشاشة
+P=ios/Runner/Info.plist
+if [ -f "$P" ]; then
+  perl -0pi -e "s/(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/\${1}$APP_NAME\${2}/" "$P"
+fi
+
+# الويب: العنوان واتجاه الصفحة
+W=web/index.html
+if [ -f "$W" ]; then
+  perl -pi -e "s/<title>[^<]*<\/title>/<title>$APP_NAME<\/title>/" "$W"
+  perl -pi -e 's/<html>/<html lang="ar" dir="rtl">/' "$W"
+fi
+J=web/manifest.json
+if [ -f "$J" ]; then
+  perl -pi -e "s/\"name\": \"[^\"]*\"/\"name\": \"$APP_NAME\"/; s/\"short_name\": \"[^\"]*\"/\"short_name\": \"$APP_NAME\"/" "$J"
+  perl -pi -e 's/"theme_color": "[^"]*"/"theme_color": "#0B4650"/; s/"background_color": "[^"]*"/"background_color": "#EEF2F4"/' "$J"
+fi
+
+echo "تم تجهيز المنصات: android ios web windows"

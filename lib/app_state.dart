@@ -1,0 +1,450 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'models.dart';
+
+/// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
+/// قاعدة البيانات هي صاحبة القرار في الصلاحيات؛ ما هنا يحدد ما يُعرض من أزرار فقط.
+class AppState extends ChangeNotifier {
+  AppState(this.client);
+
+  final SupabaseClient client;
+
+  Profile? me;
+  List<Department> departments = [];
+  List<FormDef> formDefs = [];
+  List<Project> projects = [];
+  Map<String, Map<String, FormStatus>> statuses = {};
+  List<ChangeRequest> requests = [];
+  Map<String, Profile> people = {};
+  List<AppNotification> notifications = [];
+
+  bool loading = false;
+  bool loadedOnce = false;
+  String? loadError;
+
+  // التنقل والتصفية المشتركة بين الشاشات
+  int tab = 0;
+  String ownerFilter = '';
+  String companyFilter = '';
+  String search = '';
+  CycleState? cycleFilter;
+  int? stageFilter; // 0..5
+  String? formFilter;
+  bool formFilterNextOnly = false;
+  String sort = 'order';
+
+  RealtimeChannel? _channel;
+  Timer? _debounce;
+  bool _disposed = false;
+  final Map<String, Progress> _progressCache = {};
+
+  // ---------------------------------------------------------------
+  // الصلاحيات (للعرض فقط)
+  // ---------------------------------------------------------------
+  bool get isDirector => me?.isDirector ?? false;
+  AppRole? get role => me?.active == true ? me?.role : null;
+  bool get canManageProjects => role == AppRole.director || role == AppRole.officeStaff;
+  bool get canAddQualityNote => role == AppRole.director || role == AppRole.planningQa;
+  bool get canEditAnyForm => role != null && role != AppRole.planningQa;
+
+  bool canEditForm(Project p, FormDef d) {
+    final r = role;
+    if (r == null) return false;
+    final dep = me?.department;
+    return switch (r) {
+      AppRole.director => true,
+      AppRole.officeStaff => d.responsible.contains('office_staff'),
+      AppRole.contracts => d.responsible.contains('contracts'),
+      AppRole.planningQa => d.responsible.contains('planning_qa'),
+      AppRole.deptHead => (d.responsible.contains('head:supervising') && dep == p.department) ||
+          (d.responsible.contains('head:technical') && dep == 'technical') ||
+          (d.responsible.contains('head:acceptance') && dep == 'acceptance'),
+    };
+  }
+
+  bool needsApproval(FormDef d) => d.sensitive && !isDirector;
+
+  /// من يختص بالنموذج، بصياغة تُعرض للمستخدم.
+  String responsibleText(Project p, FormDef d) {
+    final parts = <String>['مدير المكتب'];
+    for (final t in d.responsible) {
+      if (t == 'head:supervising') {
+        parts.add('رئيس قسم ${departmentName(p.department)}');
+      } else {
+        parts.add(responsibleLabels[t] ?? t);
+      }
+    }
+    return parts.join('، ');
+  }
+
+  String departmentName(String? key) {
+    for (final d in departments) {
+      if (d.key == key) return d.name;
+    }
+    return key ?? '';
+  }
+
+  String personName(String? id) {
+    if (id == null) return 'النظام';
+    if (id == me?.id) return 'أنت';
+    return people[id]?.displayName ?? 'عضو في الفريق';
+  }
+
+  FormDef? formDef(String key) {
+    for (final d in formDefs) {
+      if (d.key == key) return d;
+    }
+    return null;
+  }
+
+  Project? project(String id) {
+    for (final p in projects) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  Progress progressOf(Project p) => _progressCache.putIfAbsent(p.id, () => computeProgress(formDefs, statuses[p.id]));
+
+  FormStatus statusOf(String projectId, String formKey) => statuses[projectId]?[formKey] ?? FormStatus.todo;
+
+  ChangeRequest? pendingFor(String projectId, String formKey) {
+    for (final r in requests) {
+      if (r.isPending && r.projectId == projectId && r.formKey == formKey) return r;
+    }
+    return null;
+  }
+
+  List<ChangeRequest> get pendingRequests => requests.where((r) => r.isPending).toList();
+  List<ChangeRequest> get myRequests => requests.where((r) => r.requestedBy == me?.id).toList();
+  int get unreadCount => notifications.where((n) => n.unread).length;
+
+  List<String> get owners => (projects.map((p) => p.owner).where((s) => s.trim().isNotEmpty).toSet().toList()..sort());
+  List<String> get companies => (projects.map((p) => p.company).where((s) => s.trim().isNotEmpty).toSet().toList()..sort());
+
+  /// المشاريع ضمن تصفية المالك والشركة (للرئيسية والتحليل).
+  List<Project> get scoped => projects
+      .where((p) => (ownerFilter.isEmpty || p.owner == ownerFilter) && (companyFilter.isEmpty || p.company == companyFilter))
+      .toList();
+
+  // ---------------------------------------------------------------
+  // التحميل والتحديث اللحظي
+  // ---------------------------------------------------------------
+  Future<void> loadProfile() async {
+    final uid = client.auth.currentUser?.id;
+    if (uid == null) {
+      me = null;
+      _notify();
+      return;
+    }
+    final row = await client.from('profiles').select().eq('id', uid).maybeSingle();
+    me = row == null ? null : Profile.fromMap(row);
+    _notify();
+  }
+
+  Future<void> start() async {
+    await loadAll();
+    _subscribe();
+  }
+
+  Future<void> loadAll() async {
+    loading = true;
+    _notify();
+    try {
+      final List<Future<List<Map<String, dynamic>>>> queries = [
+        client.from('departments').select().order('sort'),
+        client.from('form_defs').select().order('sort'),
+        client.from('projects').select().order('sort_order'),
+        client.from('project_forms').select('project_id, form_key, status'),
+        client.from('change_requests').select().order('requested_at', ascending: false).limit(500),
+        client.from('profiles').select('id, full_name, email, role, department, active, created_at'),
+        client.from('notifications').select().order('created_at', ascending: false).limit(100),
+      ];
+      final r = await Future.wait(queries);
+      departments = r[0].map(Department.fromMap).toList();
+      formDefs = r[1].map(FormDef.fromMap).toList()..sort((a, b) => a.sort.compareTo(b.sort));
+      projects = r[2].map(Project.fromMap).toList();
+      final st = <String, Map<String, FormStatus>>{};
+      for (final row in r[3]) {
+        final pid = row['project_id'].toString();
+        (st[pid] ??= <String, FormStatus>{})[row['form_key'].toString()] = parseStatus(row['status']);
+      }
+      statuses = st;
+      requests = r[4].map(ChangeRequest.fromMap).toList();
+      people = {for (final p in r[5].map(Profile.fromMap)) p.id: p};
+      notifications = r[6].map(AppNotification.fromMap).toList();
+      final mine = people[me?.id];
+      if (mine != null) me = mine;
+      _progressCache.clear();
+      loadError = null;
+      loadedOnce = true;
+    } catch (e) {
+      loadError = friendlyError(e);
+    } finally {
+      loading = false;
+      _notify();
+    }
+  }
+
+  void _subscribe() {
+    final old = _channel;
+    if (old != null) client.removeChannel(old);
+    final ch = client.channel('dc-changes');
+    for (final t in const ['projects', 'project_forms', 'change_requests', 'notifications', 'form_defs']) {
+      ch.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: t,
+        callback: (_) => scheduleReload(),
+      );
+    }
+    ch.subscribe();
+    _channel = ch;
+  }
+
+  void scheduleReload() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      if (!_disposed) loadAll();
+    });
+  }
+
+  void reset() {
+    final old = _channel;
+    if (old != null) client.removeChannel(old);
+    _channel = null;
+    _debounce?.cancel();
+    me = null;
+    departments = [];
+    formDefs = [];
+    projects = [];
+    statuses = {};
+    requests = [];
+    people = {};
+    notifications = [];
+    loadedOnce = false;
+    loadError = null;
+    tab = 0;
+    _progressCache.clear();
+    _notify();
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _debounce?.cancel();
+    final old = _channel;
+    if (old != null) client.removeChannel(old);
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------
+  // التنقل والتصفية
+  // ---------------------------------------------------------------
+  void setTab(int i) {
+    tab = i;
+    _notify();
+  }
+
+  void setScope({String? owner, String? company}) {
+    if (owner != null) ownerFilter = owner;
+    if (company != null) companyFilter = company;
+    _notify();
+  }
+
+  void openProjects({CycleState? cycle, int? stage, String? form, bool nextOnly = false}) {
+    search = '';
+    cycleFilter = cycle;
+    stageFilter = stage;
+    formFilter = form;
+    formFilterNextOnly = nextOnly;
+    tab = 1;
+    _notify();
+  }
+
+  void setProjectFilters({String? search, CycleState? cycle, bool clearCycle = false, int? stage, bool clearStage = false, String? sort, bool clearForm = false}) {
+    if (search != null) this.search = search;
+    if (cycle != null || clearCycle) cycleFilter = cycle;
+    if (stage != null || clearStage) stageFilter = stage;
+    if (sort != null) this.sort = sort;
+    if (clearForm) formFilter = null;
+    _notify();
+  }
+
+  List<Project> filteredProjects() {
+    final q = normalizeArabic(search);
+    final list = projects.where((p) {
+      final pr = progressOf(p);
+      if (cycleFilter != null && pr.cycle != cycleFilter) return false;
+      if (stageFilter != null && pr.stage != stageFilter) return false;
+      if (formFilter != null) {
+        if (formFilterNextOnly) {
+          if (pr.next?.key != formFilter) return false;
+        } else {
+          final s = statusOf(p.id, formFilter!);
+          if (s == FormStatus.done || s == FormStatus.na) return false;
+        }
+      }
+      if (q.isNotEmpty) {
+        final hay = normalizeArabic([p.assignNo, p.code, p.name, p.owner, p.company, p.notes, ...p.engineers.values].join(' '));
+        if (!hay.contains(q)) return false;
+      }
+      return true;
+    }).toList();
+    switch (sort) {
+      case 'low':
+        list.sort((a, b) => progressOf(a).pct.compareTo(progressOf(b).pct));
+      case 'high':
+        list.sort((a, b) => progressOf(b).pct.compareTo(progressOf(a).pct));
+      case 'recent':
+        list.sort((a, b) => (b.updatedAt ?? DateTime(2000)).compareTo(a.updatedAt ?? DateTime(2000)));
+      default:
+        list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    }
+    return list;
+  }
+
+  // ---------------------------------------------------------------
+  // العمليات
+  // ---------------------------------------------------------------
+
+  /// يُرجع applied أو pending أو unchanged.
+  Future<String> setFormStatus(String projectId, String formKey, FormStatus status, {String note = ''}) async {
+    final res = await client.rpc('set_form_status', params: {
+      'p_project': projectId,
+      'p_form': formKey,
+      'p_status': status.db,
+      'p_note': note,
+    });
+    await loadAll();
+    return res?.toString() ?? 'applied';
+  }
+
+  Future<void> decideRequest(String requestId, bool approve, {String note = ''}) async {
+    await client.rpc('decide_request', params: {'p_request': requestId, 'p_approve': approve, 'p_note': note});
+    await loadAll();
+  }
+
+  Future<void> withdrawRequest(String requestId) async {
+    await client.rpc('withdraw_request', params: {'p_request': requestId});
+    await loadAll();
+  }
+
+  Future<void> setEngineer(String projectId, String formKey, String name) async {
+    await client.rpc('set_engineer', params: {'p_project': projectId, 'p_form': formKey, 'p_name': name});
+    await loadAll();
+  }
+
+  Future<String> saveProject({String? id, required Map<String, dynamic> data}) async {
+    if (id == null) {
+      final row = await client.from('projects').insert(data).select('id').single();
+      await loadAll();
+      return row['id'].toString();
+    }
+    await client.from('projects').update(data).eq('id', id);
+    await loadAll();
+    return id;
+  }
+
+  Future<void> updateNotes(String projectId, String notes) async {
+    await client.from('projects').update({'notes': notes}).eq('id', projectId);
+    await loadAll();
+  }
+
+  Future<void> deleteProject(String projectId) async {
+    await client.from('projects').delete().eq('id', projectId);
+    await loadAll();
+  }
+
+  Future<List<QualityNote>> loadQualityNotes(String projectId) async {
+    final rows = await client.from('quality_notes').select().eq('project_id', projectId).order('created_at', ascending: false);
+    return rows.map(QualityNote.fromMap).toList();
+  }
+
+  Future<void> addQualityNote(String projectId, String body) async {
+    await client.from('quality_notes').insert({'project_id': projectId, 'body': body});
+  }
+
+  Future<List<AuditEntry>> loadProjectAudit(String projectId) async {
+    final rows = await client.from('audit_log').select().eq('project_id', projectId).order('at', ascending: false).limit(150);
+    return rows.map(AuditEntry.fromMap).toList();
+  }
+
+  Future<List<AuditEntry>> loadAudit({int limit = 400}) async {
+    final rows = await client.from('audit_log').select().order('at', ascending: false).limit(limit);
+    return rows.map(AuditEntry.fromMap).toList();
+  }
+
+  Future<void> setUserAccess(String userId, {required AppRole? role, String? department, required bool active, String? fullName}) async {
+    await client.rpc('set_user_access', params: {
+      'p_user': userId,
+      'p_role': role?.db,
+      'p_department': role == AppRole.deptHead ? department : null,
+      'p_active': active,
+      'p_full_name': fullName,
+    });
+    await loadAll();
+  }
+
+  Future<void> updateFormDef(String key, {bool? sensitive, List<String>? responsible}) async {
+    final data = <String, dynamic>{};
+    if (sensitive != null) data['sensitive'] = sensitive;
+    if (responsible != null) data['responsible'] = responsible;
+    if (data.isEmpty) return;
+    await client.from('form_defs').update(data).eq('key', key);
+    await loadAll();
+  }
+
+  Future<void> updateMyName(String name) async {
+    final uid = me?.id;
+    if (uid == null) return;
+    await client.from('profiles').update({'full_name': name}).eq('id', uid);
+    await loadAll();
+  }
+
+  Future<void> markNotificationsRead() async {
+    final uid = me?.id;
+    if (uid == null || unreadCount == 0) return;
+    await client.from('notifications').update({'read_at': DateTime.now().toUtc().toIso8601String()}).eq('user_id', uid);
+    await loadAll();
+  }
+}
+
+/// رسالة خطأ مفهومة للمستخدم.
+String friendlyError(Object e) {
+  if (e is PostgrestException) {
+    final m = e.message;
+    if (m.contains('row-level security') || m.contains('permission denied')) return 'لا تملك صلاحية هذا الإجراء.';
+    if (m.contains('duplicate key') && m.contains('assign_no')) return 'رقم التكليف مستخدم في مشروع آخر.';
+    if (m.contains('projects_has_identity')) return 'اكتب رقم التكليف أو اسم المشروع على الأقل.';
+    return m;
+  }
+  if (e is AuthException) {
+    final m = e.message.toLowerCase();
+    if (m.contains('invalid login')) return 'البريد أو كلمة المرور غير صحيحة.';
+    if (m.contains('already registered') || m.contains('already been registered')) return 'هذا البريد مسجّل مسبقاً. سجّل الدخول به.';
+    if (m.contains('not confirmed')) return 'أكّد بريدك من الرسالة المرسلة إليك، ثم سجّل الدخول.';
+    if (m.contains('password')) return 'كلمة المرور قصيرة أو ضعيفة. استخدم 8 أحرف على الأقل.';
+    if (m.contains('rate limit')) return 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.';
+    return e.message;
+  }
+  return 'تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.';
+}
+
+/// الوصول إلى حالة التطبيق من أي شاشة.
+class AppScope extends InheritedNotifier<AppState> {
+  const AppScope({super.key, required AppState state, required super.child}) : super(notifier: state);
+
+  /// يقرأ الحالة ويعيد البناء عند تغيّرها.
+  static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
+
+  /// يقرأ الحالة دون الاشتراك في التغييرات (داخل معالجات الأحداث).
+  static AppState read(BuildContext context) => context.findAncestorWidgetOfExactType<AppScope>()!.notifier!;
+}
