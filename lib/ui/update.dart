@@ -5,11 +5,24 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_state.dart';
 import '../config.dart';
 import '../models.dart';
+import '../services/self_update_stub.dart' if (dart.library.io) '../services/self_update_io.dart' as self_update;
 import 'theme.dart';
 import 'widgets.dart';
 
-/// فتح رابط التحديث: تنزيل الملف على أندرويد وويندوز، وإعادة تحميل الصفحة على الويب.
+/// تنفيذ التحديث: على ويندوز يُنزَّل ويُثبَّت ذاتياً، وعلى أندرويد يُفتح رابط التنزيل، وعلى الويب تُعاد تحميل الصفحة.
 Future<void> openUpdate(BuildContext context, AppRelease r) async {
+  if (!kIsWeb && r.platform == 'windows' && self_update.canSelfUpdate) {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _SelfUpdateDialog(release: r),
+    );
+    return;
+  }
+  await _openLink(context, r);
+}
+
+Future<void> _openLink(BuildContext context, AppRelease r) async {
   final uri = Uri.parse(r.url);
   bool ok;
   try {
@@ -24,11 +37,11 @@ Future<void> openUpdate(BuildContext context, AppRelease r) async {
   }
 }
 
-String _updateAction(AppRelease r) => r.platform == 'web' ? 'تحديث الآن' : 'تنزيل التحديث';
+String _updateAction(AppRelease r) => r.platform == 'android' ? 'تنزيل التحديث' : 'تحديث الآن';
 
 String _howTo(AppRelease r) => switch (r.platform) {
       'android' => 'بعد التنزيل افتح الملف واضغط «تثبيت». بياناتك محفوظة ولن تتأثر.',
-      'windows' => 'بعد التنزيل أغلق البرنامج، وفكّ ضغط الملف مكان المجلد القديم، ثم شغّل dc_app.exe.',
+      'windows' => 'يُنزَّل التحديث ويُثبَّت تلقائياً، ثم يُعاد تشغيل البرنامج خلال دقيقة.',
       'web' => 'تُعاد تحميل الصفحة بأحدث نسخة.',
       _ => '',
     };
@@ -114,6 +127,84 @@ class UpdateRequiredScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// نافذة التحديث الذاتي على ويندوز: تنزيل مع شريط تقدم، ثم تثبيت صامت وإعادة تشغيل.
+class _SelfUpdateDialog extends StatefulWidget {
+  const _SelfUpdateDialog({required this.release});
+
+  final AppRelease release;
+
+  @override
+  State<_SelfUpdateDialog> createState() => _SelfUpdateDialogState();
+}
+
+class _SelfUpdateDialogState extends State<_SelfUpdateDialog> {
+  double? _progress;
+  String? _error;
+  bool _installing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    setState(() {
+      _error = null;
+      _progress = null;
+      _installing = false;
+    });
+    try {
+      await self_update.downloadAndInstall(widget.release.url, (p) {
+        if (!mounted) return;
+        setState(() {
+          _progress = p;
+          if (p >= 1) _installing = true;
+        });
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString().replaceFirst('HttpException: ', ''));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final p = _progress;
+    return AlertDialog(
+      title: Text('تحديث إلى الإصدار ${widget.release.version}'),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_error == null) ...[
+              Text(_installing
+                  ? 'اكتمل التنزيل. يُغلق البرنامج الآن ويُثبَّت الإصدار الجديد، ثم يُعاد تشغيله تلقائياً.'
+                  : 'جارٍ تنزيل التحديث' + (p == null ? '' : ' ' + pctText(p)) + '…'),
+              const SizedBox(height: 14),
+              LinearProgressIndicator(value: p),
+            ] else ...[
+              Text(_error!, style: TextStyle(color: sem.danger)),
+              const SizedBox(height: 8),
+              Text('تأكد من الاتصال بالإنترنت ثم أعد المحاولة، أو نزّل برنامج التثبيت من المتصفح.',
+                  style: TextStyle(color: sem.muted, fontSize: 13)),
+            ],
+          ],
+        ),
+      ),
+      actions: _error == null
+          ? null
+          : [
+              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إغلاق')),
+              TextButton(onPressed: () => _openLink(context, widget.release), child: const Text('فتح في المتصفح')),
+              FilledButton(onPressed: _run, child: const Text('إعادة المحاولة')),
+            ],
     );
   }
 }

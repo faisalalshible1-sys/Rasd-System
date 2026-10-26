@@ -136,7 +136,14 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} > out.txt 2>&1; code=$?; cat out.txt
           [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build windows"
           exit $code
+      - name: برنامج التثبيت
+        shell: bash
+        run: |
+          set +e
+          bash tool/build_windows_installer.sh "1.0.0" > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "installer"
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
-          path: build/windows/x64/runner/Release
+          name: windows-setup
+          path: dist/dc-app-setup.exe

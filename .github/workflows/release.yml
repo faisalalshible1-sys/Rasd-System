@@ -113,13 +113,17 @@ jobs:
             --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
           [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build windows"
           exit $code
-      - name: ضغط البرنامج
-        shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dc-app-windows.zip
+      - name: برنامج التثبيت
+        shell: bash
+        run: |
+          set +e
+          bash tool/build_windows_installer.sh "$VERSION" > out.txt 2>&1; code=$?; cat out.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "installer"
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: release-windows
-          path: dc-app-windows.zip
+          path: dist/dc-app-setup.exe
 
   web:
     name: الويب
@@ -183,6 +187,6 @@ jobs:
           NOTES: ${{ inputs.notes }}
           MANDATORY: ${{ inputs.mandatory }}
           APK: dist/dc-app.apk
-          WINDOWS_ZIP: dist/dc-app-windows.zip
+          WINDOWS_SETUP: dist/dc-app-setup.exe
           WEB_URL: ${{ needs.web.outputs.url }}
         run: python3 tool/publish_release.py

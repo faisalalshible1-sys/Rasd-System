@@ -5,7 +5,7 @@
 يُشغَّل من سير العمل release على GitHub. المتغيرات:
   SUPABASE_URL, SUPABASE_SERVICE_KEY   عنوان المشروع ومفتاح الخدمة (سرّ في GitHub فقط)
   VERSION, BUILD, NOTES, MANDATORY      بيانات الإصدار
-  APK, WINDOWS_ZIP                      مسارا الملفين المبنيين
+  APK, WINDOWS_SETUP                    ملف أندرويد وبرنامج تثبيت ويندوز
   WEB_URL                               رابط نسخة الويب بعد نشرها (اختياري)
 """
 import json
@@ -33,7 +33,7 @@ BUILD = int(env("BUILD"))
 NOTES = os.environ.get("NOTES", "").strip()
 MANDATORY = os.environ.get("MANDATORY", "false").lower() == "true"
 APK = os.environ.get("APK", "")
-WIN = os.environ.get("WINDOWS_ZIP", "")
+WIN = os.environ.get("WINDOWS_SETUP", "")
 WEB_URL = os.environ.get("WEB_URL", "").strip()
 
 if KEY.startswith("sb_publishable_"):
@@ -107,8 +107,8 @@ def main():
         upload(APK, "android/latest.apk", "application/vnd.android.package-archive")
         rows.append(("android", url))
     if WIN and os.path.exists(WIN):
-        url = upload(WIN, f"windows/dc-app-windows-{VERSION}.zip", "application/zip")
-        upload(WIN, "windows/latest.zip", "application/zip")
+        url = upload(WIN, f"windows/dc-app-setup-{VERSION}.exe", "application/octet-stream")
+        upload(WIN, "windows/latest-setup.exe", "application/octet-stream")
         rows.append(("windows", url))
     if WEB_URL:
         rows.append(("web", WEB_URL))
