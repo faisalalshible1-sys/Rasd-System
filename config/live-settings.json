@@ -1,0 +1,330 @@
+{
+  "custom_fields": [],
+  "departments": [
+    {
+      "can_supervise": true,
+      "key": "supervision",
+      "name": "الإشراف والتنسيق",
+      "sort": 1
+    },
+    {
+      "can_supervise": false,
+      "key": "technical",
+      "name": "الشؤون الفنية",
+      "sort": 2
+    },
+    {
+      "can_supervise": true,
+      "key": "restoration",
+      "name": "الترميم",
+      "sort": 3
+    },
+    {
+      "can_supervise": false,
+      "key": "acceptance",
+      "name": "المطابقة والاستلام",
+      "sort": 4
+    }
+  ],
+  "forms": [
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f01",
+      "name": "أمر تعاقد",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": false,
+      "sort": 1,
+      "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f19",
+      "name": "المقايسة التقديرية",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": false,
+      "sort": 2,
+      "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f02",
+      "name": "أمر عمل",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": false,
+      "sort": 3,
+      "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f03",
+      "name": "نموذج عقد أشغال عامة",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": false,
+      "sort": 4,
+      "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": "eng_sup",
+      "key": "f04",
+      "name": "تكليف مهندس مشرف",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": false,
+      "sort": 5,
+      "stage": 1
+    },
+    {
+      "active": true,
+      "engineer_field": "eng_qty",
+      "key": "f05",
+      "name": "تكليف مهندس حصر",
+      "responsible": [
+        "office_staff",
+        "head:technical"
+      ],
+      "sensitive": false,
+      "sort": 6,
+      "stage": 1
+    },
+    {
+      "active": true,
+      "engineer_field": "eng_fol",
+      "key": "f06",
+      "name": "تكليف مهندس متابعة",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": false,
+      "sort": 7,
+      "stage": 1
+    },
+    {
+      "active": true,
+      "engineer_field": "eng_saf",
+      "key": "f07",
+      "name": "تكليف مهندس سلامة",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": false,
+      "sort": 8,
+      "stage": 1
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f08",
+      "name": "محضر تسليم واستلام موقع",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": false,
+      "sort": 9,
+      "stage": 2
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f09",
+      "name": "تصريح عمل",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": false,
+      "sort": 10,
+      "stage": 2
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f10",
+      "name": "ورقة قياس مستخلص نموذج أ",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": true,
+      "sort": 11,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f11",
+      "name": "ورقة قياس مستخلص نموذج ب",
+      "responsible": [
+        "office_staff",
+        "head:supervising"
+      ],
+      "sensitive": true,
+      "sort": 12,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f12",
+      "name": "كشف حصر مستخلص",
+      "responsible": [
+        "office_staff",
+        "head:technical"
+      ],
+      "sensitive": true,
+      "sort": 13,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f13",
+      "name": "شهادة دفع مستخلص",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 14,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f14",
+      "name": "مستند مستخلص جاري",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 15,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f15",
+      "name": "مستند مستخلص ختامي",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 16,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f16",
+      "name": "محضر استلام ابتدائي",
+      "responsible": [
+        "office_staff",
+        "head:acceptance"
+      ],
+      "sensitive": true,
+      "sort": 17,
+      "stage": 4
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f17",
+      "name": "محضر استلام نهائي",
+      "responsible": [
+        "office_staff",
+        "head:acceptance"
+      ],
+      "sensitive": true,
+      "sort": 18,
+      "stage": 4
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f18",
+      "name": "إقفال عقد",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 19,
+      "stage": 4
+    }
+  ],
+  "settings": {
+    "brand.app_title": "منظومة متابعة الدورة المستندية",
+    "brand.org_name": "مكتب الشؤون الهندسية",
+    "brand.org_parent": "لجنة إعادة إعمار منطقة الصابري ووسط البلاد",
+    "brand.primary_color": "#8A6A1E",
+    "finance.currency": "د.ل",
+    "finance.guarantee_final_rate": 0.02,
+    "finance.guarantee_initial_rate": 0.05,
+    "security.freeze": false,
+    "security.idle_minutes": 30,
+    "security.require_mfa_all": false,
+    "security.require_mfa_director": false,
+    "security.signups_open": true,
+    "ui.announcement": {
+      "level": "info",
+      "text": ""
+    },
+    "ui.features": {
+      "analysis": true,
+      "export": true,
+      "ideas_for_all": true,
+      "quality_notes": true
+    },
+    "ui.status_labels": {
+      "done": "مكتمل",
+      "na": "لا ينطبق",
+      "todo": "لم يتم",
+      "wip": "قيد الإجراء"
+    }
+  },
+  "stages": [
+    {
+      "idx": 0,
+      "name": "التعاقد"
+    },
+    {
+      "idx": 1,
+      "name": "تكليف المهندسين"
+    },
+    {
+      "idx": 2,
+      "name": "بدء التنفيذ"
+    },
+    {
+      "idx": 3,
+      "name": "المستخلصات"
+    },
+    {
+      "idx": 4,
+      "name": "الاستلام والإقفال"
+    }
+  ]
+}
