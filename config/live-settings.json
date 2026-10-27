@@ -36,7 +36,7 @@
         "office_staff",
         "contracts"
       ],
-      "sensitive": false,
+      "sensitive": true,
       "sort": 1,
       "stage": 0
     },
@@ -47,7 +47,7 @@
       "name": "المقايسة التقديرية",
       "responsible": [
         "office_staff",
-        "contracts"
+        "head:technical"
       ],
       "sensitive": false,
       "sort": 2,
