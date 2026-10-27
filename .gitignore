@@ -27,3 +27,4 @@ ios/Flutter/flutter_export_environment.sh
 # أسرار
 .env
 supabase/.temp/
+__pycache__/
