@@ -90,7 +90,7 @@ class SegmentMeter extends StatelessWidget {
   }
 }
 
-/// شريط الدورة المستندية: 18 خانة مجمّعة في المراحل الخمس.
+/// شريط الدورة المستندية: خانة لكل نموذج، مجمّعة في المراحل الخمس.
 class CycleStrip extends StatelessWidget {
   const CycleStrip({super.key, required this.defs, required this.cells, this.height = 8});
 

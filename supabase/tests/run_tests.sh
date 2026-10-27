@@ -10,4 +10,6 @@ $P -d dctest -f "$DIR/migrations/20261026000002_import_projects.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261026000003_admin_email.sql"
 $P -d dctest -f "$DIR/migrations/20261026000004_releases.sql"
 $P -d dctest -f "$DIR/migrations/20261026000004_releases.sql"
+$P -d dctest -f "$DIR/migrations/20261027000005_contract_finance.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261027000005_contract_finance.sql" >/dev/null
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/10_rules_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

@@ -134,6 +134,32 @@ select public.withdraw_request((select id from change_requests where form_key='f
 select pg_temp.check((select state = 'withdrawn' from change_requests where form_key='f18'), 'مقدّم الطلب يسحب طلبه');
 select pg_temp.check(public.set_form_status((select id from projects where assign_no='003'), 'f18', 'done') = 'pending', 'طلب جديد بعد السحب');
 
+-- مرحلة التعاقد: «المقايسة التقديرية» والبيانات المالية للعقد
+select pg_temp.check((select stage = 0 and sort = 2 and not sensitive and responsible = (select responsible from form_defs where key = 'f01')
+                      from form_defs where key = 'f19'), '«المقايسة التقديرية» بعد «أمر تعاقد» وبالاختصاص نفسه');
+select pg_temp.check((select count(*) = 19 and count(distinct sort) = 19 and max(sort) = 19 from form_defs), 'تسعة عشر نموذجاً بترتيب متصل');
+select pg_temp.check((select sort = 3 from form_defs where key = 'f02') and (select sort = 19 from form_defs where key = 'f18'), 'بقية النماذج انزاحت خانة واحدة');
+select pg_temp.check(public.set_form_status((select id from projects where assign_no='003'), 'f19', 'done') = 'applied', 'مكتب العقود يحدّث «المقايسة التقديرية»');
+select public.set_contract_finance((select id from projects where assign_no='003'), 1250000, 375000, 500000, null, 12500.5);
+select pg_temp.check((select contract_value = 1250000 and payment_first = 375000 and payment_second = 500000 and payment_final is null
+                             and deductions = 12500.5 and guarantee_initial = 62500 and guarantee_final = 25000
+                      from projects where assign_no='003'), 'مكتب العقود يحفظ البيانات المالية، والضمانان 5% و2% محسوبان');
+select pg_temp.check(exists (select 1 from audit_log where action = 'project.update' and detail ? 'contract_value' and detail ? 'deductions'),
+                     'تعديل البيانات المالية مسجّل في السجل');
+select pg_temp.expect_error($$select public.set_contract_finance((select id from projects where assign_no='003'), -1, null, null, null, null)$$, 'قيمة مالية سالبة');
+select pg_temp.expect_no_change($q$update public.projects set contract_value = 1 where assign_no='003'$q$, 'مكتب العقود لا يعدّل جدول المشاريع مباشرة');
+select pg_temp.as_user('headsup@test.ly');
+select pg_temp.expect_error($$select public.set_contract_finance((select id from projects where assign_no='003'), 1, 1, 1, 1, 1)$$, 'رئيس الإشراف يعدّل البيانات المالية');
+select pg_temp.expect_error($$select public.set_form_status((select id from projects where assign_no='003'), 'f19', 'wip')$$, 'رئيس الإشراف يحدّث «المقايسة التقديرية»');
+select pg_temp.as_user('qa@test.ly');
+select pg_temp.expect_error($$select public.set_contract_finance((select id from projects where assign_no='003'), 1, 1, 1, 1, 1)$$, 'مكتب الجودة يعدّل البيانات المالية');
+select pg_temp.as_user('staff@test.ly');
+update public.projects set payment_final = 362500 where assign_no = '003';
+select pg_temp.check((select payment_final = 362500 and contract_value = 1250000 from projects where assign_no='003'), 'موظف المكتب يعدّل البيانات المالية');
+select pg_temp.expect_error($$update public.projects set guarantee_initial = 1 where assign_no = '003'$$, 'تعديل الضمان المحسوب يدوياً');
+select pg_temp.expect_error($$insert into public.projects (assign_no, name, contract_value) values ('099', 'مشروع', 5)$$, 'إدخال قيمة التعاقد عند إنشاء المشروع لغير المدير');
+select pg_temp.check((select bool_and(required + na = 19) from v_project_progress), 'المقايسة تدخل في حساب نسبة الإنجاز لكل المشاريع');
+
 -- مكتب التخطيط وضمان الجودة
 select pg_temp.as_user('qa@test.ly');
 select pg_temp.expect_error($$select public.set_form_status((select id from projects where assign_no='003'), 'f02', 'done')$$, 'مكتب الجودة يحدّث نموذجاً');

@@ -24,6 +24,7 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
     final f = d.engineerField;
     if (f != null) header.add(engineerFieldLabel(f));
   }
+  header.addAll(['قيمة التعاقد', 'الدفعة الأولى', 'الدفعة الثانية', 'الدفعة الختامية', 'الضمان الابتدائي 5%', 'الضمان النهائي 2%', 'قيمة الخصومات']);
   header.addAll(['عدد النماذج المكتملة', 'نسبة الإنجاز %', 'المرحلة الحالية', 'المستند التالي المطلوب', 'حالة الدورة', 'ملاحظات', 'آخر تحديث']);
   sheet.appendRow(header.map<CellValue?>((h) => TextCellValue(h)).toList());
 
@@ -46,6 +47,16 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
       final f = d.engineerField;
       if (f != null) row.add(TextCellValue(p.engineer(f)));
     }
+    CellValue? money(double? v) => v == null ? TextCellValue('') : DoubleCellValue(v);
+    row.addAll([
+      money(p.contractValue),
+      money(p.paymentFirst),
+      money(p.paymentSecond),
+      money(p.paymentFinal),
+      money(p.guaranteeInitial),
+      money(p.guaranteeFinal),
+      money(p.deductions),
+    ]);
     final u = p.updatedAt?.toLocal();
     row.addAll([
       IntCellValue(pr.done),

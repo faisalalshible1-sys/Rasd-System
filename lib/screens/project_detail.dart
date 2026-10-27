@@ -21,6 +21,7 @@ class ProjectDetailPage extends StatefulWidget {
 
 class _ProjectDetailPageState extends State<ProjectDetailPage> {
   static const _engFields = ['eng_sup', 'eng_qty', 'eng_fol', 'eng_saf'];
+  static const _finFields = ['contract_value', 'payment_first', 'payment_second', 'payment_final', 'deductions'];
 
   AppState? _app;
   final Map<String, TextEditingController> _eng = {};
@@ -28,6 +29,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   final TextEditingController _notes = TextEditingController();
   final FocusNode _notesFocus = FocusNode();
   final TextEditingController _qnote = TextEditingController();
+  final Map<String, TextEditingController> _fin = {};
+  bool _finDirty = false; // تعديلات مالية لم تُحفظ بعد: لا يُكتب فوقها عند وصول تحديث
+  bool _busyFin = false;
   String? _busyForm;
   bool _busyNote = false;
   List<AuditEntry>? _history;
@@ -40,6 +44,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     for (final f in _engFields) {
       _eng[f] = TextEditingController();
       _engFocus[f] = FocusNode();
+    }
+    for (final f in _finFields) {
+      _fin[f] = TextEditingController();
     }
   }
 
@@ -65,6 +72,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     for (final f in _engFocus.values) {
       f.dispose();
     }
+    for (final c in _fin.values) {
+      c.dispose();
+    }
     _notes.dispose();
     _notesFocus.dispose();
     _qnote.dispose();
@@ -89,8 +99,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       if (!_engFocus[f]!.hasFocus && c.text != p.engineer(f)) c.text = p.engineer(f);
     }
     if (!_notesFocus.hasFocus && _notes.text != p.notes) _notes.text = p.notes;
+    if (!_finDirty) {
+      for (final f in _finFields) {
+        final v = moneyInput(_finValue(p, f));
+        if (_fin[f]!.text != v) _fin[f]!.text = v;
+      }
+    }
     _lastUpdated ??= p.updatedAt;
   }
+
+  static double? _finValue(Project p, String field) => switch (field) {
+        'contract_value' => p.contractValue,
+        'payment_first' => p.paymentFirst,
+        'payment_second' => p.paymentSecond,
+        'payment_final' => p.paymentFinal,
+        _ => p.deductions,
+      };
 
   Future<void> _loadSide() async {
     final app = _app;
@@ -185,6 +209,45 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     } catch (e) {
       if (mounted) showToast(context, friendlyError(e), error: true);
     }
+  }
+
+  Future<void> _saveFinance(Project p) async {
+    final values = <String, double?>{};
+    for (final f in _finFields) {
+      final r = parseMoney(_fin[f]!.text);
+      if (!r.ok) {
+        showToast(context, 'اكتب مبلغاً صحيحاً في «${projectFieldLabels[f]}»', error: true);
+        return;
+      }
+      values[f] = r.value;
+    }
+    FocusScope.of(context).unfocus();
+    final app = AppScope.read(context);
+    setState(() => _busyFin = true);
+    try {
+      await app.setContractFinance(
+        p.id,
+        contractValue: values['contract_value'],
+        paymentFirst: values['payment_first'],
+        paymentSecond: values['payment_second'],
+        paymentFinal: values['payment_final'],
+        deductions: values['deductions'],
+      );
+      _finDirty = false;
+      _syncControllers();
+      if (mounted) showToast(context, 'حُفظت البيانات المالية للعقد');
+      _loadSide();
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _busyFin = false);
+    }
+  }
+
+  void _cancelFinance() {
+    FocusScope.of(context).unfocus();
+    setState(() => _finDirty = false);
+    _syncControllers();
   }
 
   Future<void> _saveNotes(Project p) async {
@@ -418,7 +481,120 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       ),
       const SizedBox(height: 10),
       for (final d in defs) Padding(padding: const EdgeInsets.only(bottom: 8), child: _formRow(context, app, p, pr, d)),
+      if (stage == 0) Padding(padding: const EdgeInsets.only(bottom: 8), child: _financeBlock(context, app, p)),
     ];
+  }
+
+  /// البيانات المالية للعقد ضمن مرحلة التعاقد.
+  Widget _financeBlock(BuildContext context, AppState app, Project p) {
+    final sem = Sem.of(context);
+    final canEdit = app.canEditFinance(p);
+    final contractDef = app.formDef(contractFormKey);
+    final entered = parseMoney(_fin['contract_value']!.text);
+    final base = entered.ok ? entered.value : p.contractValue;
+    final gInitial = base == null ? null : roundMoney(base * guaranteeInitialRate);
+    final gFinal = base == null ? null : roundMoney(base * guaranteeFinalRate);
+    const tabular = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
+
+    Widget field(String f) {
+      final r = parseMoney(_fin[f]!.text);
+      return TextField(
+        controller: _fin[f],
+        readOnly: !canEdit,
+        style: tabular,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) => setState(() => _finDirty = true),
+        onSubmitted: (_) {
+          if (canEdit && _finDirty) _saveFinance(p);
+        },
+        decoration: fieldDeco(projectFieldLabels[f]!, hint: canEdit ? '0' : '—', error: r.ok ? null : 'اكتب مبلغاً صحيحاً')
+            .copyWith(suffixText: 'د.ل'),
+      );
+    }
+
+    Widget computed(String label, double? v) => InputDecorator(
+          decoration: fieldDeco(label).copyWith(suffixText: v == null ? null : 'د.ل', filled: true, fillColor: sem.surface),
+          child: Text(fmtMoney(v), style: tabular),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.payments_outlined, size: 18, color: sem.muted),
+              const SizedBox(width: 6),
+              const Expanded(child: Text('البيانات المالية للعقد', style: TextStyle(fontWeight: FontWeight.w700))),
+              Text('بالدينار الليبي', style: TextStyle(color: sem.muted, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, c) {
+            final wide = c.maxWidth >= 520;
+            Widget group(List<Widget> items) => wide
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < items.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 10),
+                        Expanded(child: items[i]),
+                      ],
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < items.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        items[i],
+                      ],
+                    ],
+                  );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                field('contract_value'),
+                const SizedBox(height: 10),
+                group([field('payment_first'), field('payment_second'), field('payment_final')]),
+                const SizedBox(height: 10),
+                group([
+                  computed('الضمان الابتدائي 5%', gInitial),
+                  computed('الضمان النهائي 2%', gFinal),
+                ]),
+                const SizedBox(height: 10),
+                field('deductions'),
+              ],
+            );
+          }),
+          const SizedBox(height: 6),
+          Text(
+            'يُحسب الضمانان تلقائياً من قيمة التعاقد.'
+            '${!canEdit && contractDef != null ? ' يحدّث البيانات المالية: ${app.responsibleText(p, contractDef)}.' : ''}',
+            style: TextStyle(fontSize: 11.5, color: sem.muted),
+          ),
+          if (canEdit && _finDirty) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: _busyFin ? null : _cancelFinance, child: const Text('تراجع')),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _busyFin ? null : () => _saveFinance(p),
+                  icon: _busyFin
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.check, size: 18),
+                  label: const Text('حفظ البيانات المالية'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _formRow(BuildContext context, AppState app, Project p, Progress pr, FormDef d) {

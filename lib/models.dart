@@ -66,6 +66,63 @@ String stageName(int i) => i >= 0 && i < stageNames.length ? stageNames[i] : sta
 
 DateTime? _date(Object? v) => v == null ? null : DateTime.tryParse(v.toString());
 String _str(Object? v) => v == null ? '' : v.toString();
+double? _money(Object? v) => v == null ? null : (v is num ? v.toDouble() : double.tryParse(v.toString()));
+
+// ---------------------------------------------------------------------
+// البيانات المالية للعقد (بالدينار الليبي)
+// ---------------------------------------------------------------------
+
+/// نموذج «أمر تعاقد»: من يختص به يحدّث البيانات المالية للعقد.
+const String contractFormKey = 'f01';
+
+/// الضمان الابتدائي والنهائي نسبةً من قيمة التعاقد (تحسبهما قاعدة البيانات بالنسبتين نفسيهما).
+const double guaranteeInitialRate = 0.05;
+const double guaranteeFinalRate = 0.02;
+
+double roundMoney(double v) => (v * 1000).roundToDouble() / 1000;
+
+/// يقرأ مبلغاً كتبه المستخدم: يقبل الأرقام العربية والفواصل، والفراغ يعني «غير مُدخل».
+/// يُرجع ok=false إذا لم يكن مبلغاً صحيحاً غير سالب.
+({bool ok, double? value}) parseMoney(String input) {
+  final buf = StringBuffer();
+  for (final r in input.trim().runes) {
+    if (r >= 0x0660 && r <= 0x0669) {
+      buf.writeCharCode(0x30 + r - 0x0660); // ٠-٩
+    } else if (r >= 0x06F0 && r <= 0x06F9) {
+      buf.writeCharCode(0x30 + r - 0x06F0); // ۰-۹
+    } else if (r == 0x066B) {
+      buf.write('.'); // الفاصلة العشرية العربية
+    } else if (r == 0x066C || r == 0x2C || r == 0x20 || r == 0xA0) {
+      continue; // فواصل الآلاف والمسافات
+    } else {
+      buf.writeCharCode(r);
+    }
+  }
+  final s = buf.toString();
+  if (s.isEmpty) return (ok: true, value: null);
+  if (!RegExp(r'^\d+(\.\d+)?$').hasMatch(s)) return (ok: false, value: null);
+  final v = double.tryParse(s);
+  if (v == null || v >= 1e13) return (ok: false, value: null);
+  return (ok: true, value: roundMoney(v));
+}
+
+/// مبلغ مقروء بفواصل الآلاف، وحتى ثلاث خانات عشرية عند الحاجة.
+String fmtMoney(double? v) {
+  if (v == null) return '—';
+  final parts = v.abs().toStringAsFixed(3).split('.');
+  final whole = parts[0];
+  final frac = parts[1].replaceFirst(RegExp(r'0+$'), '');
+  final buf = StringBuffer(v < 0 ? '-' : '');
+  for (var i = 0; i < whole.length; i++) {
+    if (i > 0 && (whole.length - i) % 3 == 0) buf.write(',');
+    buf.write(whole[i]);
+  }
+  if (frac.isNotEmpty) buf.write('.$frac');
+  return buf.toString();
+}
+
+/// المبلغ كما يُعرض داخل حقل الإدخال (بلا فواصل آلاف).
+String moneyInput(double? v) => v == null ? '' : fmtMoney(v).replaceAll(',', '');
 
 class Department {
   const Department({required this.key, required this.name, required this.canSupervise, required this.sort});
@@ -167,6 +224,13 @@ class Project {
     required this.notes,
     required this.engineers,
     required this.sortOrder,
+    this.contractValue,
+    this.paymentFirst,
+    this.paymentSecond,
+    this.paymentFinal,
+    this.deductions,
+    this.guaranteeInitial,
+    this.guaranteeFinal,
     this.updatedAt,
     this.updatedBy,
   });
@@ -181,6 +245,14 @@ class Project {
   final String notes;
   final Map<String, String> engineers; // eng_sup, eng_qty, eng_fol, eng_saf
   final int sortOrder;
+  // البيانات المالية للعقد (null = لم تُدخل بعد)
+  final double? contractValue;
+  final double? paymentFirst;
+  final double? paymentSecond;
+  final double? paymentFinal;
+  final double? deductions;
+  final double? guaranteeInitial; // 5% من قيمة التعاقد، تحسبه قاعدة البيانات
+  final double? guaranteeFinal; // 2% من قيمة التعاقد، تحسبه قاعدة البيانات
   final DateTime? updatedAt;
   final String? updatedBy;
 
@@ -204,6 +276,13 @@ class Project {
           'eng_saf': _str(m['eng_saf']),
         },
         sortOrder: (m['sort_order'] as num?)?.toInt() ?? 0,
+        contractValue: _money(m['contract_value']),
+        paymentFirst: _money(m['payment_first']),
+        paymentSecond: _money(m['payment_second']),
+        paymentFinal: _money(m['payment_final']),
+        deductions: _money(m['deductions']),
+        guaranteeInitial: _money(m['guarantee_initial']),
+        guaranteeFinal: _money(m['guarantee_final']),
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
       );
@@ -341,6 +420,11 @@ const Map<String, String> projectFieldLabels = {
   'eng_qty': 'مهندس الحصر',
   'eng_fol': 'مهندس المتابعة',
   'eng_saf': 'مهندس السلامة',
+  'contract_value': 'قيمة التعاقد',
+  'payment_first': 'الدفعة الأولى',
+  'payment_second': 'الدفعة الثانية',
+  'payment_final': 'الدفعة الختامية',
+  'deductions': 'قيمة الخصومات',
 };
 
 class QualityNote {

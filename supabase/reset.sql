@@ -25,7 +25,8 @@ begin
         'write_audit', 'notify_user', 'notify_director', 'status_label', 'handle_new_user', 'profiles_guard',
         'projects_stamp', 'projects_audit', 'form_defs_audit', 'form_defs_guard', 'quality_notes_audit',
         'quality_notes_after', 'apply_form_status', 'set_form_status', 'decide_request', 'withdraw_request',
-        'set_engineer', 'set_user_access', 'claim_director', 'admin_set_email')
+        'set_engineer', 'set_user_access', 'claim_director', 'admin_set_email',
+        'projects_finance_guard', 'set_contract_finance')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

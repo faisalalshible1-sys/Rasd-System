@@ -72,6 +72,28 @@ void main() {
     expect(stageName(p.stage), stageDoneName);
   });
 
+  test('قراءة المبالغ: أرقام عربية وفواصل، والفراغ يعني غير مُدخل', () {
+    expect(parseMoney('1,250,000').value, 1250000);
+    expect(parseMoney('١٢٥٠٠٠٠٫٥').value, 1250000.5);
+    expect(parseMoney(' 12500.1234 ').value, 12500.123);
+    final empty = parseMoney('');
+    expect(empty.ok, isTrue);
+    expect(empty.value, isNull);
+    expect(parseMoney('-5').ok, isFalse);
+    expect(parseMoney('12a').ok, isFalse);
+    expect(parseMoney('1.2.3').ok, isFalse);
+  });
+
+  test('عرض المبالغ والضمانان 5% و2%', () {
+    expect(fmtMoney(1250000), '1,250,000');
+    expect(fmtMoney(12500.5), '12,500.5');
+    expect(fmtMoney(999), '999');
+    expect(fmtMoney(null), '—');
+    expect(moneyInput(1250000.25), '1250000.25');
+    expect(roundMoney(1250000 * guaranteeInitialRate), 62500);
+    expect(roundMoney(1250000 * guaranteeFinalRate), 25000);
+  });
+
   test('تطبيع البحث العربي', () {
     expect(normalizeArabic('إثمار  بنغازي'), normalizeArabic('اثمار بنغازي'));
     expect(normalizeArabic('المدينة'), 'المدينه');

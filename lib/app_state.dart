@@ -75,6 +75,12 @@ class AppState extends ChangeNotifier {
 
   bool needsApproval(FormDef d) => d.sensitive && !isDirector;
 
+  /// البيانات المالية للعقد يحدّثها من يختص بـ«أمر تعاقد» في المشروع.
+  bool canEditFinance(Project p) {
+    final d = formDef(contractFormKey);
+    return d != null && canEditForm(p, d);
+  }
+
   /// من يختص بالنموذج، بصياغة تُعرض للمستخدم.
   String responsibleText(Project p, FormDef d) {
     final parts = <String>['مدير المكتب'];
@@ -392,6 +398,25 @@ class AppState extends ChangeNotifier {
 
   Future<void> setEngineer(String projectId, String formKey, String name) async {
     await client.rpc('set_engineer', params: {'p_project': projectId, 'p_form': formKey, 'p_name': name});
+    await loadAll();
+  }
+
+  Future<void> setContractFinance(
+    String projectId, {
+    required double? contractValue,
+    required double? paymentFirst,
+    required double? paymentSecond,
+    required double? paymentFinal,
+    required double? deductions,
+  }) async {
+    await client.rpc('set_contract_finance', params: {
+      'p_project': projectId,
+      'p_contract_value': contractValue,
+      'p_payment_first': paymentFirst,
+      'p_payment_second': paymentSecond,
+      'p_payment_final': paymentFinal,
+      'p_deductions': deductions,
+    });
     await loadAll();
   }
 
