@@ -285,8 +285,8 @@
     "finance.guarantee_initial_rate": 0.05,
     "security.freeze": false,
     "security.idle_minutes": 30,
-    "security.require_mfa_all": false,
-    "security.require_mfa_director": false,
+    "security.require_mfa_all": true,
+    "security.require_mfa_director": true,
     "security.signups_open": true,
     "ui.announcement": {
       "level": "info",
