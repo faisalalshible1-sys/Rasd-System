@@ -24,7 +24,10 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
     final f = d.engineerField;
     if (f != null) header.add(engineerFieldLabel(f));
   }
-  header.addAll(['قيمة التعاقد', 'الدفعة الأولى', 'الدفعة الثانية', 'الدفعة الختامية', 'الضمان الابتدائي 5%', 'الضمان النهائي 2%', 'قيمة الخصومات']);
+  header.addAll(['قيمة التعاقد', 'الدفعة الأولى', 'الدفعة الثانية', 'الدفعة الختامية',
+    'الضمان الابتدائي ${rateText(guaranteeInitialRate)}', 'الضمان النهائي ${rateText(guaranteeFinalRate)}', 'قيمة الخصومات']);
+  final fields = [...app.activeFields]..sort((a, b) => a.sort.compareTo(b.sort));
+  header.addAll(fields.map((f) => f.label));
   header.addAll(['عدد النماذج المكتملة', 'نسبة الإنجاز %', 'المرحلة الحالية', 'المستند التالي المطلوب', 'حالة الدورة', 'ملاحظات', 'آخر تحديث']);
   sheet.appendRow(header.map<CellValue?>((h) => TextCellValue(h)).toList());
 
@@ -57,6 +60,10 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
       money(p.guaranteeFinal),
       money(p.deductions),
     ]);
+    for (final f in fields) {
+      final v = p.extra[f.key];
+      row.add(v is num ? DoubleCellValue(v.toDouble()) : TextCellValue(v == null ? '' : f.display(v)));
+    }
     final u = p.updatedAt?.toLocal();
     row.addAll([
       IntCellValue(pr.done),

@@ -350,9 +350,15 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               ),
             ),
             const SizedBox(height: 14),
+            if (app.activeFields.isNotEmpty) ...[
+              _extraCard(context, app, p),
+              const SizedBox(height: 14),
+            ],
             _notesCard(context, app, p),
-            const SizedBox(height: 14),
-            _qualityCard(context, app, p),
+            if (app.isDirector || app.settings.feature('quality_notes')) ...[
+              const SizedBox(height: 14),
+              _qualityCard(context, app, p),
+            ],
             const SizedBox(height: 14),
             _historyCard(context, app, p),
           ],
@@ -508,12 +514,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           if (canEdit && _finDirty) _saveFinance(p);
         },
         decoration: fieldDeco(projectFieldLabels[f]!, hint: canEdit ? '0' : '—', error: r.ok ? null : 'اكتب مبلغاً صحيحاً')
-            .copyWith(suffixText: 'د.ل'),
+            .copyWith(suffixText: currencyLabel),
       );
     }
 
     Widget computed(String label, double? v) => InputDecorator(
-          decoration: fieldDeco(label).copyWith(suffixText: v == null ? null : 'د.ل', filled: true, fillColor: sem.surface),
+          decoration: fieldDeco(label).copyWith(suffixText: v == null ? null : currencyLabel, filled: true, fillColor: sem.surface),
           child: Text(fmtMoney(v), style: tabular),
         );
 
@@ -561,8 +567,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                 group([field('payment_first'), field('payment_second'), field('payment_final')]),
                 const SizedBox(height: 10),
                 group([
-                  computed('الضمان الابتدائي 5%', gInitial),
-                  computed('الضمان النهائي 2%', gFinal),
+                  computed('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', gInitial),
+                  computed('الضمان النهائي ${rateText(guaranteeFinalRate)}', gFinal),
                 ]),
                 const SizedBox(height: 10),
                 field('deductions'),
@@ -726,8 +732,155 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     );
   }
 
+  /// الحقول الإضافية المعرّفة من لوحة التحكم، مجمّعة حسب المجموعة.
+  Widget _extraCard(BuildContext context, AppState app, Project p) {
+    final sem = Sem.of(context);
+    final fields = [...app.activeFields]..sort((a, b) => a.sort.compareTo(b.sort));
+    final sections = <String, List<CustomField>>{};
+    for (final f in fields) {
+      (sections[f.section] ??= []).add(f);
+    }
+    return SectionCard(
+      title: 'بيانات إضافية',
+      icon: Icons.dynamic_form_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final e in sections.entries) ...[
+            if (sections.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Text(e.key, style: TextStyle(fontWeight: FontWeight.w700, color: sem.muted)),
+              ),
+            ResponsiveGrid(
+              minItemWidth: 240,
+              spacing: 10,
+              children: [
+                for (final f in e.value) _extraTile(context, app, p, f),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _extraTile(BuildContext context, AppState app, Project p, CustomField f) {
+    final sem = Sem.of(context);
+    final canEdit = app.canEditField(p, f);
+    final value = p.extra[f.key];
+    if (f.kind == 'bool') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Expanded(child: Text(f.label, style: const TextStyle(fontWeight: FontWeight.w600))),
+            Switch(value: value == true, onChanged: canEdit ? (v) => _saveExtra(app, p, f, v) : null),
+          ],
+        ),
+      );
+    }
+    return Material(
+      color: sem.surface2,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: canEdit ? () => _editExtra(app, p, f) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(f.label, style: TextStyle(color: sem.muted, fontSize: 12.5)),
+                    const SizedBox(height: 2),
+                    Text(f.display(value), style: const TextStyle(fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
+                  ],
+                ),
+              ),
+              if (canEdit) Icon(Icons.edit_outlined, size: 18, color: sem.muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveExtra(AppState app, Project p, CustomField f, Object? value) async {
+    try {
+      await app.setProjectField(p.id, f.key, value);
+      if (mounted) showToast(context, 'حُفظ «${f.label}»');
+      _loadSide();
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    }
+  }
+
+  Future<void> _editExtra(AppState app, Project p, CustomField f) async {
+    final current = p.extra[f.key];
+    switch (f.kind) {
+      case 'date':
+        final init = DateTime.tryParse(current?.toString() ?? '') ?? DateTime.now();
+        final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2000), lastDate: DateTime(2100));
+        if (d == null) return;
+        await _saveExtra(app, p, f, '${d.year}-${two(d.month)}-${two(d.day)}');
+      case 'select':
+        final v = await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: Text(f.label),
+            children: [
+              for (final o in f.options)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.of(ctx).pop(o),
+                  child: Row(children: [
+                    Icon(o == current ? Icons.radio_button_checked : Icons.radio_button_off, size: 20),
+                    const SizedBox(width: 10),
+                    Text(o),
+                  ]),
+                ),
+              SimpleDialogOption(onPressed: () => Navigator.of(ctx).pop(''), child: const Text('مسح القيمة')),
+            ],
+          ),
+        );
+        if (v == null) return;
+        await _saveExtra(app, p, f, v.isEmpty ? null : v);
+      case 'number':
+      case 'money':
+        final v = await textInputDialog(context,
+            title: f.label,
+            label: f.kind == 'money' ? 'المبلغ ($currencyLabel)' : 'الرقم',
+            confirmLabel: 'حفظ',
+            initial: current is num ? moneyInput(current.toDouble()) : '',
+            multiline: false,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            message: 'اتركه فارغاً لمسح القيمة.');
+        if (v == null) return;
+        final r = parseMoney(v);
+        if (!r.ok) {
+          if (mounted) showToast(context, 'اكتب رقماً صحيحاً', error: true);
+          return;
+        }
+        await _saveExtra(app, p, f, r.value);
+      default:
+        final v = await textInputDialog(context,
+            title: f.label,
+            label: f.label,
+            confirmLabel: 'حفظ',
+            initial: current?.toString() ?? '',
+            multiline: f.kind == 'longtext',
+            message: 'اتركه فارغاً لمسح القيمة.');
+        if (v == null) return;
+        await _saveExtra(app, p, f, v.trim().isEmpty ? null : v.trim());
+    }
+  }
+
   Widget _notesCard(BuildContext context, AppState app, Project p) {
-    final canEdit = app.canManageProjects;
+    final canEdit = app.canManageProjects && !app.frozenForMe;
     final changed = _notes.text.trim() != p.notes;
     return SectionCard(
       title: 'ملاحظات المشروع',

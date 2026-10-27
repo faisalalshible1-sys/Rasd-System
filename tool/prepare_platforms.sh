@@ -48,6 +48,20 @@ if [ -f "$J" ]; then
   perl -pi -e 's/"theme_color": "[^"]*"/"theme_color": "#8A6A1E"/; s/"background_color": "[^"]*"/"background_color": "#FFFFFF"/' "$J"
 fi
 
+# الويب: ترويسات أمان تُطبَّق عند النشر على Netlify
+if [ -d web ]; then
+  cat > web/_headers <<'H'
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.gstatic.com https://fonts.googleapis.com https://www.gstatic.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+H
+fi
+
 # أيقونة التطبيق من ختم المؤسسة لكل المنصات
 if command -v flutter >/dev/null 2>&1; then
   flutter pub get >/dev/null

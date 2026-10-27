@@ -24,23 +24,34 @@ void showToast(BuildContext context, String message, {bool error = false}) {
     ));
 }
 
-/// بطاقة قسم بعنوان.
+/// بطاقة قسم بعنوان، وأيقونة وشرح اختياريين.
 class SectionCard extends StatelessWidget {
-  const SectionCard({super.key, required this.title, this.trailing, required this.child, this.padding = const EdgeInsets.all(16)});
+  const SectionCard({
+    super.key,
+    required this.title,
+    this.trailing,
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.icon,
+    this.subtitle,
+  });
 
   final String title;
   final Widget? trailing;
   final Widget child;
   final EdgeInsets padding;
+  final IconData? icon;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: sem.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: sem.rule),
       ),
       padding: padding,
@@ -50,14 +61,356 @@ class SectionCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(child: Text(title, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+              if (icon != null) ...[
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, size: 19, color: cs.onPrimaryContainer),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(subtitle!, style: t.bodySmall?.copyWith(color: sem.muted, height: 1.5)),
+                      ),
+                  ],
+                ),
+              ),
               if (trailing != null) trailing!,
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           child,
         ],
       ),
+    );
+  }
+}
+
+/// غلاف صفحة: عرض أقصى ومسافات موحّدة وسحب للتحديث.
+class PageBody extends StatelessWidget {
+  const PageBody({super.key, required this.children, this.maxWidth = 1180, this.onRefresh, this.padding});
+
+  final List<Widget> children;
+  final double maxWidth;
+  final Future<void> Function()? onRefresh;
+  final EdgeInsets? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final narrow = width < 600;
+    final list = LayoutBuilder(builder: (context, c) {
+      final side = c.maxWidth > maxWidth + 48 ? (c.maxWidth - maxWidth) / 2 : (narrow ? 14.0 : 24.0);
+      return ListView(
+        padding: padding ?? EdgeInsets.fromLTRB(side, narrow ? 14 : 22, side, 40),
+        children: children,
+      );
+    });
+    final refresh = onRefresh;
+    return refresh == null ? list : RefreshIndicator(onRefresh: refresh, child: list);
+  }
+}
+
+/// ترويسة صفحة: عنوان وشرح وأزرار.
+class PageHeader extends StatelessWidget {
+  const PageHeader({super.key, required this.title, this.subtitle, this.actions = const [], this.icon});
+
+  final String title;
+  final String? subtitle;
+  final List<Widget> actions;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final sem = Sem.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 12,
+        spacing: 12,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(13)),
+                  child: Icon(icon, color: cs.onPrimaryContainer),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    if (subtitle != null)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: Text(subtitle!, style: t.bodyMedium?.copyWith(color: sem.muted)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (actions.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: actions),
+        ],
+      ),
+    );
+  }
+}
+
+/// بطاقة مؤشر: أيقونة ورقم وعنوان.
+class StatCard extends StatelessWidget {
+  const StatCard({super.key, required this.label, required this.value, this.icon, this.sub, this.color, this.onTap});
+
+  final String label;
+  final String value;
+  final IconData? icon;
+  final String? sub;
+  final Color? color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final t = Theme.of(context).textTheme;
+    final c = color ?? Theme.of(context).colorScheme.primary;
+    return Material(
+      color: sem.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: sem.rule)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: c.withAlpha(28), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(icon, color: c, size: 22),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.bodySmall?.copyWith(color: sem.muted)),
+                    Text(value,
+                        style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+                    if (sub != null) Text(sub!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.labelSmall?.copyWith(color: sem.muted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// شبكة متجاوبة لبطاقات متساوية العرض.
+class ResponsiveGrid extends StatelessWidget {
+  const ResponsiveGrid({super.key, required this.children, this.minItemWidth = 220, this.spacing = 12});
+
+  final List<Widget> children;
+  final double minItemWidth;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final cols = (c.maxWidth / minItemWidth).floor().clamp(1, 6);
+      final w = (c.maxWidth - spacing * (cols - 1)) / cols;
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: [for (final ch in children) SizedBox(width: w, child: ch)],
+      );
+    });
+  }
+}
+
+/// صف إعداد: عنوان وشرح وعنصر تحكم.
+class SettingRow extends StatelessWidget {
+  const SettingRow({super.key, required this.title, this.subtitle, this.trailing, this.icon, this.onTap, this.danger = false});
+
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final color = danger ? sem.danger : null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 21, color: color ?? sem.muted),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+                  if (subtitle != null) Text(subtitle!, style: TextStyle(color: sem.muted, fontSize: 12.5, height: 1.5)),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: 10), trailing!],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// شارة نصية ملونة.
+class ToneBadge extends StatelessWidget {
+  const ToneBadge(this.text, {super.key, required this.color, this.icon});
+
+  final String text;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(99)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 13, color: color), const SizedBox(width: 4)],
+          Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.5)),
+        ],
+      ),
+    );
+  }
+}
+
+/// شريط تنبيه داخل الصفحة.
+class InfoBanner extends StatelessWidget {
+  const InfoBanner({super.key, required this.text, this.level = 'info', this.icon, this.action});
+
+  final String text;
+  final String level; // info | warning | critical | ok
+  final IconData? icon;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final (bg, fg, ic) = switch (level) {
+      'warning' => (sem.wipSoft, sem.wip, Icons.warning_amber_rounded),
+      'critical' => (sem.dangerSoft, sem.danger, Icons.gpp_maybe_outlined),
+      'ok' => (sem.okSoft, sem.ok, Icons.verified_outlined),
+      _ => (cs.primaryContainer, cs.onPrimaryContainer, Icons.campaign_outlined),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          Icon(icon ?? ic, color: fg, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w600, height: 1.5))),
+          if (action != null) action!,
+        ],
+      ),
+    );
+  }
+}
+
+/// دائرة بالحرف الأول من الاسم.
+class InitialsAvatar extends StatelessWidget {
+  const InitialsAvatar({super.key, required this.name, this.size = 36, this.color});
+
+  final String name;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final letters = words.isEmpty
+        ? '؟'
+        : (words.length == 1 ? words.first.characters.first : '${words.first.characters.first}${words[1].characters.first}');
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color ?? cs.primaryContainer, shape: BoxShape.circle),
+      child: Text(letters,
+          style: TextStyle(color: color == null ? cs.onPrimaryContainer : Colors.white, fontWeight: FontWeight.w700, fontSize: size * 0.38)),
+    );
+  }
+}
+
+/// اختيار جهات الاختصاص (من يحدّث النموذج أو الحقل).
+class TokenSelector extends StatelessWidget {
+  const TokenSelector({super.key, required this.selected, required this.onChanged, this.enabled = true});
+
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final t in responsibleLabels.keys)
+          FilterChip(
+            label: Text(responsibleLabels[t]!, style: const TextStyle(fontSize: 12.5)),
+            selected: selected.contains(t),
+            onSelected: !enabled
+                ? null
+                : (sel) {
+                    final next = [...selected];
+                    if (sel) {
+                      if (!next.contains(t)) next.add(t);
+                    } else {
+                      next.remove(t);
+                    }
+                    onChanged(next);
+                  },
+          ),
+      ],
     );
   }
 }

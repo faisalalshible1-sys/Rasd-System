@@ -2,8 +2,11 @@
 
 enum FormStatus { done, wip, todo, na }
 
+/// مسميات الحالات (قابلة للتعديل من الإعدادات الحية).
+final Map<String, String> statusLabels = {'done': 'مكتمل', 'wip': 'قيد الإجراء', 'todo': 'لم يتم', 'na': 'لا ينطبق'};
+
 extension FormStatusX on FormStatus {
-  String get label => switch (this) {
+  String get label => statusLabels[name] ?? switch (this) {
         FormStatus.done => 'مكتمل',
         FormStatus.wip => 'قيد الإجراء',
         FormStatus.todo => 'لم يتم',
@@ -59,7 +62,8 @@ const Map<String, String> responsibleLabels = {
   'planning_qa': 'مكتب التخطيط وضمان الجودة',
 };
 
-const List<String> stageNames = ['التعاقد', 'تكليف المهندسين', 'بدء التنفيذ', 'المستخلصات', 'الاستلام والإقفال'];
+/// أسماء المراحل بالترتيب (تُحمَّل من جدول المراحل، وهذه قيمها الافتراضية).
+List<String> stageNames = ['التعاقد', 'تكليف المهندسين', 'بدء التنفيذ', 'المستخلصات', 'الاستلام والإقفال'];
 const String stageDoneName = 'اكتملت الدورة';
 
 String stageName(int i) => i >= 0 && i < stageNames.length ? stageNames[i] : stageDoneName;
@@ -76,8 +80,11 @@ double? _money(Object? v) => v == null ? null : (v is num ? v.toDouble() : doubl
 const String contractFormKey = 'f01';
 
 /// الضمان الابتدائي والنهائي نسبةً من قيمة التعاقد (تحسبهما قاعدة البيانات بالنسبتين نفسيهما).
-const double guaranteeInitialRate = 0.05;
-const double guaranteeFinalRate = 0.02;
+double guaranteeInitialRate = 0.05;
+double guaranteeFinalRate = 0.02;
+
+/// رمز العملة المعروض (من الإعدادات الحية).
+String currencyLabel = 'د.ل';
 
 double roundMoney(double v) => (v * 1000).roundToDouble() / 1000;
 
@@ -149,6 +156,7 @@ class FormDef {
     required this.sensitive,
     required this.responsible,
     this.engineerField,
+    this.active = true,
   });
 
   final String key;
@@ -158,6 +166,7 @@ class FormDef {
   final bool sensitive;
   final List<String> responsible;
   final String? engineerField;
+  final bool active;
 
   factory FormDef.fromMap(Map<String, dynamic> m) => FormDef(
         key: _str(m['key']),
@@ -167,6 +176,7 @@ class FormDef {
         sensitive: m['sensitive'] == true,
         responsible: (m['responsible'] as List?)?.map((e) => e.toString()).toList() ?? const [],
         engineerField: m['engineer_field'] as String?,
+        active: m['active'] != false,
       );
 }
 
@@ -231,6 +241,7 @@ class Project {
     this.deductions,
     this.guaranteeInitial,
     this.guaranteeFinal,
+    this.extra = const {},
     this.updatedAt,
     this.updatedBy,
   });
@@ -253,6 +264,7 @@ class Project {
   final double? deductions;
   final double? guaranteeInitial; // 5% من قيمة التعاقد، تحسبه قاعدة البيانات
   final double? guaranteeFinal; // 2% من قيمة التعاقد، تحسبه قاعدة البيانات
+  final Map<String, dynamic> extra; // قيم الحقول الإضافية
   final DateTime? updatedAt;
   final String? updatedBy;
 
@@ -283,6 +295,7 @@ class Project {
         deductions: _money(m['deductions']),
         guaranteeInitial: _money(m['guarantee_initial']),
         guaranteeFinal: _money(m['guarantee_final']),
+        extra: m['extra'] is Map ? Map<String, dynamic>.from(m['extra'] as Map) : const {},
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
       );
@@ -406,6 +419,22 @@ const Map<String, String> auditActionLabels = {
   'user.email': 'غيّر بريد الدخول',
   'form_def.update': 'عدّل صلاحيات نموذج',
   'system.import': 'استيراد أولي للمشاريع',
+  'project.field': 'عدّل حقلاً إضافياً',
+  'setting.update': 'عدّل إعداداً',
+  'security.setting': 'عدّل إعداد أمان',
+  'security.session_revoke': 'أنهى جلسة',
+  'security.user_signout': 'أخرج مستخدماً من أجهزته',
+  'security.mfa_reset': 'ألغى التحقق بخطوتين لمستخدم',
+  'config.stage': 'عدّل مرحلة',
+  'config.stage_delete': 'حذف مرحلة',
+  'config.form': 'عدّل نموذجاً',
+  'config.form_order': 'غيّر ترتيب النماذج',
+  'config.form_delete': 'حذف نموذجاً',
+  'config.department': 'عدّل قسماً',
+  'config.field': 'عدّل حقلاً إضافياً في التعريفات',
+  'idea.create': 'أرسل فكرة',
+  'idea.update': 'حدّث فكرة',
+  'idea.delete': 'حذف فكرة',
 };
 
 const Map<String, String> projectFieldLabels = {
@@ -545,8 +574,8 @@ class Progress {
   int get todo => required - done - wip;
   double get pct => required == 0 ? 1.0 : done / required;
 
-  /// 0..4 المرحلة الحالية، و5 عند اكتمال الدورة.
-  int get stage => next?.stage ?? 5;
+  /// المرحلة الحالية، وعدد المراحل عند اكتمال الدورة.
+  int get stage => next?.stage ?? stageNames.length;
 
   CycleState get cycle {
     if (next == null) return CycleState.complete;
@@ -555,10 +584,11 @@ class Progress {
   }
 }
 
-Progress computeProgress(List<FormDef> defs, Map<String, FormStatus>? statuses) {
+Progress computeProgress(List<FormDef> allDefs, Map<String, FormStatus>? statuses) {
   var done = 0, wip = 0, na = 0;
   FormDef? next;
   final cells = <FormStatus>[];
+  final defs = allDefs.where((d) => d.active).toList();
   for (final d in defs) {
     final s = statuses?[d.key] ?? FormStatus.todo;
     cells.add(s);
@@ -593,4 +623,199 @@ String normalizeArabic(String s) {
     }
   }
   return buf.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+
+// ---------------------------------------------------------------------
+// المراحل والحقول الإضافية والأفكار والإعدادات الحية (الإصدار الثاني)
+// ---------------------------------------------------------------------
+
+class StageDef {
+  const StageDef(this.idx, this.name);
+
+  final int idx;
+  final String name;
+
+  factory StageDef.fromMap(Map<String, dynamic> m) => StageDef((m['idx'] as num?)?.toInt() ?? 0, _str(m['name']));
+}
+
+/// أنواع الحقول الإضافية.
+const Map<String, String> fieldKindLabels = {
+  'text': 'نص قصير',
+  'longtext': 'نص طويل',
+  'number': 'رقم',
+  'money': 'مبلغ مالي',
+  'date': 'تاريخ',
+  'select': 'قائمة اختيار',
+  'bool': 'نعم / لا',
+};
+
+class CustomField {
+  const CustomField({
+    required this.key,
+    required this.label,
+    required this.kind,
+    required this.options,
+    required this.section,
+    required this.sort,
+    required this.editableBy,
+    required this.active,
+  });
+
+  final String key;
+  final String label;
+  final String kind;
+  final List<String> options;
+  final String section;
+  final int sort;
+  final List<String> editableBy;
+  final bool active;
+
+  factory CustomField.fromMap(Map<String, dynamic> m) => CustomField(
+        key: _str(m['key']),
+        label: _str(m['label']),
+        kind: _str(m['kind']),
+        options: (m['options'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        section: _str(m['section']),
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+        editableBy: (m['editable_by'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        active: m['active'] != false,
+      );
+
+  /// القيمة كما تُعرض.
+  String display(Object? v) {
+    if (v == null) return '—';
+    return switch (kind) {
+      'money' => v is num ? '${fmtMoney(v.toDouble())} $currencyLabel' : v.toString(),
+      'number' => v is num ? fmtMoney(v.toDouble()) : v.toString(),
+      'bool' => v == true ? 'نعم' : 'لا',
+      'date' => v.toString().replaceAll('-', '/'),
+      _ => v.toString().isEmpty ? '—' : v.toString(),
+    };
+  }
+}
+
+const Map<String, String> ideaCategoryLabels = {
+  'feature': 'ميزة جديدة',
+  'design': 'التصميم والشكل',
+  'data': 'البيانات والتقارير',
+  'security': 'الأمان',
+  'bug': 'خلل يحتاج إصلاحاً',
+  'other': 'أخرى',
+};
+
+const Map<String, String> ideaPriorityLabels = {'low': 'منخفضة', 'normal': 'عادية', 'high': 'عالية', 'urgent': 'عاجلة'};
+
+const Map<String, String> ideaStatusLabels = {
+  'new': 'جديدة',
+  'planned': 'مخطط لها',
+  'in_progress': 'قيد التنفيذ',
+  'done': 'نُفّذت',
+  'rejected': 'مستبعدة',
+};
+
+class Idea {
+  const Idea({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.category,
+    required this.priority,
+    required this.status,
+    required this.response,
+    required this.createdBy,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.githubUrl,
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final String category;
+  final String priority;
+  final String status;
+  final String response;
+  final String? createdBy;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final String githubUrl;
+
+  factory Idea.fromMap(Map<String, dynamic> m) => Idea(
+        id: _str(m['id']),
+        title: _str(m['title']),
+        body: _str(m['body']),
+        category: _str(m['category']),
+        priority: _str(m['priority']),
+        status: _str(m['status']),
+        response: _str(m['response']),
+        createdBy: m['created_by'] as String?,
+        createdAt: _date(m['created_at']),
+        updatedAt: _date(m['updated_at']),
+        githubUrl: _str(m['github_url']),
+      );
+}
+
+/// الإعدادات الحية كما تُقرأ من جدول app_settings.
+class LiveSettings {
+  LiveSettings(this.raw);
+
+  final Map<String, dynamic> raw;
+
+  static LiveSettings empty() => LiveSettings(const {});
+
+  String str(String key, String fallback) {
+    final v = raw[key];
+    return v is String && v.trim().isNotEmpty ? v : fallback;
+  }
+
+  bool flag(String key, bool fallback) {
+    final v = raw[key];
+    return v is bool ? v : fallback;
+  }
+
+  double number(String key, double fallback) {
+    final v = raw[key];
+    return v is num ? v.toDouble() : fallback;
+  }
+
+  Map<String, dynamic> map(String key) {
+    final v = raw[key];
+    return v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+  }
+
+  String get appTitle => str('brand.app_title', 'منظومة متابعة الدورة المستندية');
+  String get orgName => str('brand.org_name', 'مكتب الشؤون الهندسية');
+  String get orgParent => str('brand.org_parent', 'لجنة إعادة إعمار منطقة الصابري ووسط البلاد');
+  String get primaryHex => str('brand.primary_color', '#8A6A1E');
+  String get announcementText => (map('ui.announcement')['text'] ?? '').toString();
+  String get announcementLevel => (map('ui.announcement')['level'] ?? 'info').toString();
+  bool feature(String name, {bool fallback = true}) {
+    final v = map('ui.features')[name];
+    return v is bool ? v : fallback;
+  }
+
+  bool get frozen => flag('security.freeze', false);
+  bool get signupsOpen => flag('security.signups_open', true);
+  bool get requireMfaDirector => flag('security.require_mfa_director', false);
+  bool get requireMfaAll => flag('security.require_mfa_all', false);
+  int get idleMinutes => number('security.idle_minutes', 30).round();
+
+  /// يطبّق القيم العامة على المتغيرات المشتركة (المسميات والنسب والعملة).
+  void applyGlobals() {
+    final labels = map('ui.status_labels');
+    for (final k in const ['done', 'wip', 'todo', 'na']) {
+      final v = labels[k];
+      if (v is String && v.trim().isNotEmpty) statusLabels[k] = v.trim();
+    }
+    guaranteeInitialRate = number('finance.guarantee_initial_rate', 0.05);
+    guaranteeFinalRate = number('finance.guarantee_final_rate', 0.02);
+    currencyLabel = str('finance.currency', 'د.ل');
+  }
+}
+
+/// نسبة مئوية مقروءة من كسر (0.05 ← 5%).
+String rateText(double r) {
+  final v = r * 100;
+  return '${v == v.roundToDouble() ? v.round() : v.toStringAsFixed(1)}%';
 }

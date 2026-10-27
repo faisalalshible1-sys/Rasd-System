@@ -17,3 +17,16 @@ create publication supabase_realtime;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+-- المصادقة متعددة العوامل والجلسات وسجل المصادقة (للإصدار الثاني)
+alter table auth.users add column if not exists last_sign_in_at timestamptz;
+create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
+  friendly_name text, factor_type text default 'totp', status text not null default 'unverified',
+  created_at timestamptz default now(), updated_at timestamptz default now());
+create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz default now(), updated_at timestamptz default now(), aal text default 'aal1', not_after timestamptz,
+  refreshed_at timestamp, user_agent text, ip inet);
+create table auth.audit_log_entries (instance_id uuid, id uuid primary key default gen_random_uuid(), payload json,
+  created_at timestamptz default now(), ip_address varchar(64) default '');
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+grant execute on function auth.jwt() to anon, authenticated, service_role;

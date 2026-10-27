@@ -89,7 +89,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                       child: SelectField(
                         label: 'المرحلة الحالية',
                         value: app.stageFilter?.toString() ?? '',
-                        items: [('', '(الكل)'), for (var i = 0; i < 6; i++) ('$i', stageName(i))],
+                        items: [('', '(الكل)'), for (var i = 0; i <= stageNames.length; i++) ('$i', stageName(i))],
                         onChanged: (v) => app.setProjectFilters(stage: v.isEmpty ? null : int.parse(v), clearStage: v.isEmpty),
                       ),
                     ),

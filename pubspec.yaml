@@ -1,7 +1,7 @@
 name: dc_app
 description: منظومة متابعة نماذج الدورة المستندية للمشاريع — مكتب الشؤون الهندسية.
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -16,6 +16,8 @@ dependencies:
   excel: ^4.0.6
   file_saver: ^0.2.14
   url_launcher: ^6.3.0
+  qr_flutter: ^4.1.0
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:

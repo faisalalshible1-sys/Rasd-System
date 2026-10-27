@@ -1,0 +1,41 @@
+# مزامنة الإعدادات الحية والأفكار من Supabase إلى هذا المستودع.
+# يعمل تلقائياً كل ثلاث ساعات، ويمكن تشغيله فوراً من Actions ← sync ← Run workflow.
+# يحتاج السرّين SUPABASE_URL و SUPABASE_SERVICE_KEY (موجودان لسير عمل الإصدار).
+name: sync
+
+on:
+  schedule:
+    - cron: '23 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: مزامنة الإعدادات والأفكار
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: قراءة الإعدادات والأفكار من Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: python3 tool/sync_config.py
+      - name: حفظ التغييرات في المستودع
+        shell: bash
+        run: |
+          [ -d config ] || exit 0
+          git config user.name "dc-app sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config
+          if git diff --cached --quiet; then echo "لا تغييرات جديدة"; exit 0; fi
+          git commit -m "مزامنة الإعدادات الحية والأفكار [skip ci]"
+          git push

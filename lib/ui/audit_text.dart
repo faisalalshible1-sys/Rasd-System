@@ -49,7 +49,57 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'عدّل صلاحيات نموذج «${e.projectLabel}»';
     case 'system.import':
       return 'استيراد المشاريع من ملف Excel';
+    case 'project.field':
+      return 'عدّل «${text(d['label'])}»: ${d['from'] == null ? '—' : text(d['from'])} ← ${d['to'] == null ? '—' : text(d['to'])}';
+    case 'setting.update':
+    case 'security.setting':
+      return 'عدّل إعداد «${settingLabels[text(d['key'])] ?? text(d['key'])}»';
+    case 'security.session_revoke':
+      return 'أنهى جلسة لـ ${e.projectLabel}';
+    case 'security.user_signout':
+      return 'أخرج ${e.projectLabel} من كل أجهزته';
+    case 'security.mfa_reset':
+      return 'ألغى التحقق بخطوتين لـ ${e.projectLabel}';
+    case 'config.stage':
+      return d['from'] == null ? 'أضاف مرحلة «${text(d['to'])}»' : 'غيّر اسم مرحلة «${text(d['from'])}» إلى «${text(d['to'])}»';
+    case 'config.stage_delete':
+      return 'حذف مرحلة «${e.projectLabel}»';
+    case 'config.form':
+      return d['created'] == true ? 'أضاف نموذج «${e.projectLabel}»' : 'عدّل نموذج «${e.projectLabel}»';
+    case 'config.form_delete':
+      return 'حذف نموذج «${e.projectLabel}»';
+    case 'config.form_order':
+      return 'غيّر ترتيب النماذج';
+    case 'config.department':
+      return d['from'] == null ? 'أضاف قسم «${text(d['to'])}»' : 'غيّر اسم قسم «${text(d['from'])}» إلى «${text(d['to'])}»';
+    case 'config.field':
+      return 'عرّف حقلاً إضافياً «${e.projectLabel}»';
+    case 'idea.create':
+      return 'أرسل فكرة: ${e.projectLabel}';
+    case 'idea.update':
+      return 'حدّث فكرة: ${e.projectLabel}';
+    case 'idea.delete':
+      return 'حذف فكرة: ${e.projectLabel}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
 }
+
+/// أسماء الإعدادات كما تُعرض في السجل.
+const Map<String, String> settingLabels = {
+  'brand.app_title': 'اسم المنظومة',
+  'brand.org_name': 'اسم الجهة',
+  'brand.org_parent': 'الجهة الأم',
+  'brand.primary_color': 'لون الهوية',
+  'ui.announcement': 'الإعلان العام',
+  'ui.status_labels': 'مسميات الحالات',
+  'ui.features': 'الميزات',
+  'finance.guarantee_initial_rate': 'نسبة الضمان الابتدائي',
+  'finance.guarantee_final_rate': 'نسبة الضمان النهائي',
+  'finance.currency': 'رمز العملة',
+  'security.require_mfa_director': 'فرض التحقق على المدير',
+  'security.require_mfa_all': 'فرض التحقق على الجميع',
+  'security.idle_minutes': 'القفل التلقائي',
+  'security.freeze': 'تجميد المنظومة',
+  'security.signups_open': 'التسجيل الجديد',
+};

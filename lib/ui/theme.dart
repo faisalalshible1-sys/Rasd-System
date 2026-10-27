@@ -18,36 +18,174 @@ class Brand {
   static const String banner = 'assets/brand/banner.png';
 }
 
-ThemeData buildTheme(Brightness brightness) {
+/// الخط الأساسي للتطبيق: Readex Pro (عصري وواضح، وأرقامه مقروءة في الجداول).
+const String appFontFamily = 'Readex Pro';
+
+ThemeData buildTheme(Brightness brightness, {Color? brand}) {
   final isDark = brightness == Brightness.dark;
-  final seed = ColorScheme.fromSeed(seedColor: Brand.gold, brightness: brightness);
+  final primary = brand ?? Brand.goldDeep;
+  final seed = ColorScheme.fromSeed(seedColor: primary, brightness: brightness);
+  final hsl = HSLColor.fromColor(primary);
   final scheme = isDark
       ? seed.copyWith(
-          primary: const Color(0xFFDDBF72),
-          onPrimary: const Color(0xFF2A2006),
-          primaryContainer: const Color(0xFF3A2F14),
-          onPrimaryContainer: const Color(0xFFF1DFAE),
+          primary: hsl.withLightness((hsl.lightness + 0.32).clamp(0.55, 0.78)).toColor(),
+          onPrimary: const Color(0xFF1C1607),
+          primaryContainer: hsl.withLightness(0.2).withSaturation((hsl.saturation * 0.6).clamp(0.0, 1.0)).toColor(),
+          onPrimaryContainer: hsl.withLightness(0.86).toColor(),
           secondary: Brand.flagGreen,
+          surface: const Color(0xFF171716),
+          surfaceContainerLowest: const Color(0xFF121211),
+          surfaceContainerLow: const Color(0xFF1B1B1A),
+          surfaceContainer: const Color(0xFF201F1E),
+          surfaceContainerHigh: const Color(0xFF282725),
+          outlineVariant: const Color(0xFF34322E),
         )
       : seed.copyWith(
-          primary: Brand.goldDeep,
+          primary: primary,
           onPrimary: Colors.white,
-          primaryContainer: Brand.goldSoft,
-          onPrimaryContainer: const Color(0xFF4A3908),
+          primaryContainer: hsl.withLightness(0.93).withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0)).toColor(),
+          onPrimaryContainer: hsl.withLightness(0.22).toColor(),
           secondary: Brand.flagGreen,
+          surface: Colors.white,
+          surfaceContainerLowest: Colors.white,
+          surfaceContainerLow: const Color(0xFFF8F7F4),
+          surfaceContainer: const Color(0xFFF3F2EE),
+          surfaceContainerHigh: const Color(0xFFECEAE5),
+          outlineVariant: const Color(0xFFE3E1DB),
         );
-  final base = ThemeData(colorScheme: scheme, useMaterial3: true);
+  final sem = isDark ? Sem.dark : Sem.light;
+  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness, visualDensity: VisualDensity.standard);
+  final text = _arabicText(base.textTheme).apply(bodyColor: isDark ? const Color(0xFFECEAE4) : Brand.ink, displayColor: isDark ? Colors.white : Brand.ink);
+  final radius12 = BorderRadius.circular(12);
+
   return base.copyWith(
-    textTheme: _arabicText(base.textTheme),
-    scaffoldBackgroundColor: isDark ? const Color(0xFF111110) : const Color(0xFFF3F3F1),
+    textTheme: text.copyWith(
+      titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w600, letterSpacing: 0),
+      titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      bodyMedium: text.bodyMedium?.copyWith(height: 1.55),
+      bodyLarge: text.bodyLarge?.copyWith(height: 1.55),
+      labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    ),
+    scaffoldBackgroundColor: isDark ? const Color(0xFF0F0F0E) : const Color(0xFFF4F3EF),
+    dividerTheme: DividerThemeData(color: sem.rule, thickness: 1, space: 1),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: sem.surface,
+      surfaceTintColor: Colors.transparent,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: sem.rule)),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
+      foregroundColor: isDark ? Colors.white : Brand.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: isDark ? const Color(0xFF1E1E1C) : const Color(0xFFF7F6F3),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.rule)),
+      enabledBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.rule)),
+      focusedBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: scheme.primary, width: 1.6)),
+      errorBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.danger)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.danger, width: 1.6)),
+      labelStyle: TextStyle(color: sem.muted),
+      floatingLabelStyle: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: radius12),
+        textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: radius12),
+        side: BorderSide(color: sem.rule),
+        textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: radius12)),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: radius12),
+        side: BorderSide(color: sem.rule),
+        selectedBackgroundColor: scheme.primaryContainer,
+        selectedForegroundColor: scheme.onPrimaryContainer,
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      side: BorderSide(color: sem.rule),
+      backgroundColor: sem.surface,
+      selectedColor: scheme.primaryContainer,
+      labelStyle: text.labelMedium,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: sem.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      titleTextStyle: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: sem.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: radius12),
+      backgroundColor: isDark ? const Color(0xFF2C2B28) : Brand.ink,
+      contentTextStyle: text.bodyMedium?.copyWith(color: Colors.white),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: scheme.primaryContainer,
+      height: 66,
+      labelTextStyle: WidgetStatePropertyAll(text.labelSmall?.copyWith(fontWeight: FontWeight.w600)),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
+      indicatorColor: scheme.primaryContainer,
+    ),
+    tabBarTheme: TabBarThemeData(
+      labelStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+      unselectedLabelStyle: text.labelLarge,
+      dividerColor: sem.rule,
+      indicatorSize: TabBarIndicatorSize.label,
+    ),
+    listTileTheme: ListTileThemeData(shape: RoundedRectangleBorder(borderRadius: radius12)),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF2C2B28) : Brand.ink, borderRadius: BorderRadius.circular(8)),
+      textStyle: text.bodySmall?.copyWith(color: Colors.white),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : null),
+      trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? scheme.primary : null),
+    ),
   );
 }
 
 TextTheme _arabicText(TextTheme base) {
   try {
-    return GoogleFonts.getTextTheme('IBM Plex Sans Arabic', base);
+    return GoogleFonts.getTextTheme(appFontFamily, base);
   } catch (_) {
-    return base; // خط النظام عند تعذّر تحميل الخط
+    try {
+      return GoogleFonts.getTextTheme('IBM Plex Sans Arabic', base);
+    } catch (_) {
+      return base; // خط النظام عند تعذّر تحميل الخط
+    }
   }
 }
 
@@ -61,7 +199,7 @@ Color barForeground(BuildContext context) => _isDark(context) ? Colors.white : B
 
 /// شريط ألوان العلم كما يظهر تحت الخط في الشعار.
 class BrandStripe extends StatelessWidget implements PreferredSizeWidget {
-  const BrandStripe({super.key, this.height = 4});
+  const BrandStripe({super.key, this.height = 3});
 
   final double height;
 
@@ -117,15 +255,16 @@ AppBar brandAppBar(BuildContext context,
   );
 }
 
-/// زخرفة حقل إدخال موحّدة.
-InputDecoration fieldDeco(String label, {String? hint, String? error, Widget? suffix, Widget? prefixIcon}) => InputDecoration(
+/// زخرفة حقل إدخال موحّدة (الشكل من سمة التطبيق).
+InputDecoration fieldDeco(String label, {String? hint, String? error, Widget? suffix, Widget? prefixIcon, String? helper}) =>
+    InputDecoration(
       labelText: label,
       hintText: hint,
       errorText: error,
+      helperText: helper,
+      helperMaxLines: 3,
       suffixIcon: suffix,
       prefixIcon: prefixIcon,
-      border: const OutlineInputBorder(),
-      isDense: true,
     );
 
 /// الألوان الدلالية لحالات النماذج، مستقلة عن لون الهوية.

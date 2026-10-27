@@ -41,7 +41,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final n = list.length;
 
     // إنجاز المراحل
-    final stageReq = List<int>.filled(5, 0), stageDone = List<int>.filled(5, 0), stageWip = List<int>.filled(5, 0);
+    final nStages = stageNames.length;
+    final stageReq = List<int>.filled(nStages, 0), stageDone = List<int>.filled(nStages, 0), stageWip = List<int>.filled(nStages, 0);
     // إنجاز النماذج
     final fDone = <String, int>{}, fWip = <String, int>{}, fTodo = <String, int>{}, fNa = <String, int>{};
     // التوزيع
@@ -120,11 +121,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
           ),
         );
 
-    return RefreshIndicator(
+    return PageBody(
       onRefresh: app.loadAll,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      children: [
           ScopeFilters(app: app),
           const SizedBox(height: 14),
           SectionCard(
@@ -132,7 +131,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             trailing: Text('نسبة من النماذج المطلوبة', style: TextStyle(color: sem.muted, fontSize: 12)),
             child: Column(
               children: [
-                for (var s = 0; s < 5; s++)
+                for (var s = 0; s < nStages; s++)
                   BarRow(
                     title: '${s + 1}. ${stageNames[s]}',
                     trailing: stageReq[s] == 0 ? '—' : pctText(stageDone[s] / stageReq[s]),
@@ -210,6 +209,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           const SizedBox(height: 14),
           table('حسب الشركة المنفذة', group((p) => p.company)),
           const SizedBox(height: 14),
+          if (app.isDirector || app.settings.feature('export'))
           FilledButton.icon(
             onPressed: _exporting || list.isEmpty ? null : () => _export(app),
             icon: _exporting
@@ -219,8 +219,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
           ),
           const SizedBox(height: 24),
-        ],
-      ),
+      ],
     );
   }
 }

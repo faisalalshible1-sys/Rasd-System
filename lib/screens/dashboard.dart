@@ -20,7 +20,8 @@ class DashboardPage extends StatelessWidget {
     final n = list.length;
     var running = 0, complete = 0, notStarted = 0, done = 0, wip = 0, todo = 0, req = 0;
     var sumPct = 0.0;
-    final byStage = List<int>.filled(6, 0);
+    final nStages = stageNames.length;
+    final byStage = List<int>.filled(nStages + 1, 0);
     final byNext = <String, int>{};
     for (final p in list) {
       final pr = app.progressOf(p);
@@ -37,7 +38,7 @@ class DashboardPage extends StatelessWidget {
       todo += pr.todo;
       req += pr.required;
       sumPct += pr.pct;
-      byStage[pr.stage]++;
+      byStage[pr.stage.clamp(0, nStages)]++;
       final nx = pr.next;
       if (nx != null) byNext[nx.key] = (byNext[nx.key] ?? 0) + 1;
     }
@@ -49,11 +50,20 @@ class DashboardPage extends StatelessWidget {
     final maxStage = byStage.fold<int>(1, (a, b) => b > a ? b : a);
     final pending = app.pendingRequests;
 
-    return RefreshIndicator(
+    final words = (app.me?.displayName ?? '').trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final first = words.isEmpty ? '' : (words.first.endsWith('.') && words.length > 1 ? '${words[0]} ${words[1]}' : words.first);
+    final withFinance = list.where((p) => p.contractValue != null).toList();
+    final totalContract = withFinance.fold<double>(0, (a, p) => a + (p.contractValue ?? 0));
+    final totalPaid = withFinance.fold<double>(0, (a, p) => a + (p.paymentFirst ?? 0) + (p.paymentSecond ?? 0) + (p.paymentFinal ?? 0));
+    final totalDeductions = withFinance.fold<double>(0, (a, p) => a + (p.deductions ?? 0));
+
+    return PageBody(
       onRefresh: app.loadAll,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      children: [
+          PageHeader(
+            title: first.isEmpty ? 'الرئيسية' : 'أهلاً، $first',
+            subtitle: 'ملخص الدورة المستندية للمشاريع ${app.ownerFilter.isEmpty && app.companyFilter.isEmpty ? 'كلها' : 'ضمن التصفية'}.',
+          ),
           ScopeFilters(app: app),
           const SizedBox(height: 14),
           if (app.projects.isEmpty)
@@ -62,28 +72,39 @@ class DashboardPage extends StatelessWidget {
               message: app.canManageProjects ? 'أضف أول مشروع من تبويب «المشاريع».' : 'لم تُسجَّل مشاريع حتى الآن.',
             )
           else ...[
-            LayoutBuilder(builder: (context, c) {
-              final cols = c.maxWidth >= 640 ? 4 : 2;
-              final w = (c.maxWidth - (cols - 1) * 10) / cols;
-              return Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  SizedBox(width: w, child: KpiTile(label: 'إجمالي المشاريع', value: '$n', sub: 'ضمن التصفية', onTap: () => app.openProjects())),
-                  SizedBox(
-                      width: w,
-                      child: KpiTile(
-                          label: 'دورات جارية', value: '$running', sub: share(running), color: sem.wip, onTap: () => app.openProjects(cycle: CycleState.running))),
-                  SizedBox(
-                      width: w,
-                      child: KpiTile(
-                          label: 'دورات مكتملة', value: '$complete', sub: share(complete), color: sem.ok, onTap: () => app.openProjects(cycle: CycleState.complete))),
-                  SizedBox(
-                      width: w,
-                      child: KpiTile(label: 'لم تبدأ', value: '$notStarted', sub: share(notStarted), onTap: () => app.openProjects(cycle: CycleState.notStarted))),
-                ],
-              );
-            }),
+            ResponsiveGrid(minItemWidth: 200, children: [
+              StatCard(icon: Icons.folder_rounded, label: 'إجمالي المشاريع', value: '$n', sub: 'ضمن التصفية', onTap: () => app.openProjects()),
+              StatCard(
+                  icon: Icons.autorenew_rounded,
+                  label: 'دورات جارية',
+                  value: '$running',
+                  sub: share(running),
+                  color: sem.wip,
+                  onTap: () => app.openProjects(cycle: CycleState.running)),
+              StatCard(
+                  icon: Icons.task_alt_rounded,
+                  label: 'دورات مكتملة',
+                  value: '$complete',
+                  sub: share(complete),
+                  color: sem.ok,
+                  onTap: () => app.openProjects(cycle: CycleState.complete)),
+              StatCard(
+                  icon: Icons.hourglass_empty_rounded,
+                  label: 'لم تبدأ',
+                  value: '$notStarted',
+                  sub: share(notStarted),
+                  color: sem.muted,
+                  onTap: () => app.openProjects(cycle: CycleState.notStarted)),
+            ]),
+            if (withFinance.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ResponsiveGrid(minItemWidth: 200, children: [
+                StatCard(icon: Icons.request_quote_rounded, label: 'قيم التعاقد', value: fmtMoney(totalContract), sub: '$currencyLabel · ${withFinance.length} مشروعاً'),
+                StatCard(icon: Icons.payments_rounded, label: 'المدفوع (الدفعات)', value: fmtMoney(totalPaid), sub: totalContract == 0 ? currencyLabel : '${pctText(totalPaid / totalContract)} من القيم', color: sem.ok),
+                StatCard(icon: Icons.remove_circle_outline_rounded, label: 'الخصومات', value: fmtMoney(totalDeductions), sub: currencyLabel, color: sem.danger),
+                StatCard(icon: Icons.account_balance_wallet_outlined, label: 'المتبقي', value: fmtMoney(totalContract - totalPaid - totalDeductions), sub: currencyLabel, color: sem.wip),
+              ]),
+            ],
             const SizedBox(height: 14),
             if (app.isDirector && pending.isNotEmpty) ...[
               Material(
@@ -145,12 +166,12 @@ class DashboardPage extends StatelessWidget {
               title: 'المشاريع حسب المرحلة الحالية',
               child: Column(
                 children: [
-                  for (var i = 0; i < 6; i++)
+                  for (var i = 0; i <= nStages; i++)
                     BarRow(
-                      title: i < 5 ? '${i + 1}. ${stageNames[i]}' : stageDoneName,
+                      title: i < nStages ? '${i + 1}. ${stageNames[i]}' : stageDoneName,
                       trailing: '${byStage[i]}',
                       meter: SegmentMeter(
-                          parts: [(byStage[i], i == 5 ? sem.ok : Theme.of(context).colorScheme.primary), (maxStage - byStage[i], sem.todoSoft)],
+                          parts: [(byStage[i], i == nStages ? sem.ok : Theme.of(context).colorScheme.primary), (maxStage - byStage[i], sem.todoSoft)],
                           height: 8),
                       onTap: () => app.openProjects(stage: i),
                     ),
@@ -189,8 +210,7 @@ class DashboardPage extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 24),
-        ],
-      ),
+      ],
     );
   }
 }
