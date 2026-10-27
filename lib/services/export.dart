@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
@@ -11,12 +12,7 @@ import '../models.dart';
 /// يُرجع مسار الملف أو اسمه، أو null إذا ألغى المستخدم الحفظ.
 Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
   final excel = Excel.createExcel();
-  const sheetName = 'سجل المشاريع';
-  final defaultSheet = excel.getDefaultSheet();
-  if (defaultSheet != null && defaultSheet != sheetName) {
-    excel.rename(defaultSheet, sheetName);
-  }
-  final sheet = excel[sheetName];
+  final sheet = _sheet(excel, 'سجل المشاريع');
 
   final header = <String>['ت', 'رقم التكليف', 'رمز المشروع', 'اسم المشروع', 'مالك المشروع', 'اسم الشركة', 'القسم المشرف'];
   for (final d in app.formDefs) {
@@ -77,15 +73,88 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
     sheet.appendRow(row);
   }
 
+  return _save(excel, 'متابعة نماذج الدورة المستندية');
+}
+
+String _day(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+String _stamp(Object? v) {
+  final d = v is DateTime ? v : (v == null ? null : DateTime.tryParse(v.toString()));
+  if (d == null) return '';
+  final l = d.toLocal();
+  return '${_day(l)} ${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+}
+
+Sheet _sheet(Excel excel, String sheetName) {
+  final defaultSheet = excel.getDefaultSheet();
+  if (defaultSheet != null && defaultSheet != sheetName) {
+    excel.rename(defaultSheet, sheetName);
+  }
+  return excel[sheetName];
+}
+
+Future<String?> _save(Excel excel, String baseName) async {
   final bytes = excel.encode();
   if (bytes == null) throw StateError('تعذّر إنشاء ملف Excel');
   final data = Uint8List.fromList(bytes);
-  final now = DateTime.now();
-  final name = 'متابعة نماذج الدورة المستندية ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-
+  final name = '$baseName ${_day(DateTime.now())}';
   final mobile = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
   if (mobile) {
     return FileSaver.instance.saveAs(name: name, bytes: data, ext: 'xlsx', mimeType: MimeType.microsoftExcel);
   }
   return FileSaver.instance.saveFile(name: name, bytes: data, ext: 'xlsx', mimeType: MimeType.microsoftExcel);
+}
+
+/// تصدير قائمة المستخدمين (للمدير ومدقق الأمن). [security] من مركز الأمان: التحقق بخطوتين وآخر دخول.
+Future<String?> exportUsersXlsx(AppState app, List<Map<String, dynamic>> security) async {
+  final excel = Excel.createExcel();
+  final sheet = _sheet(excel, 'المستخدمون');
+  final sec = {for (final r in security) r['id'].toString(): r};
+  sheet.appendRow(['ت', 'الاسم', 'بريد الدخول', 'الدور', 'القسم', 'الحالة', 'التحقق بخطوتين', 'آخر دخول', 'تاريخ إنشاء الحساب', 'معرّف الحساب']
+      .map<CellValue?>((h) => TextCellValue(h))
+      .toList());
+  final users = app.people.values.toList()..sort((a, b) => a.displayName.compareTo(b.displayName));
+  var i = 0;
+  for (final u in users) {
+    i++;
+    final s = sec[u.id];
+    final status = u.active ? 'مفعّل' : (u.role == null ? 'بانتظار التفعيل' : 'موقوف');
+    sheet.appendRow(<CellValue?>[
+      IntCellValue(i),
+      TextCellValue(u.displayName),
+      TextCellValue(u.email),
+      TextCellValue(u.role?.label ?? ''),
+      TextCellValue(u.role == AppRole.deptHead ? app.departmentName(u.department) : ''),
+      TextCellValue(status),
+      TextCellValue(s == null ? '' : (s['mfa'] == true ? 'مفعّل' : 'غير مفعّل')),
+      TextCellValue(_stamp(s?['last_sign_in_at'])),
+      TextCellValue(_stamp(u.createdAt)),
+      TextCellValue(u.id),
+    ]);
+  }
+  return _save(excel, 'مستخدمو المنظومة');
+}
+
+/// تصدير سطور سجل التدقيق المعروضة (للمدير ومدقق الأمن).
+Future<String?> exportAuditXlsx(AppState app, List<AuditEntry> rows, String Function(AuditEntry) describe) async {
+  final excel = Excel.createExcel();
+  final sheet = _sheet(excel, 'سجل التدقيق');
+  sheet.appendRow(['ت', 'التاريخ والوقت', 'المستخدم', 'العملية', 'الوصف', 'المشروع أو العنصر', 'رمز العملية', 'التفاصيل']
+      .map<CellValue?>((h) => TextCellValue(h))
+      .toList());
+  var i = 0;
+  for (final r in rows) {
+    i++;
+    sheet.appendRow(<CellValue?>[
+      IntCellValue(i),
+      TextCellValue(_stamp(r.at)),
+      TextCellValue(r.actorName.isEmpty ? 'النظام' : r.actorName),
+      TextCellValue(r.action.split('.').first),
+      TextCellValue(describe(r)),
+      TextCellValue(r.projectLabel),
+      TextCellValue(r.action),
+      TextCellValue(r.detail.isEmpty ? '' : jsonEncode(r.detail)),
+    ]);
+  }
+  return _save(excel, 'سجل التدقيق');
 }

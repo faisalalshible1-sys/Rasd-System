@@ -87,10 +87,17 @@ class AppState extends ChangeNotifier {
   // الصلاحيات (للعرض فقط)
   // ---------------------------------------------------------------
   bool get isDirector => me?.isDirector ?? false;
+
+  /// مدقق الأمن: اطلاع كامل للقراءة فقط على الأمان والتدقيق وبيانات المستخدمين.
+  bool get isAuditor => me?.isAuditor ?? false;
+
+  /// المدير ومدقق الأمن يطّلعان على مركز الأمان وسجل التدقيق والبيانات الكاملة للمستخدمين.
+  bool get canAudit => isDirector || isAuditor;
   AppRole? get role => me?.active == true ? me?.role : null;
   bool get canManageProjects => role == AppRole.director || role == AppRole.officeStaff;
   bool get canAddQualityNote => role == AppRole.director || role == AppRole.planningQa;
-  bool get canEditAnyForm => role != null && role != AppRole.planningQa && !frozenForMe;
+  bool get canEditAnyForm =>
+      role != null && role != AppRole.planningQa && role != AppRole.securityAuditor && !frozenForMe;
 
   /// المنظومة مجمّدة (قراءة فقط) لغير المدير.
   bool get frozenForMe => settings.frozen && !isDirector;
@@ -107,6 +114,7 @@ class AppState extends ChangeNotifier {
       AppRole.officeStaff => tokens.contains('office_staff'),
       AppRole.contracts => tokens.contains('contracts'),
       AppRole.planningQa => tokens.contains('planning_qa'),
+      AppRole.securityAuditor => false,
       AppRole.deptHead => (tokens.contains('head:supervising') && dep == p.department) ||
           (tokens.contains('head:technical') && dep == 'technical') ||
           (tokens.contains('head:acceptance') && dep == 'acceptance'),
@@ -140,8 +148,8 @@ class AppState extends ChangeNotifier {
 
   bool get mfaRequiredForMe {
     final all = settings.raw.isNotEmpty ? settings.requireMfaAll : publicSettings['security.require_mfa_all'] == true;
-    // التحقق بخطوتين إلزامي لمدير المكتب دائماً (قرار المدير)، واختياري للبقية ما لم يُفرض على الجميع
-    return all || me?.role == AppRole.director;
+    // التحقق بخطوتين إلزامي لمدير المكتب ومدقق الأمن دائماً، واختياري للبقية ما لم يُفرض على الجميع
+    return all || me?.role == AppRole.director || me?.role == AppRole.securityAuditor;
   }
 
   bool needsApproval(FormDef d) => d.sensitive && !isDirector;
@@ -758,6 +766,18 @@ class AppState extends ChangeNotifier {
   Future<int> resetUserMfa(String userId) async {
     final res = await client.rpc('reset_user_mfa', params: {'p_user': userId});
     return (res as num?)?.toInt() ?? 0;
+  }
+
+  /// البيانات الكاملة لمستخدم: الحساب والأمان والأجهزة وسجل الدخول والنشاط (للمدير ومدقق الأمن).
+  Future<Map<String, dynamic>> userDetails(String userId) async {
+    final res = await client.rpc('user_details', params: {'p_user': userId});
+    return res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
+  }
+
+  /// حذف مستخدم نهائياً (لمدير المكتب وحده، بتأكيد بريد المستخدم).
+  Future<void> deleteUser(String userId, String confirmEmail) async {
+    await client.rpc('delete_user', params: {'p_user': userId, 'p_confirm_email': confirmEmail.trim()});
+    await loadAll();
   }
 
   /// تسجيل الخروج من كل الأجهزة الأخرى لحسابي.

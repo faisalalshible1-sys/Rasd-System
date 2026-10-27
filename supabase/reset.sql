@@ -32,7 +32,7 @@ begin
         'save_department', 'save_custom_field', 'reorder_custom_fields', 'set_project_field', 'set_setting',
         'public_settings', 'export_config', 'import_settings', 'submit_idea', 'update_idea', 'delete_idea',
         'security_overview', 'security_users', 'list_sessions', 'revoke_session', 'revoke_user_sessions',
-        'reset_user_mfa', 'login_history')
+        'reset_user_mfa', 'login_history', 'is_auditor', 'can_audit', 'user_details', 'delete_user')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

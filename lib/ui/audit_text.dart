@@ -43,6 +43,11 @@ String auditDescription(AppState app, AuditEntry e) {
       return '$verb ${e.projectLabel}${roleTo != null && e.action != 'user.deactivate' ? ' — $roleTo' : ''}';
     case 'user.email':
       return 'غيّر بريد الدخول لـ ${e.projectLabel}: ${text(d['from'])} ← ${text(d['to'])}';
+    case 'user.delete':
+      final email = text(d['email']);
+      final n = (d['withdrawn_requests'] as num?)?.toInt() ?? 0;
+      return 'حذف حساب ${e.projectLabel}${email.isNotEmpty && email != e.projectLabel ? ' ($email)' : ''} نهائياً'
+          '${n > 0 ? ' وسُحب $n طلب معلّق له' : ''}';
     case 'user.claim_director':
       return 'تولّى إدارة المنظومة (${e.projectLabel})';
     case 'form_def.update':

@@ -46,13 +46,16 @@ List<_Dest> _destinations(AppState app) {
   return [
     const _Dest(Tabs.home, 'الرئيسية', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
     const _Dest(Tabs.projects, 'المشاريع', Icons.folder_open_outlined, Icons.folder_rounded),
-    _Dest(Tabs.requests, app.isDirector ? 'الاعتمادات' : 'طلباتي', Icons.fact_check_outlined, Icons.fact_check_rounded,
-        badge: requestsBadge),
-    if (app.isDirector || app.settings.feature('analysis'))
+    if (!app.isAuditor)
+      _Dest(Tabs.requests, app.isDirector ? 'الاعتمادات' : 'طلباتي', Icons.fact_check_outlined, Icons.fact_check_rounded,
+          badge: requestsBadge),
+    if (app.canAudit || app.settings.feature('analysis'))
       const _Dest(Tabs.analysis, 'التحليل', Icons.insights_outlined, Icons.insights_rounded),
     if (app.v2Ready) _Dest(Tabs.ideas, 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded, badge: newIdeas),
     if (app.isDirector)
-      const _Dest(Tabs.control, 'لوحة التحكم', Icons.tune_outlined, Icons.tune_rounded, admin: true),
+      const _Dest(Tabs.control, 'لوحة التحكم', Icons.tune_outlined, Icons.tune_rounded, admin: true)
+    else if (app.isAuditor)
+      const _Dest(Tabs.control, 'التدقيق الأمني', Icons.policy_outlined, Icons.policy_rounded, admin: true),
   ];
 }
 
@@ -304,7 +307,7 @@ class _Sidebar extends StatelessWidget {
                   if (d.admin)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
-                      child: Text('الإدارة', style: t.labelSmall?.copyWith(color: sem.muted, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                      child: Text(app.isDirector ? 'الإدارة' : 'التدقيق', style: t.labelSmall?.copyWith(color: sem.muted, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
                     ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),

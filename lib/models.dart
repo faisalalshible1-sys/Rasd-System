@@ -23,7 +23,7 @@ FormStatus parseStatus(Object? v) => switch (v) {
       _ => FormStatus.todo,
     };
 
-enum AppRole { director, officeStaff, deptHead, contracts, planningQa }
+enum AppRole { director, officeStaff, deptHead, contracts, planningQa, securityAuditor }
 
 extension AppRoleX on AppRole {
   String get db => switch (this) {
@@ -32,6 +32,7 @@ extension AppRoleX on AppRole {
         AppRole.deptHead => 'dept_head',
         AppRole.contracts => 'contracts',
         AppRole.planningQa => 'planning_qa',
+        AppRole.securityAuditor => 'security_auditor',
       };
 
   String get label => switch (this) {
@@ -40,6 +41,19 @@ extension AppRoleX on AppRole {
         AppRole.deptHead => 'رئيس قسم',
         AppRole.contracts => 'مكتب العقود والتوريدات والمستخلصات',
         AppRole.planningQa => 'مكتب التخطيط والتقييم وضمان الجودة',
+        AppRole.securityAuditor => 'مدقق الأمن',
+      };
+
+  /// وصف مختصر لما يستطيعه كل دور (يظهر عند اختيار الدور).
+  String get summary => switch (this) {
+        AppRole.director => 'كل الصلاحيات',
+        AppRole.officeStaff => 'يضيف المشاريع ويعدّلها ويحدّث النماذج كلها، والحساسة بطلب اعتماد',
+        AppRole.deptHead => 'يحدّث نماذج اختصاص قسمه فقط',
+        AppRole.contracts => 'يحدّث نماذج التعاقد والمستخلصات وإقفال العقد والبيانات المالية',
+        AppRole.planningQa => 'يطّلع على المؤشرات ويصدّر التقارير ويسجّل ملاحظات الجودة',
+        AppRole.securityAuditor =>
+          'التدقيق الأمني على المعلومات: اطلاع كامل للقراءة فقط على مركز الأمان وسجل التدقيق وبيانات المستخدمين، '
+              'دون أي تعديل. التحقق بخطوتين إلزامي له.',
       };
 }
 
@@ -49,6 +63,7 @@ AppRole? parseRole(Object? v) => switch (v) {
       'dept_head' => AppRole.deptHead,
       'contracts' => AppRole.contracts,
       'planning_qa' => AppRole.planningQa,
+      'security_auditor' => AppRole.securityAuditor,
       _ => null,
     };
 
@@ -210,6 +225,7 @@ class Profile {
 
   String get displayName => fullName.trim().isNotEmpty ? fullName.trim() : (email.isNotEmpty ? email : 'مستخدم');
   bool get isDirector => active && role == AppRole.director;
+  bool get isAuditor => active && role == AppRole.securityAuditor;
 
   factory Profile.fromMap(Map<String, dynamic> m) => Profile(
         id: _str(m['id']),

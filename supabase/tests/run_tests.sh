@@ -14,5 +14,10 @@ $P -d dctest -f "$DIR/migrations/20261027000005_contract_finance.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261027000005_contract_finance.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261027000006_platform_v2.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261027000006_platform_v2.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261027000007_security_auditor_role.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261027000007_security_auditor_role.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261027000008_users_admin.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261027000008_users_admin.sql" >/dev/null
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/10_rules_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/20_platform_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/30_users_admin_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

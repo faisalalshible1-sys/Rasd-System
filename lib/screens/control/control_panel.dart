@@ -15,18 +15,23 @@ import 'structure.dart';
 import 'users.dart';
 
 class _Section {
-  const _Section(this.icon, this.title, this.subtitle, this.builder, {this.needsV2 = false});
+  const _Section(this.icon, this.title, this.subtitle, this.builder, {this.needsV2 = false, this.auditor = false, this.users = false});
 
   final IconData icon;
   final String title;
   final String subtitle;
   final Widget Function() builder;
   final bool needsV2;
+
+  /// يظهر لمدقق الأمن (للاطلاع فقط).
+  final bool auditor;
+  final bool users;
 }
 
 final List<_Section> _sections = [
   _Section(Icons.dashboard_customize_outlined, 'نظرة عامة', 'حالة المنظومة والإجراءات السريعة', () => const OverviewSection()),
-  _Section(Icons.group_outlined, 'المستخدمون والأدوار', 'التفعيل والأدوار والأقسام والبريد', () => const UsersSection()),
+  _Section(Icons.group_outlined, 'المستخدمون والأدوار', 'البيانات الكاملة والتفعيل والأدوار والحذف', () => const UsersSection(),
+      auditor: true, users: true),
   _Section(Icons.key_outlined, 'الصلاحيات', 'من يحدّث كل نموذج، والنماذج الحساسة', () => const PermissionsSection()),
   _Section(Icons.account_tree_outlined, 'المراحل والنماذج والأقسام', 'إضافة وتسمية وترتيب وإيقاف', () => const StructureSection(),
       needsV2: true),
@@ -34,13 +39,13 @@ final List<_Section> _sections = [
   _Section(Icons.tune_outlined, 'الإعدادات الحية', 'الهوية والإعلانات والمسميات والميزات والمالية', () => const SettingsSection(),
       needsV2: true),
   _Section(Icons.shield_outlined, 'مركز الأمان', 'التحقق بخطوتين والجلسات وسجل الدخول والتجميد', () => const SecuritySection(),
-      needsV2: true),
-  _Section(Icons.history_rounded, 'سجل التدقيق', 'كل تعديل: من ومتى وماذا', () => const AuditSection()),
+      needsV2: true, auditor: true),
+  _Section(Icons.history_rounded, 'سجل التدقيق', 'كل تعديل: من ومتى وماذا', () => const AuditSection(), auditor: true),
   _Section(Icons.cloud_sync_outlined, 'النسخ والمزامنة', 'تصدير الإعدادات واستعادتها والمزامنة مع GitHub', () => const BackupSection(),
       needsV2: true),
 ];
 
-/// لوحة التحكم — لمدير المكتب وحده.
+/// لوحة التحكم — لمدير المكتب، ومدقق الأمن يرى منها أقسام التدقيق للاطلاع فقط.
 class ControlPanelPage extends StatefulWidget {
   const ControlPanelPage({super.key});
 
@@ -56,11 +61,13 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
     final cs = Theme.of(context).colorScheme;
-    if (!app.isDirector) {
+    if (!app.canAudit) {
       return const Center(child: EmptyState(icon: Icons.lock_outline, title: 'لوحة التحكم لمدير المكتب وحده'));
     }
-    final pendingUsers = app.people.values.where((p) => !p.active && p.role == null).length;
-    final s = _sections[_index];
+    final sections = app.isDirector ? _sections : _sections.where((x) => x.auditor).toList();
+    if (_index >= sections.length) _index = 0;
+    final pendingUsers = app.isDirector ? app.people.values.where((p) => !p.active && p.role == null).length : 0;
+    final s = sections[_index];
     final body = s.needsV2 && !app.v2Ready
         ? const _NeedsMigration()
         : KeyedSubtree(key: ValueKey(_index), child: s.builder());
@@ -75,7 +82,12 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               child: ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
-                  for (var i = 0; i < _sections.length; i++)
+                  if (!app.isDirector)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                      child: InfoBanner(icon: Icons.visibility_outlined, text: 'صلاحيتك اطلاع كامل للقراءة فقط؛ لا يتغير شيء من هنا.'),
+                    ),
+                  for (var i = 0; i < sections.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Material(
@@ -88,22 +100,22 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             child: Row(
                               children: [
-                                Icon(_sections[i].icon, size: 21, color: i == _index ? cs.onPrimaryContainer : sem.muted),
+                                Icon(sections[i].icon, size: 21, color: i == _index ? cs.onPrimaryContainer : sem.muted),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(_sections[i].title,
+                                      Text(sections[i].title,
                                           style: TextStyle(
                                               fontWeight: i == _index ? FontWeight.w700 : FontWeight.w600,
                                               color: i == _index ? cs.onPrimaryContainer : null)),
-                                      Text(_sections[i].subtitle,
+                                      Text(sections[i].subtitle,
                                           maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: sem.muted)),
                                     ],
                                   ),
                                 ),
-                                if (i == 1 && pendingUsers > 0) Badge(label: Text('$pendingUsers')),
+                                if (sections[i].users && pendingUsers > 0) Badge(label: Text('$pendingUsers')),
                               ],
                             ),
                           ),
@@ -125,11 +137,11 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: _sections.length,
+              itemCount: sections.length,
               separatorBuilder: (_, __) => const SizedBox(width: 6),
               itemBuilder: (context, i) => ChoiceChip(
-                avatar: Icon(_sections[i].icon, size: 18),
-                label: Text(_sections[i].title),
+                avatar: Icon(sections[i].icon, size: 18),
+                label: Text(sections[i].title),
                 selected: i == _index,
                 showCheckmark: false,
                 onSelected: (_) => setState(() => _index = i),

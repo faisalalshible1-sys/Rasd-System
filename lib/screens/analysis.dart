@@ -209,7 +209,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
           const SizedBox(height: 14),
           table('حسب الشركة المنفذة', group((p) => p.company)),
           const SizedBox(height: 14),
-          if (app.isDirector || app.settings.feature('export'))
+          if (app.canAudit || app.settings.feature('export'))
           FilledButton.icon(
             onPressed: _exporting || list.isEmpty ? null : () => _export(app),
             icon: _exporting

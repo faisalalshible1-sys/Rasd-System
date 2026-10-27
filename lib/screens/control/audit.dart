@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
 import '../../models.dart';
+import '../../services/export.dart';
 import '../../ui/audit_text.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -21,6 +22,19 @@ class _AuditSectionState extends State<AuditSection> {
   String _kind = '';
   String _q = '';
   int _limit = 500;
+  bool _exporting = false;
+
+  Future<void> _export(AppState app, List<AuditEntry> rows) async {
+    setState(() => _exporting = true);
+    try {
+      final path = await exportAuditXlsx(app, rows, (e) => auditDescription(app, e));
+      if (mounted && path != null) showToast(context, 'حُفظ الملف: $path');
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   static const _kinds = [
     ('', 'كل العمليات'),
@@ -80,10 +94,19 @@ class _AuditSectionState extends State<AuditSection> {
     return PageBody(
       onRefresh: _load,
       children: [
-        const PageHeader(
+        PageHeader(
           icon: Icons.history_rounded,
           title: 'سجل التدقيق',
           subtitle: 'كل عملية في المنظومة: من قام بها، ومتى، وما الذي تغيّر. لا يستطيع أحد تعديل السجل أو حذفه، ولا حتى المدير.',
+          actions: [
+            OutlinedButton.icon(
+              onPressed: _exporting || shown.isEmpty ? null : () => _export(app, shown),
+              icon: _exporting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.download_rounded),
+              label: const Text('تصدير Excel'),
+            ),
+          ],
         ),
         LayoutBuilder(builder: (context, c) {
           final a = SelectField(

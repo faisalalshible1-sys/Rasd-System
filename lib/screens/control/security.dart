@@ -7,6 +7,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import '../account.dart';
 import 'control_panel.dart';
+import 'user_details.dart';
 
 /// مركز الأمان: درجة الأمان، السياسات، الجلسات، التحقق بخطوتين، سجل الدخول.
 class SecuritySection extends StatefulWidget {
@@ -65,8 +66,9 @@ class _SecuritySectionState extends State<SecuritySection> {
     final mfaUsers = (o['users_mfa'] as num?)?.toInt() ?? 0;
     final noRls = (o['tables_without_rls'] as List?)?.length ?? 0;
     return [
-      (o['director_mfa'] == true, 'التحقق بخطوتين مفعّل لحسابك', 'فعّله من «حسابي والأمان».', 25),
-      (app.settings.requireMfaDirector, 'قاعدة البيانات تفرض التحقق على حسابك', 'شغّل «فرض التحقق على مدير المكتب» أدناه.', 15),
+      (o['director_mfa'] == true, app.isDirector ? 'التحقق بخطوتين مفعّل لحسابك' : 'التحقق بخطوتين مفعّل لحساب مدير المكتب',
+          app.isDirector ? 'فعّله من «حسابي والأمان».' : 'لم يفعّله مدير المكتب بعد.', 25),
+      (app.settings.requireMfaDirector, 'قاعدة البيانات تفرض التحقق على حساب المدير', 'يُشغَّل «فرض التحقق على مدير المكتب» من السياسات.', 15),
       (noRls == 0, 'كل الجداول محمية بسياسات الوصول', '$noRls جدول بلا حماية.', 20),
       (active > 0 && mfaUsers * 2 >= active, 'نصف المستخدمين على الأقل فعّلوا التحقق بخطوتين', '$mfaUsers من $active فقط.', 15),
       (app.idleMinutes > 0 && app.idleMinutes <= 60, 'القفل التلقائي بعد الخمول مفعّل', 'اضبطه على 60 دقيقة أو أقل.', 10),
@@ -88,6 +90,8 @@ class _SecuritySectionState extends State<SecuritySection> {
     final score = checks.fold<int>(0, (a, c) => a + (c.$1 ? c.$4 : 0));
     final scoreColor = score >= 80 ? sem.ok : (score >= 55 ? sem.wip : sem.danger);
     final directorMfa = _overview!['director_mfa'] == true;
+    final myMfa = _overview!['my_mfa'] == true || (app.isDirector && directorMfa);
+    final readOnly = !app.isDirector;
 
     return PageBody(
       onRefresh: () async {
@@ -98,7 +102,9 @@ class _SecuritySectionState extends State<SecuritySection> {
         PageHeader(
           icon: Icons.shield_outlined,
           title: 'مركز الأمان',
-          subtitle: 'حماية الحسابات والجلسات وسياسات الوصول. كل إجراء هنا يُسجَّل في سجل التدقيق.',
+          subtitle: readOnly
+              ? 'اطلاع كامل على حالة الأمان والجلسات وسجل الدخول. الإجراءات من صلاحية مدير المكتب وحده.'
+              : 'حماية الحسابات والجلسات وسياسات الوصول. كل إجراء هنا يُسجَّل في سجل التدقيق.',
           actions: [
             if (_busy) const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
             OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('تحديث')),
@@ -160,6 +166,7 @@ class _SecuritySectionState extends State<SecuritySection> {
         SectionCard(
           title: 'السياسات',
           icon: Icons.policy_outlined,
+          subtitle: readOnly ? 'للاطلاع: يضبطها مدير المكتب.' : null,
           child: Column(
             children: [
               SwitchListTile(
@@ -170,7 +177,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                     ? 'لا تُقبل جلسة المدير في قاعدة البيانات إلا بعد رمز التحقق.'
                     : 'فعّل التحقق لحسابك أولاً من «حسابي والأمان».'),
                 value: app.settings.requireMfaDirector,
-                onChanged: _busy || !directorMfa ? null : (v) => _set('security.require_mfa_director', v, v ? 'فُرض التحقق على حسابك' : 'أُلغي الفرض'),
+                onChanged: readOnly || _busy || !directorMfa ? null : (v) => _set('security.require_mfa_director', v, v ? 'فُرض التحقق على حسابك' : 'أُلغي الفرض'),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -178,7 +185,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                 title: const Text('فرض التحقق بخطوتين على كل المستخدمين'),
                 subtitle: const Text('من لم يفعّله يُطلب منه تفعيله عند الدخول، ولا يرى شيئاً قبل ذلك.'),
                 value: app.settings.requireMfaAll,
-                onChanged: _busy || !directorMfa ? null : (v) => _set('security.require_mfa_all', v, v ? 'فُرض التحقق على الجميع' : 'أصبح التحقق اختيارياً'),
+                onChanged: readOnly || _busy || !directorMfa ? null : (v) => _set('security.require_mfa_all', v, v ? 'فُرض التحقق على الجميع' : 'أصبح التحقق اختيارياً'),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -186,7 +193,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                 title: const Text('السماح بإنشاء حسابات جديدة'),
                 subtitle: const Text('عند الإغلاق يُرفض أي تسجيل جديد من شاشة الدخول.'),
                 value: app.settings.signupsOpen,
-                onChanged: _busy ? null : (v) => _set('security.signups_open', v, v ? 'فُتح التسجيل' : 'أُغلق التسجيل'),
+                onChanged: readOnly || _busy ? null : (v) => _set('security.signups_open', v, v ? 'فُتح التسجيل' : 'أُغلق التسجيل'),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -194,7 +201,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                 title: const Text('تجميد المنظومة (طوارئ)'),
                 subtitle: const Text('يصبح كل شيء قراءة فقط لغيرك فوراً، حتى تلغي التجميد.'),
                 value: app.settings.frozen,
-                onChanged: _busy
+                onChanged: readOnly || _busy
                     ? null
                     : (v) async {
                         if (v) {
@@ -220,7 +227,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                       for (final m in const [0, 5, 10, 15, 30, 60, 120, 240])
                         DropdownMenuItem(value: m, child: Text(m == 0 ? 'متوقف' : '$m دقيقة')),
                     ],
-                    onChanged: _busy ? null : (m) => m == null ? null : _set('security.idle_minutes', m, 'حُفظ القفل التلقائي'),
+                    onChanged: readOnly || _busy ? null : (m) => m == null ? null : _set('security.idle_minutes', m, 'حُفظ القفل التلقائي'),
                   ),
                 ],
               ),
@@ -231,7 +238,7 @@ class _SecuritySectionState extends State<SecuritySection> {
         SectionCard(
           title: 'حسابك',
           icon: Icons.phonelink_lock_outlined,
-          trailing: ToneBadge(directorMfa ? 'التحقق مفعّل' : 'التحقق غير مفعّل', color: directorMfa ? sem.ok : sem.danger),
+          trailing: ToneBadge(myMfa ? 'التحقق مفعّل' : 'التحقق غير مفعّل', color: myMfa ? sem.ok : sem.danger),
           child: Row(
             children: [
               Expanded(child: Text('الجلسة الحالية: ${_overview!['current_aal'] == 'aal2' ? 'بعد رمز التحقق' : 'بكلمة المرور فقط'}')),
@@ -258,7 +265,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                           'آخر نشاط ${fmtDate(DateTime.tryParse((s['updated_at'] ?? s['created_at'] ?? '').toString()))}',
                           if (s['aal'] == 'aal2') 'بعد رمز التحقق',
                         ].join(' · '),
-                        trailing: s['current'] == true
+                        trailing: s['current'] == true || readOnly
                             ? null
                             : IconButton(
                                 tooltip: 'إنهاء الجلسة',
@@ -287,7 +294,8 @@ class _SecuritySectionState extends State<SecuritySection> {
                     u['mfa'] == true ? 'التحقق مفعّل' : 'التحقق غير مفعّل',
                     'آخر دخول ${u['last_sign_in_at'] == null ? '—' : fmtDate(DateTime.tryParse(u['last_sign_in_at'].toString()))}',
                   ].join(' · '),
-                  trailing: u['id'] == app.me?.id
+                  onTap: () => openUserDetails(context, u['id'].toString()),
+                  trailing: u['id'] == app.me?.id || readOnly
                       ? null
                       : PopupMenuButton<String>(
                           tooltip: 'إجراءات',
@@ -419,3 +427,13 @@ class _SecuritySectionState extends State<SecuritySection> {
         _ => Icons.shield_outlined,
       };
 }
+
+/// اسم نوع الجهاز من بصمة المتصفح أو التطبيق.
+String deviceName(String ua) => _SecuritySectionState._device(ua);
+
+IconData deviceIcon(String ua) => _SecuritySectionState._deviceIcon(ua);
+
+/// وصف عملية من سجل الدخول.
+String loginActionLabel(String a) => _SecuritySectionState._loginLabel(a);
+
+IconData loginActionIcon(String a) => _SecuritySectionState._loginIcon(a);

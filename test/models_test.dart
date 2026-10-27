@@ -98,4 +98,18 @@ void main() {
     expect(normalizeArabic('إثمار  بنغازي'), normalizeArabic('اثمار بنغازي'));
     expect(normalizeArabic('المدينة'), 'المدينه');
   });
+
+  test('الأدوار: مدقق الأمن يُقرأ ويُكتب بقيمته في قاعدة البيانات', () {
+    for (final r in AppRole.values) {
+      expect(parseRole(r.db), r);
+      expect(r.label, isNotEmpty);
+      expect(r.summary, isNotEmpty);
+    }
+    expect(parseRole('security_auditor'), AppRole.securityAuditor);
+    expect(AppRole.securityAuditor.label, 'مدقق الأمن');
+    final p = Profile.fromMap({'id': 'x', 'email': 'a@b.c', 'role': 'security_auditor', 'active': true});
+    expect(p.isAuditor, isTrue);
+    expect(p.isDirector, isFalse);
+    expect(parseRole('unknown_role'), isNull);
+  });
 }

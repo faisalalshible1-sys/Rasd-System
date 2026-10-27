@@ -4,9 +4,11 @@ import '../../app_state.dart';
 import '../../models.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../../services/export.dart';
 import 'control_panel.dart';
+import 'user_details.dart';
 
-/// المستخدمون والأدوار: التفعيل والإيقاف والدور والقسم والبريد.
+/// المستخدمون والأدوار: البيانات الكاملة، والتفعيل والإيقاف والدور والقسم والبريد، والحذف.
 class UsersSection extends StatefulWidget {
   const UsersSection({super.key});
 
@@ -17,6 +19,8 @@ class UsersSection extends StatefulWidget {
 class _UsersSectionState extends State<UsersSection> {
   String _filter = 'all';
   String _q = '';
+
+  bool _exporting = false;
 
   static String roleTextOf(AppState app, Profile u) {
     if (u.role == AppRole.director) return 'مدير المكتب · المسؤول الأول والأخير';
@@ -57,10 +61,21 @@ class _UsersSectionState extends State<UsersSection> {
     return PageBody(
       onRefresh: app.loadAll,
       children: [
-        const PageHeader(
+        PageHeader(
           icon: Icons.group_outlined,
           title: 'المستخدمون والأدوار',
-          subtitle: 'ينشئ الموظف حسابه من شاشة الدخول فيظهر هنا «بانتظار التفعيل». اختر دوره وفعّله. دور مدير المكتب لا يُمنح من التطبيق.',
+          subtitle: app.isDirector
+              ? 'اضغط أي مستخدم لعرض بياناته كاملة وتعديل صلاحياته أو حذفه. ينشئ الموظف حسابه من شاشة الدخول فيظهر هنا «بانتظار التفعيل». دور مدير المكتب لا يُمنح من التطبيق.'
+              : 'اضغط أي مستخدم لعرض بياناته كاملة: الحساب والأمان والأجهزة وسجل الدخول والنشاط. للاطلاع فقط.',
+          actions: [
+            OutlinedButton.icon(
+              onPressed: _exporting ? null : () => _export(app),
+              icon: _exporting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.download_rounded),
+              label: const Text('تصدير Excel'),
+            ),
+          ],
         ),
         Wrap(
           spacing: 8,
@@ -90,7 +105,7 @@ class _UsersSectionState extends State<UsersSection> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: sem.rule)),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
-                onTap: u.role == AppRole.director || u.id == app.me?.id ? null : () => _edit(context, app, u),
+                onTap: () => openUserDetails(context, u.id),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -116,7 +131,7 @@ class _UsersSectionState extends State<UsersSection> {
                           ],
                         ),
                       ),
-                      if (u.role != AppRole.director && u.id != app.me?.id) Icon(Icons.chevron_left_rounded, color: sem.muted),
+                      Icon(Icons.chevron_left_rounded, color: sem.muted),
                     ],
                   ),
                 ),
@@ -127,17 +142,31 @@ class _UsersSectionState extends State<UsersSection> {
     );
   }
 
-  Future<void> _edit(BuildContext context, AppState app, Profile u) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
-        child: _UserEditor(app: app, user: u),
-      ),
-    );
+  Future<void> _export(AppState app) async {
+    setState(() => _exporting = true);
+    try {
+      final rows = app.v2Ready ? await app.securityUsers() : const <Map<String, dynamic>>[];
+      final path = await exportUsersXlsx(app, rows);
+      if (mounted && path != null) showToast(context, 'حُفظ الملف: $path');
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
+}
+
+/// نافذة تعديل صلاحيات مستخدم (لمدير المكتب).
+Future<void> openUserEditor(BuildContext context, AppState app, Profile u) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+      child: _UserEditor(app: app, user: u),
+    ),
+  );
 }
 
 class _UserEditor extends StatefulWidget {
@@ -159,7 +188,7 @@ class _UserEditorState extends State<_UserEditor> {
   bool _busy = false;
   String? _error;
 
-  static const _roles = [AppRole.officeStaff, AppRole.deptHead, AppRole.contracts, AppRole.planningQa];
+  static const _roles = [AppRole.officeStaff, AppRole.deptHead, AppRole.contracts, AppRole.planningQa, AppRole.securityAuditor];
 
   @override
   void initState() {
@@ -274,6 +303,18 @@ class _UserEditorState extends State<_UserEditor> {
               items: [('', 'اختر الدور'), for (final r in _roles) (r.db, r.label)],
               onChanged: (v) => setState(() => _role = v),
             ),
+            if (parseRole(_role) != null) ...[
+              const SizedBox(height: 6),
+              Text(parseRole(_role)!.summary, style: TextStyle(color: sem.muted, fontSize: 12.5)),
+            ],
+            if (_role == AppRole.securityAuditor.db) ...[
+              const SizedBox(height: 8),
+              const InfoBanner(
+                level: 'warning',
+                icon: Icons.phonelink_lock_outlined,
+                text: 'يُطلب منه تفعيل التحقق بخطوتين عند دخوله، ولا يرى شيئاً قبل ذلك.',
+              ),
+            ],
             if (_role == AppRole.deptHead.db) ...[
               const SizedBox(height: 12),
               SelectField(
