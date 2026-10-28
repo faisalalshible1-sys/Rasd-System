@@ -30,13 +30,17 @@ class _PermissionsSectionState extends State<PermissionsSection> {
     final sem = Sem.of(context);
     final defs = app.allFormDefs.isNotEmpty ? app.allFormDefs : app.formDefs;
     final contract = app.formDef(contractFormKey);
+    // مدقق الأمن يراجع توزيع الصلاحيات للاطلاع فقط
+    final readOnly = !app.isDirector;
     return PageBody(
       onRefresh: app.loadAll,
       children: [
-        const PageHeader(
+        PageHeader(
           icon: Icons.key_outlined,
           title: 'الصلاحيات',
-          subtitle: 'حدّد من يحدّث كل نموذج، وأي النماذج حساسة. تغيير النموذج الحساس من غيرك يرفع طلب اعتماد إليك، وأنت تحدّث كل النماذج مباشرة.',
+          subtitle: readOnly
+              ? 'من يحدّث كل نموذج، وأي النماذج حساسة تحتاج اعتماد مدير المكتب. للاطلاع فقط.'
+              : 'حدّد من يحدّث كل نموذج، وأي النماذج حساسة. تغيير النموذج الحساس من غيرك يرفع طلب اعتماد إليك، وأنت تحدّث كل النماذج مباشرة.',
         ),
         Wrap(spacing: 8, runSpacing: 8, children: [
           ToneBadge('${defs.where((d) => d.sensitive).length} نموذجاً حساساً', color: sem.wip, icon: Icons.verified_user_outlined),
@@ -75,13 +79,13 @@ class _PermissionsSectionState extends State<PermissionsSection> {
                               child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                             ),
                           Text('حساس', style: TextStyle(color: d.sensitive ? sem.wip : sem.muted, fontSize: 12.5)),
-                          Switch(value: d.sensitive, onChanged: _busyKey != null ? null : (v) => _update(app, d, sensitive: v)),
+                          Switch(value: d.sensitive, onChanged: readOnly || _busyKey != null ? null : (v) => _update(app, d, sensitive: v)),
                         ],
                       ),
                       const SizedBox(height: 6),
                       TokenSelector(
                         selected: d.responsible,
-                        enabled: _busyKey == null,
+                        enabled: !readOnly && _busyKey == null,
                         onChanged: (next) => _update(app, d, responsible: next),
                       ),
                     ],
