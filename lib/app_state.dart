@@ -88,10 +88,10 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------
   bool get isDirector => me?.isDirector ?? false;
 
-  /// مدقق الأمن: اطلاع كامل للقراءة فقط على الأمان والتدقيق وبيانات المستخدمين.
+  /// CISO: اطلاع كامل للقراءة فقط على الأمان والتدقيق وبيانات المستخدمين.
   bool get isAuditor => me?.isAuditor ?? false;
 
-  /// المدير ومدقق الأمن يطّلعان على مركز الأمان وسجل التدقيق والبيانات الكاملة للمستخدمين.
+  /// المدير وCISO يطّلعان على مركز الأمان وسجل التدقيق والبيانات الكاملة للمستخدمين.
   bool get canAudit => isDirector || isAuditor;
   AppRole? get role => me?.active == true ? me?.role : null;
   bool get canManageProjects => role == AppRole.director || role == AppRole.officeStaff;
@@ -148,7 +148,7 @@ class AppState extends ChangeNotifier {
 
   bool get mfaRequiredForMe {
     final all = settings.raw.isNotEmpty ? settings.requireMfaAll : publicSettings['security.require_mfa_all'] == true;
-    // التحقق بخطوتين إلزامي لمدير المكتب ومدقق الأمن دائماً، واختياري للبقية ما لم يُفرض على الجميع
+    // التحقق بخطوتين إلزامي لمدير المكتب وCISO دائماً، واختياري للبقية ما لم يُفرض على الجميع
     return all || me?.role == AppRole.director || me?.role == AppRole.securityAuditor;
   }
 
@@ -768,7 +768,7 @@ class AppState extends ChangeNotifier {
     return (res as num?)?.toInt() ?? 0;
   }
 
-  /// البيانات الكاملة لمستخدم: الحساب والأمان والأجهزة وسجل الدخول والنشاط (للمدير ومدقق الأمن).
+  /// البيانات الكاملة لمستخدم: الحساب والأمان والأجهزة وسجل الدخول والنشاط (للمدير وCISO).
   Future<Map<String, dynamic>> userDetails(String userId) async {
     final res = await client.rpc('user_details', params: {'p_user': userId});
     return res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
@@ -856,7 +856,7 @@ String friendlyError(Object e) {
       return 'إنشاء الحسابات متوقف في إعدادات Supabase. على مدير المنظومة تفعيل الدخول بالبريد والسماح بالتسجيل.';
     }
     if (m.contains('logins are disabled')) return 'الدخول بالبريد متوقف في إعدادات Supabase. تواصل مع مدير المنظومة.';
-    if (m.contains('password')) return 'كلمة المرور قصيرة أو ضعيفة. استخدم 8 أحرف على الأقل.';
+    if (m.contains('password')) return 'كلمة المرور قصيرة أو ضعيفة. استخدم 10 أحرف على الأقل، وفيها حروف وأرقام.';
     if (m.contains('rate limit')) return 'محاولات كثيرة. انتظر دقيقة ثم أعد المحاولة.';
     if (m.contains('database error saving new user')) return 'التسجيل في المنظومة مغلق حالياً بقرار مدير المكتب.';
     if (m.contains('invalid totp') || m.contains('invalid code') || (m.contains('mfa') && m.contains('invalid'))) {

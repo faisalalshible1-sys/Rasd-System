@@ -10,12 +10,12 @@ import 'control_panel.dart';
 import 'security.dart';
 import 'users.dart';
 
-/// يفتح صفحة البيانات الكاملة لمستخدم (لمدير المكتب ومدقق الأمن).
+/// يفتح صفحة البيانات الكاملة لمستخدم (لمدير المكتب وCISO).
 Future<void> openUserDetails(BuildContext context, String userId) =>
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => UserDetailsPage(userId: userId)));
 
 /// البيانات الكاملة لمستخدم: الحساب، والأمان، والأجهزة، وسجل الدخول، والنشاط، وتاريخ الحساب.
-/// المدير يدير الحساب من هنا (الصلاحيات، الإخراج من الأجهزة، إلغاء التحقق، الحذف)، ومدقق الأمن يطّلع فقط.
+/// المدير يدير الحساب من هنا (الصلاحيات، الإخراج من الأجهزة، إلغاء التحقق، الحذف)، وCISO يطّلع فقط.
 class UserDetailsPage extends StatefulWidget {
   const UserDetailsPage({super.key, required this.userId});
 

@@ -355,15 +355,16 @@ class _SecuritySectionState extends State<SecuritySection> {
         ),
         const SizedBox(height: 16),
         SectionCard(
-          title: 'إعدادات يُنصح بضبطها في Supabase',
+          title: 'إعدادات Supabase',
           icon: Icons.checklist_rounded,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final tip in const [
-                'Authentication ← Providers ← Email: فعّل «Prevent use of leaked passwords» وحدد طول كلمة المرور 10 أحرف على الأقل.',
-                'Authentication ← Rate Limits: أبقِ حدود محاولات الدخول وإرسال البريد منخفضة.',
-                'Authentication ← Sessions: حدّد مدة قصوى للجلسة إن أردت خروجاً إجبارياً دورياً.',
+                'مضبوط: كلمة المرور 10 أحرف على الأقل، وحدود محاولات الدخول منخفضة، والتحقق بخطوتين بتطبيق المصادقة مع إنهاء الجلسة التي لا يُدخَل رمزها خلال 15 دقيقة.',
+                'Authentication ← Emails ← SMTP: اربط بريداً خاصاً بالمكتب ليصل بريد استعادة كلمة المرور لكل الموظفين، ثم فعّل «Confirm email» من Sign In / Providers.',
+                'Authentication ← URL Configuration: اجعل Site URL عنوان نسخة الويب بدل localhost حتى تعمل روابط استعادة كلمة المرور.',
+                'خطة Pro فقط: «Prevent use of leaked passwords» والمدة القصوى للجلسة. القفل التلقائي عند الخمول يعمل من التطبيق بديلاً عنها.',
                 'Project Settings ← API: لا تشارك المفتاح السري (secret / service_role) مع أحد، وغيّره فوراً إن تسرّب.',
               ])
                 Padding(

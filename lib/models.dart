@@ -41,7 +41,7 @@ extension AppRoleX on AppRole {
         AppRole.deptHead => 'رئيس قسم',
         AppRole.contracts => 'مكتب العقود والتوريدات والمستخلصات',
         AppRole.planningQa => 'مكتب التخطيط والتقييم وضمان الجودة',
-        AppRole.securityAuditor => 'مدقق الأمن',
+        AppRole.securityAuditor => 'CISO',
       };
 
   /// وصف مختصر لما يستطيعه كل دور (يظهر عند اختيار الدور).

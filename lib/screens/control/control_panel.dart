@@ -23,7 +23,7 @@ class _Section {
   final Widget Function() builder;
   final bool needsV2;
 
-  /// يظهر لمدقق الأمن (للاطلاع فقط).
+  /// يظهر لـCISO (للاطلاع فقط).
   final bool auditor;
   final bool users;
 }
@@ -46,7 +46,7 @@ final List<_Section> _sections = [
       needsV2: true),
 ];
 
-/// لوحة التحكم — لمدير المكتب، ومدقق الأمن يرى منها أقسام التدقيق للاطلاع فقط.
+/// لوحة التحكم — لمدير المكتب، وCISO يرى منها أقسام التدقيق للاطلاع فقط.
 class ControlPanelPage extends StatefulWidget {
   const ControlPanelPage({super.key});
 

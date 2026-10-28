@@ -105,7 +105,7 @@ Future<String?> _save(Excel excel, String baseName) async {
   return FileSaver.instance.saveFile(name: name, bytes: data, ext: 'xlsx', mimeType: MimeType.microsoftExcel);
 }
 
-/// تصدير قائمة المستخدمين (للمدير ومدقق الأمن). [security] من مركز الأمان: التحقق بخطوتين وآخر دخول.
+/// تصدير قائمة المستخدمين (للمدير وCISO). [security] من مركز الأمان: التحقق بخطوتين وآخر دخول.
 Future<String?> exportUsersXlsx(AppState app, List<Map<String, dynamic>> security) async {
   final excel = Excel.createExcel();
   final sheet = _sheet(excel, 'المستخدمون');
@@ -135,7 +135,7 @@ Future<String?> exportUsersXlsx(AppState app, List<Map<String, dynamic>> securit
   return _save(excel, 'مستخدمو المنظومة');
 }
 
-/// تصدير سطور سجل التدقيق المعروضة (للمدير ومدقق الأمن).
+/// تصدير سطور سجل التدقيق المعروضة (للمدير وCISO).
 Future<String?> exportAuditXlsx(AppState app, List<AuditEntry> rows, String Function(AuditEntry) describe) async {
   final excel = Excel.createExcel();
   final sheet = _sheet(excel, 'سجل التدقيق');

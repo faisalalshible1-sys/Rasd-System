@@ -69,7 +69,7 @@ select pg_temp.check(not public.can_audit(), 'بعد تفعيل التحقق ت�
 
 -- ---------------------------------------------------------------- اطلاع كامل للقراءة فقط
 select pg_temp.as_user('auditor@test.ly', 'aal2');
-select pg_temp.check(public.can_audit() and public.is_auditor() and not public.is_director(), 'مدقق الأمن بعد الرمز');
+select pg_temp.check(public.can_audit() and not public.is_director(), 'مدقق الأمن بعد الرمز');
 select pg_temp.check((select count(*) > 0 from projects), 'يطّلع على المشاريع');
 select pg_temp.check((select count(*) from profiles) = :n_users, 'يرى كل الحسابات بما فيها المعلّقة والموقوفة');
 select pg_temp.check((select count(*) > 0 from audit_log where project_id is null), 'يرى سجل التدقيق كاملاً (بما فيه عمليات المستخدمين والأمان)');

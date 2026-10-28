@@ -30,7 +30,7 @@ class _PermissionsSectionState extends State<PermissionsSection> {
     final sem = Sem.of(context);
     final defs = app.allFormDefs.isNotEmpty ? app.allFormDefs : app.formDefs;
     final contract = app.formDef(contractFormKey);
-    // مدقق الأمن يراجع توزيع الصلاحيات للاطلاع فقط
+    // CISO يراجع توزيع الصلاحيات للاطلاع فقط
     final readOnly = !app.isDirector;
     return PageBody(
       onRefresh: app.loadAll,
