@@ -6,6 +6,7 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
+drop table if exists public.contract_engineers, public.contract_works cascade;
 drop table if exists public.app_releases, public.app_settings, public.ideas, public.custom_fields cascade;
 drop table if exists
   public.audit_log, public.notifications, public.quality_notes, public.change_requests,
@@ -32,7 +33,10 @@ begin
         'save_department', 'save_custom_field', 'reorder_custom_fields', 'set_project_field', 'set_setting',
         'public_settings', 'export_config', 'import_settings', 'submit_idea', 'update_idea', 'delete_idea',
         'security_overview', 'security_users', 'list_sessions', 'revoke_session', 'revoke_user_sessions',
-        'reset_user_mfa', 'login_history', 'is_auditor', 'can_audit', 'user_details', 'delete_user')
+        'reset_user_mfa', 'login_history', 'is_auditor', 'can_audit', 'user_details', 'delete_user',
+        'sync_engineer_names', 'contract_engineers_after', 'projects_first_work', 'set_contract_no', 'save_work',
+        'delete_work', 'engineer_form', 'can_assign_engineer', 'save_engineer', 'delete_engineer', 'merge_contracts',
+        'unmerge_contract', 'merged_sources', 'ai_context', 'ai_log')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

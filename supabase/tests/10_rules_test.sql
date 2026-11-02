@@ -142,8 +142,11 @@ select pg_temp.check((select sort = 3 from form_defs where key = 'f02') and (sel
 select pg_temp.check(public.set_form_status((select id from projects where assign_no='003'), 'f19', 'done') = 'applied', 'مكتب العقود يحدّث «المقايسة التقديرية»');
 select public.set_contract_finance((select id from projects where assign_no='003'), 1250000, 375000, 500000, null, 12500.5);
 select pg_temp.check((select contract_value = 1250000 and payment_first = 375000 and payment_second = 500000 and payment_final is null
-                             and deductions = 12500.5 and guarantee_initial = 62500 and guarantee_final = 25000
-                      from projects where assign_no='003'), 'مكتب العقود يحفظ البيانات المالية، والضمانان 5% و2% محسوبان');
+                             and deductions = 12500.5 and executed_value is null and guarantee_initial is null and guarantee_final is null
+                      from projects where assign_no='003'), 'مكتب العقود يحفظ البيانات المالية (الإصدار السابق)، والضمانان ينتظران قيمة الأعمال المنفذة');
+select public.set_contract_finance((select id from projects where assign_no='003'), 1250000, 1250000, 375000, 500000, null, 12500.5);
+select pg_temp.check((select executed_value = 1250000 and guarantee_initial = 62500 and guarantee_final = 25000
+                      from projects where assign_no='003'), 'الضمانان 5% و2% من قيمة الأعمال المنفذة');
 select pg_temp.check(exists (select 1 from audit_log where action = 'project.update' and detail ? 'contract_value' and detail ? 'deductions'),
                      'تعديل البيانات المالية مسجّل في السجل');
 select pg_temp.expect_error($$select public.set_contract_finance((select id from projects where assign_no='003'), -1, null, null, null, null)$$, 'قيمة مالية سالبة');
