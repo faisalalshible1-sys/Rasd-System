@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
   if (!auth.startsWith("Bearer ")) return reply(401, { code: "forbidden", error: "سجّل الدخول أولاً" });
 
   const url = Deno.env.get("SUPABASE_URL") ?? "";
-  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? req.headers.get("apikey") ?? "";
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") || req.headers.get("apikey") || "";
   const db = createClient(url, anon, {
     global: { headers: { Authorization: auth } },
     auth: { persistSession: false, autoRefreshToken: false },
