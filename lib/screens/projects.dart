@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'project_detail.dart';
 
-/// UC-03: البحث والاستعلام عن المشاريع.
+/// UC-03: البحث والاستعلام عن العقود وأعمالها.
 class ProjectsPage extends StatefulWidget {
   const ProjectsPage({super.key});
 
@@ -33,7 +34,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
-    if (!app.loadedOnce) return const Center(child: CircularProgressIndicator());
+    if (!app.loadedOnce) return const SkeletonPage(cards: 5);
     final list = app.filteredProjects();
     final ff = app.formFilter;
 
@@ -49,7 +50,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                   controller: _search,
                   onChanged: (v) => app.setProjectFilters(search: v),
                   decoration: InputDecoration(
-                    hintText: 'ابحث برقم التكليف أو الاسم أو الشركة أو المهندس',
+                    hintText: 'ابحث برقم العقد أو التكليف أو الاسم أو الشركة أو المهندس',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _search.text.isEmpty
                         ? null
@@ -99,7 +100,8 @@ class _ProjectsPageState extends State<ProjectsPage> {
                         label: 'الترتيب',
                         value: app.sort,
                         items: const [
-                          ('order', 'رقم التكليف'),
+                          ('order', 'الترتيب الأصلي'),
+                          ('contract', 'رقم العقد'),
                           ('low', 'الأقل إنجازاً'),
                           ('high', 'الأعلى إنجازاً'),
                           ('recent', 'آخر تحديث'),
@@ -121,7 +123,9 @@ class _ProjectsPageState extends State<ProjectsPage> {
                 ],
                 const SizedBox(height: 10),
                 Text(
-                  list.length == app.projects.length ? '${list.length} مشروعاً' : '${list.length} من ${app.projects.length} مشروعاً',
+                  list.length == app.projects.length
+                      ? '${term('contracts')}: ${list.length}'
+                      : '${term('contracts')}: ${list.length} من ${app.projects.length}',
                   style: TextStyle(color: sem.muted, fontSize: 13),
                 ),
               ]),
@@ -136,10 +140,16 @@ class _ProjectsPageState extends State<ProjectsPage> {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
               sliver: SliverLayoutBuilder(builder: (context, constraints) {
                 final cols = constraints.crossAxisExtent >= 760 ? 2 : 1;
+                // ظهور متتابع للدفعة الأولى فقط، وكل بطاقة بمفتاح عقدها لتتحرك عند تغيّر التصفية
+                Widget card(int i) => FadeSlideIn(
+                      key: ValueKey('card-${list[i].id}'),
+                      delay: Duration(milliseconds: i < 8 ? i * 45 : 0),
+                      child: ProjectCard(project: list[i]),
+                    );
                 if (cols == 1) {
                   return SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, i) => Padding(padding: const EdgeInsets.only(bottom: 10), child: ProjectCard(project: list[i])),
+                      (context, i) => Padding(padding: const EdgeInsets.only(bottom: 10), child: card(i)),
                       childCount: list.length,
                     ),
                   );
@@ -149,9 +159,9 @@ class _ProjectsPageState extends State<ProjectsPage> {
                     crossAxisCount: 2,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
-                    mainAxisExtent: 186,
+                    mainAxisExtent: 212,
                   ),
-                  delegate: SliverChildBuilderDelegate((context, i) => ProjectCard(project: list[i]), childCount: list.length),
+                  delegate: SliverChildBuilderDelegate((context, i) => card(i), childCount: list.length),
                 );
               }),
             ),
@@ -172,7 +182,12 @@ class ProjectCard extends StatelessWidget {
     final sem = Sem.of(context);
     final pr = app.progressOf(project);
     final pendingCount = app.pendingRequests.where((r) => r.projectId == project.id).length;
-    return Material(
+    final companies = app.companiesOf(project);
+    final works = app.worksOf(project.id).length;
+    final engs = app.engineersOf(project.id).length;
+    return HoverLift(
+      radius: 14,
+      child: Material(
       color: sem.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: sem.rule)),
       child: InkWell(
@@ -186,7 +201,14 @@ class ProjectCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  NoTag(project.assignNo),
+                  Hero(
+                    tag: 'contract-${project.id}',
+                    child: Material(type: MaterialType.transparency, child: ContractTag(project)),
+                  ),
+                  if (project.contractNo.isNotEmpty && project.assignNo.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text('تكليف ${project.assignNo}', style: TextStyle(color: sem.muted, fontSize: 11.5)),
+                  ],
                   const SizedBox(width: 8),
                   if (pendingCount > 0)
                     Tooltip(
@@ -207,11 +229,30 @@ class ProjectCard extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w700, color: project.name.isEmpty ? sem.muted : null)),
               const SizedBox(height: 2),
               Text(
-                [project.company.isEmpty ? 'لم تُحدَّد الشركة' : project.company, if (project.owner.isNotEmpty) project.owner].join(' · '),
+                [
+                  companies.isEmpty ? 'لم تُحدَّد الشركة' : (companies.length > 2 ? '${companies.take(2).join('، ')} و${companies.length - 2} غيرها' : companies.join('، ')),
+                  if (project.owner.isNotEmpty) project.owner,
+                ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: sem.muted, fontSize: 12.5),
               ),
+              if (app.v3Ready && (works > 1 || engs > 0)) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    if (works > 1) ...[
+                      Icon(Icons.account_tree_outlined, size: 14, color: sem.muted),
+                      Text(' $works أعمال', style: TextStyle(color: sem.muted, fontSize: 12)),
+                      const SizedBox(width: 12),
+                    ],
+                    if (engs > 0) ...[
+                      Icon(Icons.engineering_outlined, size: 14, color: sem.muted),
+                      Text(' $engs تكليف', style: TextStyle(color: sem.muted, fontSize: 12)),
+                    ],
+                  ],
+                ),
+              ],
               const SizedBox(height: 10),
               CycleStrip(defs: app.formDefs, cells: pr.cells),
               const SizedBox(height: 10),
@@ -235,11 +276,12 @@ class ProjectCard extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 }
 
-/// UC-11 / UC-12: إضافة مشروع أو تعديل بياناته.
+/// UC-11 / UC-12: إضافة عقد أو تعديل بياناته.
 Future<void> openProjectEditor(BuildContext context, Project? project) async {
   final app = AppScope.read(context);
   final newId = await showModalBottomSheet<String>(
@@ -272,6 +314,7 @@ class _ProjectEditorState extends State<_ProjectEditor> {
   late final TextEditingController _name;
   late final TextEditingController _owner;
   late final TextEditingController _company;
+  late final TextEditingController _contractNo;
   late String _department;
   bool _busy = false;
   String? _error;
@@ -291,6 +334,7 @@ class _ProjectEditorState extends State<_ProjectEditor> {
     _name = TextEditingController(text: p?.name ?? '');
     _owner = TextEditingController(text: p?.owner ?? '');
     _company = TextEditingController(text: p?.company ?? '');
+    _contractNo = TextEditingController(text: p?.contractNo ?? '');
     _department = p?.department ?? 'supervision';
   }
 
@@ -301,6 +345,7 @@ class _ProjectEditorState extends State<_ProjectEditor> {
     _name.dispose();
     _owner.dispose();
     _company.dispose();
+    _contractNo.dispose();
     super.dispose();
   }
 
@@ -322,14 +367,22 @@ class _ProjectEditorState extends State<_ProjectEditor> {
       setState(() => _error = 'رقم التكليف ${data['assign_no']} مستخدم في مشروع آخر.');
       return;
     }
+    final no = _contractNo.text.trim();
+    if (_canContractNo && no.isNotEmpty && widget.app.projects.any((x) => x.contractNo == no && x.id != widget.project?.id)) {
+      setState(() => _error = 'رقم العقد $no مستخدم لعقد آخر. لربط الأعمال بعقد واحد استخدم «دمج أعمال» من صفحة العقد.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final id = await widget.app.saveProject(id: widget.project?.id, data: data);
+      if (_canContractNo && no != (widget.project?.contractNo ?? '')) {
+        await widget.app.setContractNo(id, no);
+      }
       if (!mounted) return;
-      showToast(context, widget.project == null ? 'أُضيف المشروع' : 'حُفظت البيانات');
+      showToast(context, widget.project == null ? 'أُضيف العقد' : 'حُفظت البيانات');
       Navigator.of(context).pop(id);
     } catch (e) {
       if (mounted) {
@@ -340,6 +393,9 @@ class _ProjectEditorState extends State<_ProjectEditor> {
       }
     }
   }
+
+  /// رقم العقد من صلاحية مكتب العقود والمدير (والمحرر هنا للمدير وموظفي مكتبه).
+  bool get _canContractNo => widget.app.v3Ready && widget.app.isDirector;
 
   Widget _suggest(TextEditingController c, String label, List<String> options) {
     return Column(
@@ -376,9 +432,17 @@ class _ProjectEditorState extends State<_ProjectEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(isNew ? 'مشروع جديد' : 'تعديل بيانات المشروع',
+            Text(isNew ? term('new_contract') : 'تعديل بيانات ${term('contract')}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
+            if (_canContractNo) ...[
+              TextField(
+                controller: _contractNo,
+                textDirection: TextDirection.ltr,
+                decoration: fieldDeco('رقم العقد', helper: 'من مكتب العقود. يمكن تركه الآن وإدخاله لاحقاً من صفحة العقد.'),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               children: [
                 Expanded(child: TextField(controller: _assign, decoration: fieldDeco('رقم التكليف'), keyboardType: TextInputType.number)),
@@ -416,7 +480,7 @@ class _ProjectEditorState extends State<_ProjectEditor> {
                     onPressed: _busy ? null : _save,
                     child: _busy
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(isNew ? 'إضافة المشروع' : 'حفظ'),
+                        : Text(isNew ? 'إضافة' : 'حفظ'),
                   ),
                 ),
               ],

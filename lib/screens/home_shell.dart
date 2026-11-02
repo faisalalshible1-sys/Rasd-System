@@ -7,11 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app_state.dart';
 import '../config.dart';
 import '../models.dart';
+import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/update.dart';
 import '../ui/widgets.dart';
 import 'account.dart';
 import 'analysis.dart';
+import 'assistant.dart';
 import 'control/control_panel.dart';
 import 'dashboard.dart';
 import 'ideas.dart';
@@ -27,7 +29,28 @@ class Tabs {
   static const analysis = 3;
   static const ideas = 4;
   static const control = 5;
+  static const assistant = 6;
 }
+
+/// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
+const Map<int, String> tabKeys = {
+  Tabs.home: 'home',
+  Tabs.projects: 'projects',
+  Tabs.requests: 'requests',
+  Tabs.analysis: 'analysis',
+  Tabs.ideas: 'ideas',
+  Tabs.control: 'control',
+  Tabs.assistant: 'assistant',
+};
+
+/// صفحات القائمة التي يرتّبها المدير ويسمّيها ويخفيها عن الموظفين (لوحة التحكم والمساعد ثابتان للإدارة).
+const List<(String, String, IconData)> navCatalog = [
+  ('home', 'الرئيسية', Icons.space_dashboard_outlined),
+  ('projects', 'العقود', Icons.folder_open_outlined),
+  ('requests', 'الاعتمادات / طلباتي', Icons.fact_check_outlined),
+  ('analysis', 'التحليل', Icons.insights_outlined),
+  ('ideas', 'الأفكار والتطوير', Icons.lightbulb_outline_rounded),
+];
 
 class _Dest {
   const _Dest(this.id, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.admin = false});
@@ -38,25 +61,47 @@ class _Dest {
   final IconData selectedIcon;
   final int badge;
   final bool admin;
+
+  _Dest withLabel(String? l) => l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin);
 }
 
 List<_Dest> _destinations(AppState app) {
   final requestsBadge = app.isDirector ? app.pendingRequests.length : app.myRequests.where((r) => r.isPending).length;
   final newIdeas = app.isDirector ? app.ideas.where((i) => i.status == 'new').length : 0;
-  return [
+  final all = <_Dest>[
     const _Dest(Tabs.home, 'الرئيسية', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
-    const _Dest(Tabs.projects, 'المشاريع', Icons.folder_open_outlined, Icons.folder_rounded),
+    _Dest(Tabs.projects, term('contracts'), Icons.folder_open_outlined, Icons.folder_rounded),
     if (!app.isAuditor)
       _Dest(Tabs.requests, app.isDirector ? 'الاعتمادات' : 'طلباتي', Icons.fact_check_outlined, Icons.fact_check_rounded,
           badge: requestsBadge),
     if (app.canAudit || app.settings.feature('analysis'))
       const _Dest(Tabs.analysis, 'التحليل', Icons.insights_outlined, Icons.insights_rounded),
     if (app.v2Ready) _Dest(Tabs.ideas, 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded, badge: newIdeas),
+    if (app.canUseAssistant)
+      const _Dest(Tabs.assistant, 'مساعد Claude', Icons.auto_awesome_outlined, Icons.auto_awesome, admin: true),
     if (app.isDirector)
       const _Dest(Tabs.control, 'لوحة التحكم', Icons.tune_outlined, Icons.tune_rounded, admin: true)
     else if (app.isAuditor)
       const _Dest(Tabs.control, 'التدقيق الأمني', Icons.policy_outlined, Icons.policy_rounded, admin: true),
   ];
+
+  // تخصيص المدير: الإخفاء عن الموظفين (المدير يرى كل شيء) والأسماء والترتيب
+  final s = app.settings;
+  final hidden = s.navHidden.toSet();
+  final labels = s.navLabels;
+  final order = s.navOrder;
+  final list = [
+    for (final d in all)
+      if (app.isDirector || d.admin || d.id == Tabs.home || !hidden.contains(tabKeys[d.id])) d.withLabel(d.admin ? null : labels[tabKeys[d.id]]),
+  ];
+  if (order.isEmpty) return list;
+  int rank(_Dest d) {
+    final i = order.indexOf(tabKeys[d.id] ?? '');
+    return i < 0 ? 100 + all.indexWhere((x) => x.id == d.id) : i;
+  }
+
+  final normal = list.where((d) => !d.admin).toList()..sort((a, b) => rank(a).compareTo(rank(b)));
+  return [...normal, ...list.where((d) => d.admin)];
 }
 
 Widget _page(int id) => switch (id) {
@@ -65,6 +110,7 @@ Widget _page(int id) => switch (id) {
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
       Tabs.control => const ControlPanelPage(),
+      Tabs.assistant => const AssistantPage(),
       _ => const DashboardPage(),
     };
 
@@ -129,7 +175,7 @@ class _HomeShellState extends State<HomeShell> {
         _TopBar(title: current.label, compact: layout == 0),
         if (release != null && !app.updateDismissed) UpdateBanner(app: app, release: release),
         _Banners(app: app),
-        Expanded(child: KeyedSubtree(key: ValueKey(current.id), child: _page(current.id))),
+        Expanded(child: MotionSwitcher(child: KeyedSubtree(key: ValueKey(current.id), child: _page(current.id)))),
       ],
     );
 
@@ -137,7 +183,7 @@ class _HomeShellState extends State<HomeShell> {
         ? FloatingActionButton.extended(
             onPressed: () => openProjectEditor(context, null),
             icon: const Icon(Icons.add),
-            label: const Text('مشروع جديد'),
+            label: Text(term('new_contract')),
           )
         : null;
 
@@ -185,8 +231,8 @@ class _HomeShellState extends State<HomeShell> {
         ),
       );
     } else {
-      final primary = dests.where((d) => d.id <= Tabs.requests).toList();
-      final more = dests.where((d) => d.id > Tabs.requests).toList();
+      final primary = dests.take(3).toList();
+      final more = dests.skip(3).toList();
       final moreBadge = more.fold<int>(0, (a, d) => a + d.badge);
       final moreSelected = more.contains(current);
       scaffold = Scaffold(
@@ -303,39 +349,16 @@ class _Sidebar extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               children: [
-                for (final d in dests) ...[
-                  if (d.admin)
+                for (var i = 0; i < dests.length; i++) ...[
+                  if (dests[i].admin && (i == 0 || !dests[i - 1].admin))
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
                       child: Text(app.isDirector ? 'الإدارة' : 'التدقيق', style: t.labelSmall?.copyWith(color: sem.muted, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
                     ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Material(
-                      color: d.id == current ? cs.primaryContainer : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => app.setTab(d.id),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          child: Row(
-                            children: [
-                              Icon(d.id == current ? d.selectedIcon : d.icon,
-                                  size: 22, color: d.id == current ? cs.onPrimaryContainer : sem.muted),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(d.label,
-                                    style: TextStyle(
-                                        fontWeight: d.id == current ? FontWeight.w700 : FontWeight.w500,
-                                        color: d.id == current ? cs.onPrimaryContainer : null)),
-                              ),
-                              if (d.badge > 0) Badge(label: Text('${d.badge}')),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                  FadeSlideIn(
+                    delay: Duration(milliseconds: 80 + i * 45),
+                    offset: const Offset(0, 0.25),
+                    child: _SideItem(dest: dests[i], selected: dests[i].id == current, onTap: () => app.setTab(dests[i].id)),
                   ),
                 ],
               ],
@@ -347,6 +370,70 @@ class _Sidebar extends StatelessWidget {
             child: _UserCard(app: app),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// عنصر في الشريط الجانبي: خلفية ومؤشر يتحركان عند الاختيار.
+class _SideItem extends StatelessWidget {
+  const _SideItem({required this.dest, required this.selected, required this.onTap});
+
+  final _Dest dest;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final d = Motion.of(context, 260);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: AnimatedContainer(
+        duration: d,
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(color: selected ? cs.primaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(0, 12, 14, 12),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: d,
+                    curve: Curves.easeOutBack,
+                    width: 3,
+                    height: selected ? 22 : 0,
+                    decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(3)),
+                  ),
+                  const SizedBox(width: 11),
+                  AnimatedSwitcher(
+                    duration: d,
+                    transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+                    child: Icon(selected ? dest.selectedIcon : dest.icon,
+                        key: ValueKey(selected), size: 22, color: selected ? cs.onPrimaryContainer : sem.muted),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: d,
+                      style: DefaultTextStyle.of(context).style.copyWith(
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected ? cs.onPrimaryContainer : DefaultTextStyle.of(context).style.color,
+                          ),
+                      child: Text(dest.label),
+                    ),
+                  ),
+                  if (dest.badge > 0) Badge(label: Text('${dest.badge}')),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -445,7 +532,19 @@ class _TopBar extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        AnimatedSwitcher(
+                          duration: Motion.of(context, 320),
+                          layoutBuilder: (current, previous) => Stack(
+                            alignment: AlignmentDirectional.centerStart,
+                            children: [...previous, if (current != null) current],
+                          ),
+                          transitionBuilder: (child, a) => FadeTransition(
+                            opacity: a,
+                            child: SlideTransition(position: a.drive(Tween(begin: const Offset(0, 0.35), end: Offset.zero)), child: child),
+                          ),
+                          child: Text(title,
+                              key: ValueKey(title), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        ),
                         if (compact)
                           Text(app.orgName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: sem.muted)),
                       ],

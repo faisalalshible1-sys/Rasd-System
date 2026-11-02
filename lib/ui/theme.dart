@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models.dart';
+import 'motion.dart';
 
 /// الهوية البصرية مأخوذة من شعار صندوق التنمية وإعادة إعمار ليبيا
 /// ولجنة إعادة إعمار منطقة الصابري ووسط البلاد: ذهبي الختم، حبر الخط، وألوان العلم.
@@ -170,6 +171,15 @@ ThemeData buildTheme(Brightness brightness, {Color? brand}) {
       decoration: BoxDecoration(color: isDark ? const Color(0xFF2C2B28) : Brand.ink, borderRadius: BorderRadius.circular(8)),
       textStyle: text.bodySmall?.copyWith(color: Colors.white),
     ),
+    // انتقال الصفحات: صعود وتلاشٍ للجديدة، وانكماش خفيف للسابقة (iOS يحتفظ بسحب الرجوع)
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: DcPageTransitionsBuilder(),
+      TargetPlatform.fuchsia: DcPageTransitionsBuilder(),
+      TargetPlatform.windows: DcPageTransitionsBuilder(),
+      TargetPlatform.linux: DcPageTransitionsBuilder(),
+      TargetPlatform.macOS: DcPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : null),
       trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? scheme.primary : null),

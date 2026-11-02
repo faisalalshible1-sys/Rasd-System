@@ -197,12 +197,27 @@ class FormDef {
 
 /// اسم حقل المهندس المرتبط بنموذج التكليف.
 String engineerFieldLabel(String field) => switch (field) {
-      'eng_sup' => 'اسم المهندس المشرف',
-      'eng_qty' => 'اسم مهندس الحصر',
-      'eng_fol' => 'اسم مهندس المتابعة',
-      'eng_saf' => 'اسم مهندس السلامة',
+      'eng_sup' => 'المهندسون المشرفون',
+      'eng_qty' => 'مهندسو الحصر',
+      'eng_fol' => 'مهندسو المتابعة',
+      'eng_saf' => 'مهندسو السلامة',
       _ => field,
     };
+
+/// أنواع المهندسين في العقد بالترتيب: مشرف، حصر، متابعة، سلامة.
+const List<String> engineerKinds = ['sup', 'qty', 'fol', 'saf'];
+
+/// اسم نوع المهندس (مفرد).
+String engineerKindLabel(String kind) => switch (kind) {
+      'sup' => 'المهندس المشرف',
+      'qty' => 'مهندس الحصر',
+      'fol' => 'مهندس المتابعة',
+      'saf' => 'مهندس السلامة',
+      _ => kind,
+    };
+
+/// اسم نوع المهندس (جمع) كما يظهر عنواناً لقائمته.
+String engineerKindPlural(String kind) => engineerFieldLabel('eng_$kind');
 
 class Profile {
   const Profile({
@@ -250,7 +265,9 @@ class Project {
     required this.notes,
     required this.engineers,
     required this.sortOrder,
+    this.contractNo = '',
     this.contractValue,
+    this.executedValue,
     this.paymentFirst,
     this.paymentSecond,
     this.paymentFinal,
@@ -272,21 +289,37 @@ class Project {
   final String notes;
   final Map<String, String> engineers; // eng_sup, eng_qty, eng_fol, eng_saf
   final int sortOrder;
+
+  /// رقم العقد كما يدخله مكتب العقود (فارغ = لم يُحدَّد بعد).
+  final String contractNo;
   // البيانات المالية للعقد (null = لم تُدخل بعد)
-  final double? contractValue;
+  final double? contractValue; // قيمة الأعمال التعاقدية
+  final double? executedValue; // قيمة الأعمال المنفذة
   final double? paymentFirst;
   final double? paymentSecond;
   final double? paymentFinal;
   final double? deductions;
-  final double? guaranteeInitial; // 5% من قيمة التعاقد، تحسبه قاعدة البيانات
-  final double? guaranteeFinal; // 2% من قيمة التعاقد، تحسبه قاعدة البيانات
+  final double? guaranteeInitial; // 5% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
+  final double? guaranteeFinal; // 2% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
   final Map<String, dynamic> extra; // قيم الحقول الإضافية
   final DateTime? updatedAt;
   final String? updatedBy;
 
   String get title => name.trim().isNotEmpty ? name.trim() : 'مشروع بدون اسم';
-  String get label => [assignNo, name].where((s) => s.trim().isNotEmpty).join(' — ');
+  String get label => [if (contractNo.isNotEmpty) 'عقد $contractNo' else assignNo, name].where((s) => s.trim().isNotEmpty).join(' — ');
+
+  /// عنوان مختصر للعقد: «عقد 12/2026» أو رقم التكليف عند غياب رقم العقد.
+  String get contractTitle => contractNo.isNotEmpty ? 'عقد $contractNo' : (assignNo.isNotEmpty ? 'تكليف $assignNo' : 'عقد بلا رقم');
   String engineer(String field) => engineers[field] ?? '';
+
+  double get paymentsTotal => (paymentFirst ?? 0) + (paymentSecond ?? 0) + (paymentFinal ?? 0);
+
+  /// نسبة الأعمال المنفذة إلى التعاقدية (null إن لم تُدخل القيمتان).
+  double? get executionRatio {
+    final c = contractValue, e = executedValue;
+    if (c == null || e == null || c <= 0) return null;
+    return e / c;
+  }
 
   factory Project.fromMap(Map<String, dynamic> m) => Project(
         id: _str(m['id']),
@@ -304,7 +337,9 @@ class Project {
           'eng_saf': _str(m['eng_saf']),
         },
         sortOrder: (m['sort_order'] as num?)?.toInt() ?? 0,
+        contractNo: _str(m['contract_no']),
         contractValue: _money(m['contract_value']),
+        executedValue: _money(m['executed_value']),
         paymentFirst: _money(m['payment_first']),
         paymentSecond: _money(m['payment_second']),
         paymentFinal: _money(m['payment_final']),
@@ -316,6 +351,119 @@ class Project {
         updatedBy: m['updated_by'] as String?,
       );
 }
+
+/// عمل (بند) داخل العقد: وصفه وشركته ورقمه الأصلي. الأعمال المدمجة تحمل أصلها.
+class ContractWork {
+  const ContractWork({
+    required this.id,
+    required this.projectId,
+    required this.originProject,
+    required this.title,
+    required this.company,
+    required this.refNo,
+    required this.notes,
+    required this.sort,
+    this.createdAt,
+  });
+
+  final String id;
+  final String projectId;
+  final String? originProject;
+  final String title;
+  final String company;
+  final String refNo;
+  final String notes;
+  final int sort;
+  final DateTime? createdAt;
+
+  /// دُمج هذا العمل من عقد آخر (يعود إليه عند فك الدمج).
+  bool get merged => originProject != null && originProject != projectId;
+
+  String get display => [title, company].where((s) => s.trim().isNotEmpty).join(' · ');
+
+  factory ContractWork.fromMap(Map<String, dynamic> m) => ContractWork(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        originProject: m['origin_project'] as String?,
+        title: _str(m['title']),
+        company: _str(m['company']),
+        refNo: _str(m['ref_no']),
+        notes: _str(m['notes']),
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+        createdAt: _date(m['created_at']),
+      );
+}
+
+/// مهندس مكلّف في العقد برقم تكليفه. أكثر من مهندس من كل نوع.
+class ContractEngineer {
+  const ContractEngineer({
+    required this.id,
+    required this.projectId,
+    required this.originProject,
+    required this.kind,
+    required this.name,
+    required this.assignNo,
+    required this.assignedOn,
+    required this.workId,
+    required this.notes,
+    required this.sort,
+  });
+
+  final String id;
+  final String projectId;
+  final String? originProject;
+  final String kind; // sup | qty | fol | saf
+  final String name;
+  final String assignNo;
+  final DateTime? assignedOn;
+  final String? workId;
+  final String notes;
+  final int sort;
+
+  bool get merged => originProject != null && originProject != projectId;
+
+  factory ContractEngineer.fromMap(Map<String, dynamic> m) => ContractEngineer(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        originProject: m['origin_project'] as String?,
+        kind: _str(m['kind']),
+        name: _str(m['name']),
+        assignNo: _str(m['assign_no']),
+        assignedOn: _date(m['assigned_on']),
+        workId: m['work_id'] as String?,
+        notes: _str(m['notes']),
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// رسالة في محادثة مساعد Claude.
+class AssistantMessage {
+  AssistantMessage({
+    required this.role,
+    required this.text,
+    this.model = '',
+    this.inputTokens = 0,
+    this.outputTokens = 0,
+    this.error = false,
+    DateTime? at,
+  }) : at = at ?? DateTime.now();
+
+  final String role; // user | assistant
+  final String text;
+  final String model;
+  final int inputTokens;
+  final int outputTokens;
+  final bool error;
+  final DateTime at;
+
+  bool get isUser => role == 'user';
+}
+
+/// تاريخ بصيغة قاعدة البيانات (yyyy-mm-dd).
+String dbDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// تاريخ مقروء (yyyy/mm/dd).
+String dayText(DateTime? d) => d == null ? '' : dbDate(d).replaceAll('-', '/');
 
 enum RequestState { pending, approved, rejected, withdrawn }
 
@@ -451,9 +599,23 @@ const Map<String, String> auditActionLabels = {
   'idea.create': 'أرسل فكرة',
   'idea.update': 'حدّث فكرة',
   'idea.delete': 'حذف فكرة',
+  'user.delete': 'حذف مستخدماً',
+  'contract.work_add': 'أضاف عملاً إلى العقد',
+  'contract.work_update': 'عدّل عملاً في العقد',
+  'contract.work_delete': 'حذف عملاً من العقد',
+  'contract.merge': 'دمج أعمالاً في العقد',
+  'contract.merged_into': 'دُمج في عقد',
+  'contract.unmerge': 'فكّ دمج عمل',
+  'engineer.add': 'كلّف مهندساً',
+  'engineer.update': 'عدّل تكليف مهندس',
+  'engineer.delete': 'ألغى تكليف مهندس',
+  'engineer.set': 'حدّث أسماء المهندسين',
+  'ai.ask': 'سأل مساعد Claude',
 };
 
 const Map<String, String> projectFieldLabels = {
+  'contract_no': 'رقم العقد',
+  'executed_value': 'قيمة الأعمال المنفذة',
   'assign_no': 'رقم التكليف',
   'code': 'رمز المشروع',
   'name': 'اسم المشروع',
@@ -465,7 +627,7 @@ const Map<String, String> projectFieldLabels = {
   'eng_qty': 'مهندس الحصر',
   'eng_fol': 'مهندس المتابعة',
   'eng_saf': 'مهندس السلامة',
-  'contract_value': 'قيمة التعاقد',
+  'contract_value': 'قيمة الأعمال التعاقدية',
   'payment_first': 'الدفعة الأولى',
   'payment_second': 'الدفعة الثانية',
   'payment_final': 'الدفعة الختامية',
@@ -817,7 +979,38 @@ class LiveSettings {
   bool get requireMfaAll => flag('security.require_mfa_all', false);
   int get idleMinutes => number('security.idle_minutes', 30).round();
 
-  /// يطبّق القيم العامة على المتغيرات المشتركة (المسميات والنسب والعملة).
+  // ---- التعديل الداخلي (المدير) ----
+
+  /// مستوى الحركة: full كاملة، reduced مخففة، off بلا حركة.
+  String get motion => normalizeMotion(raw['ui.motion']);
+
+  /// صفحات القائمة المخفية عن الموظفين.
+  List<String> get navHidden => strList(map('ui.nav')['hidden']);
+
+  /// ترتيب صفحات القائمة.
+  List<String> get navOrder => strList(map('ui.nav')['order']);
+
+  /// أسماء مخصصة لصفحات القائمة.
+  Map<String, String> get navLabels => strMap(map('ui.nav')['labels']);
+
+  /// أقسام الرئيسية بالترتيب وحالة ظهورها.
+  List<(String, bool)> get dashboardSections {
+    final l = map('ui.dashboard')['sections'];
+    if (l is! List) return const [];
+    return [
+      for (final x in l)
+        if (x is Map && x['key'] is String) (x['key'] as String, x['on'] != false),
+    ];
+  }
+
+  /// المصطلحات المخصصة (العقد، الأعمال...).
+  Map<String, String> get terms => strMap(raw['ui.labels']);
+
+  bool get aiEnabled => flag('ai.enabled', true);
+  String get aiModel => str('ai.model', 'claude-sonnet-5-5');
+  String get aiInstructions => raw['ai.instructions'] is String ? raw['ai.instructions'] as String : '';
+
+  /// يطبّق القيم العامة على المتغيرات المشتركة (المسميات والنسب والعملة والحركة والمصطلحات).
   void applyGlobals() {
     final labels = map('ui.status_labels');
     for (final k in const ['done', 'wip', 'todo', 'na']) {
@@ -827,8 +1020,60 @@ class LiveSettings {
     guaranteeInitialRate = number('finance.guarantee_initial_rate', 0.05);
     guaranteeFinalRate = number('finance.guarantee_final_rate', 0.02);
     currencyLabel = str('finance.currency', 'د.ل');
+    motionSetting = motion;
+    customTerms
+      ..clear()
+      ..addAll(terms);
   }
 }
+
+List<String> strList(Object? v) => v is List ? [for (final x in v) if (x is String && x.isNotEmpty) x] : <String>[];
+
+Map<String, String> strMap(Object? v) {
+  if (v is! Map) return <String, String>{};
+  return {
+    for (final e in v.entries)
+      if (e.value is String && (e.value as String).trim().isNotEmpty) e.key.toString(): (e.value as String).trim(),
+  };
+}
+
+// ---------------------------------------------------------------------
+// الحركة والمصطلحات (يتحكم بها المدير من «التخصيص والتطوير»)
+// ---------------------------------------------------------------------
+
+/// مستوى الحركة في الواجهة: full | reduced | off.
+String motionSetting = 'full';
+
+String normalizeMotion(Object? v) => v is String && (v == 'reduced' || v == 'off') ? v : 'full';
+
+/// المصطلحات الافتراضية التي يستطيع المدير تغييرها.
+const Map<String, String> defaultTerms = {
+  'contracts': 'العقود',
+  'contract': 'العقد',
+  'new_contract': 'عقد جديد',
+  'works': 'أعمال العقد',
+  'company': 'الشركة المنفذة',
+  'engineers': 'المهندسون والتكليفات',
+  'finance': 'البيانات المالية للعقد',
+  'cycle': 'نماذج الدورة المستندية',
+};
+
+/// شرح كل مصطلح في شاشة التخصيص.
+const Map<String, String> termHints = {
+  'contracts': 'اسم صفحة العقود وعناوين القوائم',
+  'contract': 'كلمة «العقد» في صفحة التفاصيل',
+  'new_contract': 'زر الإضافة',
+  'works': 'عنوان قائمة الأعمال المدمجة في العقد',
+  'company': 'مسمى الشركة في البطاقات والتصفية',
+  'engineers': 'عنوان قسم المهندسين وأرقام تكليفهم',
+  'finance': 'عنوان القيم المالية والضمانات',
+  'cycle': 'عنوان قائمة النماذج والمراحل',
+};
+
+final Map<String, String> customTerms = {};
+
+/// المصطلح كما يحدده المدير، أو الافتراضي.
+String term(String key) => customTerms[key] ?? defaultTerms[key] ?? key;
 
 /// نسبة مئوية مقروءة من كسر (0.05 ← 5%).
 String rateText(double r) {

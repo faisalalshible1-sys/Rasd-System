@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'home_shell.dart';
@@ -98,8 +99,17 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
+  /// الانتقال بين الدخول والتحميل والتطبيق بحركة ناعمة (تلاشٍ وتكبير خفيف).
   @override
   Widget build(BuildContext context) {
+    return MotionSwitcher(
+      duration: const Duration(milliseconds: 620),
+      offset: const Offset(0, 0.012),
+      child: KeyedSubtree(key: ValueKey(_gate), child: _screen()),
+    );
+  }
+
+  Widget _screen() {
     switch (_gate) {
       case _Gate.login:
         return const LoginScreen();
@@ -136,19 +146,32 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
+/// شاشة التحميل: الختم نابضاً بحلقات تتسع، واسم المنظومة يظهر تدريجياً.
 class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final app = AppScope.maybeRead(context);
+    final t = Theme.of(context).textTheme;
+    final sem = Sem.of(context);
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            BrandEmblem(size: 72),
-            SizedBox(height: 22),
-            SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4)),
+            const PulseEmblem(size: 78),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 180),
+              child: Text(app?.appTitle ?? '', textAlign: TextAlign.center, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 6),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 320),
+              child: Text('جارٍ تجهيز المنظومة…', style: TextStyle(color: sem.muted)),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(width: 160, child: LinearProgressIndicator(minHeight: 3, borderRadius: BorderRadius.circular(3))),
           ],
         ),
       ),
@@ -170,7 +193,10 @@ class AuthFrame extends StatelessWidget {
     final form = Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
-        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440), child: child),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: FadeSlideIn(delay: Duration(milliseconds: wide ? 220 : 60), offset: const Offset(0, 0.035), child: child),
+        ),
       ),
     );
     if (!wide) {
@@ -202,16 +228,21 @@ class AuthFrame extends StatelessWidget {
               ),
               child: Stack(
                 children: [
+                  const Positioned.fill(child: AnimatedBackdrop()),
                   const Positioned(top: 0, left: 0, right: 0, child: BrandStripe(height: 5)),
                   Padding(
                     padding: const EdgeInsets.all(48),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                      children: staggered(stepMs: 90, startMs: 80, [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 30, offset: const Offset(0, 12))],
+                          ),
                           child: const BrandEmblem(size: 84),
                         ),
                         const SizedBox(height: 28),
@@ -231,8 +262,9 @@ class AuthFrame extends StatelessWidget {
                           _Feature(icon: Icons.verified_user_outlined, text: 'تحقق بخطوتين'),
                           _Feature(icon: Icons.bolt_outlined, text: 'تحديث لحظي'),
                           _Feature(icon: Icons.history_edu_outlined, text: 'سجل تدقيق كامل'),
+                          _Feature(icon: Icons.call_merge_rounded, text: 'عقود موحّدة'),
                         ]),
-                      ],
+                      ]),
                     ),
                   ),
                 ],
@@ -370,16 +402,29 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!wide) ...[
-              const Center(child: BrandEmblem(size: 76)),
+              const Center(child: PulseEmblem(size: 76, ripples: false)),
               const SizedBox(height: 14),
               Text(app.orgName, textAlign: TextAlign.center, style: t.bodyMedium?.copyWith(color: sem.muted)),
               Text(app.appTitle, textAlign: TextAlign.center, style: t.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 24),
             ] else ...[
-              Text(_signUp ? 'إنشاء حساب' : 'مرحباً بك', style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text(_signUp ? 'يبقى الحساب بانتظار تفعيل مدير المكتب.' : 'سجّل الدخول لمتابعة المشاريع.',
-                  style: t.bodyMedium?.copyWith(color: sem.muted)),
+              AnimatedSwitcher(
+                duration: Motion.of(context, 300),
+                layoutBuilder: (current, previous) => Stack(
+                  alignment: AlignmentDirectional.centerStart,
+                  children: [...previous, if (current != null) current],
+                ),
+                child: Column(
+                  key: ValueKey(_signUp),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_signUp ? 'إنشاء حساب' : 'مرحباً بك', style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(_signUp ? 'يبقى الحساب بانتظار تفعيل مدير المكتب.' : 'سجّل الدخول لمتابعة العقود ودورتها المستندية.',
+                        style: t.bodyMedium?.copyWith(color: sem.muted)),
+                  ],
+                ),
+              ),
               const SizedBox(height: 26),
             ],
             if (signupsOpen) ...[
@@ -394,15 +439,22 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 18),
             ],
-            if (_signUp) ...[
-              TextField(
-                controller: _name,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.name],
-                decoration: fieldDeco('الاسم الكامل', prefixIcon: const Icon(Icons.badge_outlined)),
-              ),
-              const SizedBox(height: 12),
-            ],
+            AnimatedSize(
+              duration: Motion.of(context, 280),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: _signUp
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextField(
+                        controller: _name,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.name],
+                        decoration: fieldDeco('الاسم الكامل', prefixIcon: const Icon(Icons.badge_outlined)),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
@@ -434,11 +486,11 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             if (_error != null) ...[
               const SizedBox(height: 8),
-              InfoBanner(text: _error!, level: 'critical'),
+              FadeSlideIn(key: ValueKey('e:$_error'), offset: const Offset(0, 0.2), child: InfoBanner(text: _error!, level: 'critical')),
             ],
             if (_info != null) ...[
               const SizedBox(height: 8),
-              InfoBanner(text: _info!, level: 'ok'),
+              FadeSlideIn(key: ValueKey('i:$_info'), offset: const Offset(0, 0.2), child: InfoBanner(text: _info!, level: 'ok')),
             ],
             const SizedBox(height: 18),
             FilledButton(

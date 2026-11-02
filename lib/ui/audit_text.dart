@@ -85,6 +85,33 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'حدّث فكرة: ${e.projectLabel}';
     case 'idea.delete':
       return 'حذف فكرة: ${e.projectLabel}';
+    case 'contract.work_add':
+      return 'أضاف عملاً: ${[text(d['title']), text(d['company'])].where((x) => x.isNotEmpty).join(' · ')}';
+    case 'contract.work_update':
+      final title = d['title'] is Map ? text((d['title'] as Map)['to']) : '';
+      return 'عدّل عملاً في العقد${title.isNotEmpty ? ': $title' : ''}';
+    case 'contract.work_delete':
+      return 'حذف عملاً: ${[text(d['title']), text(d['company'])].where((x) => x.isNotEmpty).join(' · ')}';
+    case 'contract.merge':
+      final n = (d['count'] as num?)?.toInt() ?? 0;
+      return 'دمج $n ${n == 1 ? 'عملاً' : 'أعمال'} في العقد';
+    case 'contract.merged_into':
+      return 'دُمج في ${text(d['target_label'])}';
+    case 'contract.unmerge':
+      return 'فكّ دمج ${text(d['source_label'])}';
+    case 'engineer.add':
+      return 'كلّف ${engineerKindLabel(text(d['kind']))}: ${text(d['name'])}${text(d['assign_no']).isNotEmpty ? ' (رقم ${text(d['assign_no'])})' : ''}';
+    case 'engineer.update':
+      final name = d['name'] is Map ? text((d['name'] as Map)['to']) : '';
+      final no = d['assign_no'] is Map ? text((d['assign_no'] as Map)['to']) : '';
+      return 'عدّل تكليف ${engineerKindLabel(text(d['kind']))}: $name${no.isNotEmpty ? ' (رقم $no)' : ''}';
+    case 'engineer.delete':
+      return 'ألغى تكليف ${engineerKindLabel(text(d['kind']))}: ${text(d['name'])}';
+    case 'engineer.set':
+      return 'حدّث ${engineerKindPlural(text(d['kind']))}: ${text(d['to']).isEmpty ? '—' : text(d['to'])}';
+    case 'ai.ask':
+      final tokens = ((d['input_tokens'] as num?)?.toInt() ?? 0) + ((d['output_tokens'] as num?)?.toInt() ?? 0);
+      return 'سأل مساعد Claude (${text(d['model'])}${tokens > 0 ? ' · $tokens رمزاً' : ''})';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
@@ -99,6 +126,13 @@ const Map<String, String> settingLabels = {
   'ui.announcement': 'الإعلان العام',
   'ui.status_labels': 'مسميات الحالات',
   'ui.features': 'الميزات',
+  'ui.motion': 'الحركة والانتقالات',
+  'ui.nav': 'القائمة الرئيسية',
+  'ui.dashboard': 'أقسام الرئيسية',
+  'ui.labels': 'المصطلحات',
+  'ai.enabled': 'تشغيل مساعد Claude',
+  'ai.model': 'نموذج مساعد Claude',
+  'ai.instructions': 'تعليمات مساعد Claude',
   'finance.guarantee_initial_rate': 'نسبة الضمان الابتدائي',
   'finance.guarantee_final_rate': 'نسبة الضمان النهائي',
   'finance.currency': 'رمز العملة',

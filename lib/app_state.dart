@@ -33,6 +33,16 @@ class AppState extends ChangeNotifier {
   List<Idea> ideas = [];
   bool v2Ready = false; // هل طُبّق ملف قاعدة البيانات للإصدار الثاني
 
+  // الإصدار الثالث: أعمال العقود ومهندسوها بأرقام تكليفهم
+  List<ContractWork> works = [];
+  List<ContractEngineer> engineers = [];
+  bool v3Ready = false;
+  Map<String, List<ContractWork>> _worksBy = {};
+  Map<String, List<ContractEngineer>> _engBy = {};
+
+  /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
+  final List<AssistantMessage> assistantMessages = [];
+
   // تفضيلات هذا الجهاز
   ThemeMode themeMode = ThemeMode.system;
 
@@ -58,6 +68,9 @@ class AppState extends ChangeNotifier {
 
   bool loading = false;
   bool loadedOnce = false;
+
+  /// يزيد مع كل تحميل ناجح (لتحديث ما يُقرأ خارج الحالة، مثل سجل النشاط).
+  int dataVersion = 0;
   String? loadError;
 
   // التنقل والتصفية المشتركة بين الشاشات
@@ -78,6 +91,7 @@ class AppState extends ChangeNotifier {
 
   RealtimeChannel? _channel;
   RealtimeChannel? _channel2;
+  RealtimeChannel? _channel3;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -160,6 +174,37 @@ class AppState extends ChangeNotifier {
     return d != null && canEditForm(p, d);
   }
 
+  /// رقم العقد ودمج الأعمال: مكتب العقود ومدير المكتب.
+  bool canEditContractNo(Project p) => v3Ready && hasToken(p, const ['contracts']);
+  bool canMerge(Project p) => v3Ready && hasToken(p, const ['contracts']);
+
+  /// فك الدمج: مدير المكتب وحده.
+  bool get canUnmerge => v3Ready && isDirector;
+
+  /// أعمال العقد: مكتب العقود وموظفو مكتب المدير والمدير.
+  bool canEditWorks(Project p) => v3Ready && hasToken(p, const ['contracts', 'office_staff']);
+
+  /// نموذج التكليف المقابل لنوع المهندس (كما تحدده قاعدة البيانات: أول نموذج بالترتيب).
+  FormDef? engineerFormOf(String kind) {
+    FormDef? best;
+    for (final d in allFormDefs) {
+      if (d.engineerField == 'eng_$kind' && (best == null || d.sort < best.sort)) best = d;
+    }
+    return best;
+  }
+
+  /// تكليف مهندس من نوع معيّن: من يختص بنموذج التكليف المقابل.
+  bool canAssignEngineer(Project p, String kind) {
+    if (!v3Ready) return false;
+    final d = engineerFormOf(kind);
+    return d == null ? isDirector : canEditForm(p, d);
+  }
+
+  bool canAssignAnyEngineer(Project p) => engineerKinds.any((k) => canAssignEngineer(p, k));
+
+  /// مساعد Claude: لمدير المكتب وحده، ويمكن إيقافه من الإعدادات.
+  bool get canUseAssistant => isDirector && v3Ready && settings.aiEnabled;
+
   /// من يختص بالنموذج، بصياغة تُعرض للمستخدم.
   String responsibleText(Project p, FormDef d) {
     final parts = <String>['مدير المكتب'];
@@ -216,11 +261,48 @@ class AppState extends ChangeNotifier {
   int get unreadCount => notifications.where((n) => n.unread).length;
 
   List<String> get owners => (projects.map((p) => p.owner).where((s) => s.trim().isNotEmpty).toSet().toList()..sort());
-  List<String> get companies => (projects.map((p) => p.company).where((s) => s.trim().isNotEmpty).toSet().toList()..sort());
+
+  /// الشركات: شركة العقد وشركات أعماله المدمجة.
+  List<String> get companies => ({
+        for (final p in projects) p.company.trim(),
+        for (final w in works) w.company.trim(),
+      }.where((s) => s.isNotEmpty).toList()
+        ..sort());
+
+  /// أعمال العقد بالترتيب.
+  List<ContractWork> worksOf(String projectId) => _worksBy[projectId] ?? const [];
+
+  /// مهندسو العقد (كل الأنواع، أو نوع واحد).
+  List<ContractEngineer> engineersOf(String projectId, [String? kind]) {
+    final all = _engBy[projectId] ?? const <ContractEngineer>[];
+    return kind == null ? all : all.where((e) => e.kind == kind).toList();
+  }
+
+  /// كل شركات العقد (شركته وشركات أعماله) بلا تكرار.
+  List<String> companiesOf(Project p) {
+    final out = <String>[];
+    for (final c in [p.company, ...worksOf(p.id).map((w) => w.company)]) {
+      final t = c.trim();
+      if (t.isNotEmpty && !out.contains(t)) out.add(t);
+    }
+    return out;
+  }
+
+  ContractWork? work(String? id) {
+    if (id == null) return null;
+    for (final w in works) {
+      if (w.id == id) return w;
+    }
+    return null;
+  }
+
+  /// كل أسماء المهندسين المسجلة (لاقتراحها عند التكليف).
+  List<String> engineerNames([String? kind]) =>
+      ({for (final e in engineers) if (kind == null || e.kind == kind) e.name.trim()}.where((s) => s.isNotEmpty).toList()..sort());
 
   /// المشاريع ضمن تصفية المالك والشركة (للرئيسية والتحليل).
   List<Project> get scoped => projects
-      .where((p) => (ownerFilter.isEmpty || p.owner == ownerFilter) && (companyFilter.isEmpty || p.company == companyFilter))
+      .where((p) => (ownerFilter.isEmpty || p.owner == ownerFilter) && (companyFilter.isEmpty || companiesOf(p).contains(companyFilter)))
       .toList();
 
   // ---------------------------------------------------------------
@@ -315,9 +397,11 @@ class AppState extends ChangeNotifier {
       final mine = people[me?.id];
       if (mine != null) me = mine;
       await _loadV2();
+      await _loadV3();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
+      dataVersion++;
       unawaited(checkForUpdate());
     } catch (e) {
       loadError = friendlyError(e);
@@ -348,12 +432,42 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// جداول الإصدار الثالث (العقود والأعمال والمهندسون)؛ يعمل التطبيق بدونها كما كان.
+  Future<void> _loadV3() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('contract_works').select().order('sort'),
+        client.from('contract_engineers').select().order('sort'),
+      ]);
+      works = r[0].map(ContractWork.fromMap).toList();
+      engineers = r[1].map(ContractEngineer.fromMap).toList();
+      final wb = <String, List<ContractWork>>{};
+      for (final w in works) {
+        (wb[w.projectId] ??= []).add(w);
+      }
+      final eb = <String, List<ContractEngineer>>{};
+      for (final e in engineers) {
+        (eb[e.projectId] ??= []).add(e);
+      }
+      _worksBy = wb;
+      _engBy = eb;
+      v3Ready = true;
+    } catch (_) {
+      works = [];
+      engineers = [];
+      _worksBy = {};
+      _engBy = {};
+      v3Ready = false;
+    }
+  }
+
   /// إعدادات الهوية قبل تسجيل الدخول.
   Future<void> loadPublicSettings() async {
     try {
       final res = await client.rpc('public_settings');
       if (res is Map) {
         publicSettings = Map<String, dynamic>.from(res);
+        if (settings.raw.isEmpty) motionSetting = normalizeMotion(publicSettings['ui.motion']);
         _notify();
       }
     } catch (_) {
@@ -385,6 +499,16 @@ class AppState extends ChangeNotifier {
     }
     ch2.subscribe();
     _channel2 = ch2;
+
+    // قناة الإصدار الثالث: أعمال العقود ومهندسوها
+    final old3 = _channel3;
+    if (old3 != null) client.removeChannel(old3);
+    final ch3 = client.channel('dc-v3');
+    for (final t in const ['contract_works', 'contract_engineers']) {
+      ch3.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch3.subscribe();
+    _channel3 = ch3;
   }
 
   void scheduleReload() {
@@ -401,11 +525,20 @@ class AppState extends ChangeNotifier {
     final old2 = _channel2;
     if (old2 != null) client.removeChannel(old2);
     _channel2 = null;
+    final old3 = _channel3;
+    if (old3 != null) client.removeChannel(old3);
+    _channel3 = null;
     settings = LiveSettings.empty();
     stages = [];
     allFormDefs = [];
     customFields = [];
     ideas = [];
+    works = [];
+    engineers = [];
+    _worksBy = {};
+    _engBy = {};
+    v3Ready = false;
+    assistantMessages.clear();
     _debounce?.cancel();
     _updateTimer?.cancel();
     me = null;
@@ -436,6 +569,8 @@ class AppState extends ChangeNotifier {
     if (old != null) client.removeChannel(old);
     final old2 = _channel2;
     if (old2 != null) client.removeChannel(old2);
+    final old3 = _channel3;
+    if (old3 != null) client.removeChannel(old3);
     super.dispose();
   }
 
@@ -487,12 +622,28 @@ class AppState extends ChangeNotifier {
         }
       }
       if (q.isNotEmpty) {
-        final hay = normalizeArabic([p.assignNo, p.code, p.name, p.owner, p.company, p.notes, ...p.engineers.values].join(' '));
+        final hay = normalizeArabic([
+          p.contractNo,
+          p.assignNo,
+          p.code,
+          p.name,
+          p.owner,
+          p.company,
+          p.notes,
+          ...p.engineers.values,
+          for (final w in worksOf(p.id)) '${w.title} ${w.company} ${w.refNo}',
+          for (final e in engineersOf(p.id)) '${e.name} ${e.assignNo}',
+        ].join(' '));
         if (!hay.contains(q)) return false;
       }
       return true;
     }).toList();
     switch (sort) {
+      case 'contract':
+        list.sort((a, b) {
+          if (a.contractNo.isEmpty != b.contractNo.isEmpty) return a.contractNo.isEmpty ? 1 : -1;
+          return _naturalCompare(a.contractNo, b.contractNo);
+        });
       case 'low':
         list.sort((a, b) => progressOf(a).pct.compareTo(progressOf(b).pct));
       case 'high':
@@ -539,6 +690,7 @@ class AppState extends ChangeNotifier {
   Future<void> setContractFinance(
     String projectId, {
     required double? contractValue,
+    double? executedValue,
     required double? paymentFirst,
     required double? paymentSecond,
     required double? paymentFinal,
@@ -547,12 +699,159 @@ class AppState extends ChangeNotifier {
     await client.rpc('set_contract_finance', params: {
       'p_project': projectId,
       'p_contract_value': contractValue,
+      // قاعدة الإصدار الثالث: الضمانات من قيمة الأعمال المنفذة
+      if (v3Ready) 'p_executed_value': executedValue,
       'p_payment_first': paymentFirst,
       'p_payment_second': paymentSecond,
       'p_payment_final': paymentFinal,
       'p_deductions': deductions,
     });
     await loadAll();
+  }
+
+  // ---------------------------------------------------------------
+  // العقود: رقم العقد والأعمال والمهندسون والدمج
+  // ---------------------------------------------------------------
+  Future<void> setContractNo(String projectId, String no) async {
+    await client.rpc('set_contract_no', params: {'p_project': projectId, 'p_no': no.trim()});
+    await loadAll();
+  }
+
+  Future<String> saveWork({
+    String? id,
+    required String projectId,
+    required String title,
+    required String company,
+    required String refNo,
+    required String notes,
+  }) async {
+    final res = await client.rpc('save_work', params: {
+      'p_id': id,
+      'p_project': projectId,
+      'p_title': title.trim(),
+      'p_company': company.trim(),
+      'p_ref_no': refNo.trim(),
+      'p_notes': notes.trim(),
+    });
+    await loadAll();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> deleteWork(String id) async {
+    await client.rpc('delete_work', params: {'p_id': id});
+    await loadAll();
+  }
+
+  Future<String> saveEngineer({
+    String? id,
+    required String projectId,
+    required String kind,
+    required String name,
+    required String assignNo,
+    DateTime? assignedOn,
+    String? workId,
+    String notes = '',
+  }) async {
+    final res = await client.rpc('save_engineer', params: {
+      'p_id': id,
+      'p_project': projectId,
+      'p_kind': kind,
+      'p_name': name.trim(),
+      'p_assign_no': assignNo.trim(),
+      'p_assigned_on': assignedOn == null ? null : dbDate(assignedOn),
+      'p_work': workId,
+      'p_notes': notes.trim(),
+    });
+    await loadAll();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> deleteEngineer(String id) async {
+    await client.rpc('delete_engineer', params: {'p_id': id});
+    await loadAll();
+  }
+
+  /// يدمج أعمالاً (عقوداً) في عقد واحد؛ يُرجع عدد ما دُمج.
+  Future<int> mergeContracts(String targetId, List<String> sourceIds) async {
+    final res = await client.rpc('merge_contracts', params: {'p_target': targetId, 'p_sources': sourceIds});
+    await loadAll();
+    return (res as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> unmergeContract(String sourceId) async {
+    await client.rpc('unmerge_contract', params: {'p_source': sourceId});
+    await loadAll();
+  }
+
+  /// الأعمال (السجلات الأصلية) المدمجة في عقد.
+  Future<List<Map<String, dynamic>>> mergedSources(String targetId) async {
+    if (!v3Ready) return const [];
+    final res = await client.rpc('merged_sources', params: {'p_target': targetId});
+    return res is List ? res.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+  }
+
+  // ---------------------------------------------------------------
+  // مساعد Claude (المدير وحده). المفتاح سرّ في Supabase ولا يمر بالتطبيق.
+  // ---------------------------------------------------------------
+  Future<AssistantMessage> askClaude(String question) async {
+    final history = [
+      for (final m in assistantMessages.where((m) => !m.error).toList().reversed.take(16).toList().reversed)
+        {'role': m.role, 'content': m.text},
+    ];
+    final user = AssistantMessage(role: 'user', text: question.trim());
+    assistantMessages.add(user);
+    _notify();
+    AssistantMessage reply;
+    try {
+      final res = await client.functions.invoke('claude-assistant', body: {
+        'messages': [...history, {'role': 'user', 'content': user.text}],
+      });
+      final data = res.data;
+      if (data is Map && data['text'] is String) {
+        final usage = data['usage'] is Map ? data['usage'] as Map : const {};
+        reply = AssistantMessage(
+          role: 'assistant',
+          text: (data['text'] as String).trim(),
+          model: (data['model'] ?? '').toString(),
+          inputTokens: (usage['input_tokens'] as num?)?.toInt() ?? 0,
+          outputTokens: (usage['output_tokens'] as num?)?.toInt() ?? 0,
+        );
+      } else {
+        reply = AssistantMessage(role: 'assistant', text: _assistantError(data), error: true);
+      }
+    } catch (e) {
+      reply = AssistantMessage(role: 'assistant', text: _assistantError(_errorDetails(e) ?? e), error: true);
+    }
+    assistantMessages.add(reply);
+    _notify();
+    return reply;
+  }
+
+  void clearAssistant() {
+    assistantMessages.clear();
+    _notify();
+  }
+
+  static Object? _errorDetails(Object e) {
+    try {
+      return (e as dynamic).details;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _assistantError(Object? data) {
+    final code = data is Map ? (data['code'] ?? '').toString() : '';
+    final msg = data is Map ? (data['error'] ?? data['message'] ?? '').toString() : (data?.toString() ?? '');
+    return switch (code) {
+      'missing_key' => 'لم يُضف مفتاح Anthropic بعد. أضفه في Supabase ← Edge Functions ← Secrets باسم ANTHROPIC_API_KEY، ثم أعد السؤال.',
+      'forbidden' => 'مساعد Claude لمدير المكتب وحده.',
+      'disabled' => 'مساعد Claude متوقف من «التخصيص والتطوير».',
+      'anthropic' => 'رفضت خدمة Claude الطلب: $msg',
+      _ => msg.contains('Function not found') || msg.contains('404') || msg.contains('NOT_FOUND')
+          ? 'خدمة المساعد غير منشورة بعد على Supabase (claude-assistant).'
+          : (msg.isEmpty ? 'تعذّر الوصول إلى مساعد Claude. تحقق من الاتصال وأعد المحاولة.' : msg),
+    };
   }
 
   Future<String> saveProject({String? id, required Map<String, dynamic> data}) async {
@@ -844,7 +1143,10 @@ String friendlyError(Object e) {
     final m = e.message;
     if (m.contains('row-level security') || m.contains('permission denied')) return 'لا تملك صلاحية هذا الإجراء.';
     if (m.contains('duplicate key') && m.contains('assign_no')) return 'رقم التكليف مستخدم في مشروع آخر.';
+    if (m.contains('projects_contract_no_uq')) return 'رقم العقد مستخدم لعقد آخر.';
     if (m.contains('projects_has_identity')) return 'اكتب رقم التكليف أو اسم المشروع على الأقل.';
+    if (m.contains('contract_works_identity')) return 'اكتب وصف العمل أو الشركة.';
+    if (m.contains('contract_engineers_name_check')) return 'اسم المهندس من حرفين إلى 120 حرفاً.';
     return m;
   }
   if (e is AuthException) {
@@ -865,6 +1167,20 @@ String friendlyError(Object e) {
     return e.message;
   }
   return 'تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة.';
+}
+
+/// مقارنة طبيعية للأرقام داخل النص (2 قبل 10).
+int _naturalCompare(String a, String b) {
+  final re = RegExp(r'\d+|\D+');
+  final pa = re.allMatches(a).map((m) => m.group(0)!).toList();
+  final pb = re.allMatches(b).map((m) => m.group(0)!).toList();
+  for (var i = 0; i < pa.length && i < pb.length; i++) {
+    final x = pa[i], y = pb[i];
+    final nx = int.tryParse(x), ny = int.tryParse(y);
+    final c = (nx != null && ny != null) ? nx.compareTo(ny) : x.compareTo(y);
+    if (c != 0) return c;
+  }
+  return pa.length.compareTo(pb.length);
 }
 
 /// الوصول إلى حالة التطبيق من أي شاشة.

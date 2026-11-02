@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import 'motion.dart';
 import 'theme.dart';
 
 String two(int n) => n.toString().padLeft(2, '0');
@@ -192,7 +193,7 @@ class StatCard extends StatelessWidget {
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
     final c = color ?? Theme.of(context).colorScheme.primary;
-    return Material(
+    final card = Material(
       color: sem.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: sem.rule)),
       child: InkWell(
@@ -228,6 +229,7 @@ class StatCard extends StatelessWidget {
         ),
       ),
     );
+    return onTap == null ? card : HoverLift(child: card);
   }
 }
 
@@ -428,15 +430,18 @@ class SegmentMeter extends StatelessWidget {
     final total = parts.fold<int>(0, (a, p) => a + p.$1);
     return ClipRRect(
       borderRadius: BorderRadius.circular(height),
-      child: SizedBox(
+      child: Container(
         height: height,
+        color: sem.todoSoft,
         child: total == 0
-            ? Container(color: sem.todoSoft)
-            : Row(
-                children: [
-                  for (final p in parts)
-                    if (p.$1 > 0) Expanded(flex: p.$1, child: Container(color: p.$2)),
-                ],
+            ? null
+            : RevealWidth(
+                child: Row(
+                  children: [
+                    for (final p in parts)
+                      if (p.$1 > 0) Expanded(flex: p.$1, child: Container(color: p.$2)),
+                  ],
+                ),
               ),
       ),
     );
@@ -484,7 +489,7 @@ class CycleStrip extends StatelessWidget {
         ),
       ));
     }
-    return Row(children: groups);
+    return RevealWidth(duration: 1100, child: Row(children: groups));
   }
 }
 
@@ -520,6 +525,41 @@ class NoTag extends StatelessWidget {
       decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(6)),
       child: Text(text.isEmpty ? '—' : text,
           style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 12.5, fontFeatures: const [FontFeature.tabularFigures()])),
+    );
+  }
+}
+
+/// وسم العقد: «عقد 12/2026»، أو رقم التكليف إن لم يُحدَّد رقم العقد بعد.
+class ContractTag extends StatelessWidget {
+  const ContractTag(this.project, {super.key, this.large = false});
+
+  final Project project;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final has = project.contractNo.isNotEmpty;
+    final fg = has ? cs.onPrimary : cs.onPrimaryContainer;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: large ? 12 : 8, vertical: large ? 5 : 3),
+      decoration: BoxDecoration(color: has ? cs.primary : cs.primaryContainer, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(has ? Icons.description_outlined : Icons.tag_rounded, size: large ? 16 : 13, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            has ? 'عقد ${project.contractNo}' : (project.assignNo.isEmpty ? 'بلا رقم' : project.assignNo),
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              fontSize: large ? 14 : 12.5,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

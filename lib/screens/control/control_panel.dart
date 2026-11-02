@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../app_state.dart';
 import '../../models.dart';
+import '../../ui/motion.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import 'audit.dart';
 import 'backup.dart';
+import 'customize.dart';
 import 'fields.dart';
 import 'overview.dart';
 import 'permissions.dart';
@@ -39,6 +41,8 @@ final List<_Section> _sections = [
   _Section(Icons.dynamic_form_outlined, 'الحقول الإضافية', 'حقول جديدة للمشاريع دون برمجة', () => const FieldsSection(), needsV2: true),
   _Section(Icons.tune_outlined, 'الإعدادات الحية', 'الهوية والإعلانات والمسميات والميزات والمالية', () => const SettingsSection(),
       needsV2: true),
+  _Section(Icons.auto_fix_high_outlined, 'التخصيص والتطوير', 'الحركة والقائمة والرئيسية والمصطلحات ومساعد Claude',
+      () => const CustomizeSection(), needsV2: true),
   _Section(Icons.shield_outlined, 'مركز الأمان', 'التحقق بخطوتين والجلسات وسجل الدخول والتجميد', () => const SecuritySection(),
       needsV2: true, auditor: true),
   _Section(Icons.history_rounded, 'سجل التدقيق', 'كل تعديل: من ومتى وماذا', () => const AuditSection(), auditor: true),
@@ -71,7 +75,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
     final s = sections[_index];
     final body = s.needsV2 && !app.v2Ready
         ? const _NeedsMigration()
-        : KeyedSubtree(key: ValueKey(_index), child: s.builder());
+        : MotionSwitcher(child: KeyedSubtree(key: ValueKey(_index), child: s.builder()));
 
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth >= 900) {
