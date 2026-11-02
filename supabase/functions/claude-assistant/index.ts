@@ -4,13 +4,15 @@
 // • مفتاح Anthropic سرّ في Supabase باسم ANTHROPIC_API_KEY (Edge Functions ← Secrets) ولا يصل إلى التطبيق.
 // • لا يعدّل أي بيانات، ويُسجَّل كل سؤال في سجل التدقيق عبر ai_log.
 //
-// النشر: من لوحة Supabase ← Edge Functions ← Deploy a new function ← Via Editor، بالاسم claude-assistant
-// (مع إبقاء «Verify JWT» مفعّلاً)، أو: supabase functions deploy claude-assistant
+// الهوية: بوابة الخدمة («Verify JWT with legacy secret» مفعّل) يرضيها مفتاح الربط العام في Authorization،
+// ورمز جلسة المستخدم يصل في x-user-token وتتحقق منه قاعدة البيانات نفسها (ai_context ترفض كل من ليس مدير المكتب).
+// النشر: من لوحة Supabase ← Edge Functions ← Deploy a new function ← Via Editor، بالاسم claude-assistant،
+// أو: supabase functions deploy claude-assistant
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const cors: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-user-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +32,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply(405, { code: "method", error: "الطلب يكون بـ POST" });
 
-  const auth = req.headers.get("Authorization") ?? "";
+  // رمز جلسة المستخدم (منفصلاً عن مفتاح البوابة)، أو Authorization نفسه إن لم يُرسل
+  const userToken = (req.headers.get("x-user-token") ?? "").trim();
+  const auth = userToken ? `Bearer ${userToken}` : (req.headers.get("Authorization") ?? "");
   if (!auth.startsWith("Bearer ")) return reply(401, { code: "forbidden", error: "سجّل الدخول أولاً" });
 
   const url = Deno.env.get("SUPABASE_URL") ?? "";

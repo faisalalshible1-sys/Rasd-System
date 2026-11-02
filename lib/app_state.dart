@@ -803,9 +803,19 @@ class AppState extends ChangeNotifier {
     _notify();
     AssistantMessage reply;
     try {
-      final res = await client.functions.invoke('claude-assistant', body: {
-        'messages': [...history, {'role': 'user', 'content': user.text}],
-      });
+      // بوابة الخدمة تتحقق بالمفتاح العام (الموقّع بالسر القديم)، وهوية المدير تصل منفصلة وتتحقق منها قاعدة البيانات
+      final token = client.auth.currentSession?.accessToken;
+      final anon = AppConfig.supabaseAnonKey;
+      final res = await client.functions.invoke(
+        'claude-assistant',
+        headers: {
+          if (token != null) 'x-user-token': token,
+          if (anon.startsWith('eyJ')) 'Authorization': 'Bearer $anon',
+        },
+        body: {
+          'messages': [...history, {'role': 'user', 'content': user.text}],
+        },
+      );
       final data = res.data;
       if (data is Map && data['text'] is String) {
         final usage = data['usage'] is Map ? data['usage'] as Map : const {};
