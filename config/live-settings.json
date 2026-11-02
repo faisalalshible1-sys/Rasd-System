@@ -276,6 +276,9 @@
     }
   ],
   "settings": {
+    "ai.enabled": true,
+    "ai.instructions": "",
+    "ai.model": "claude-sonnet-5-5",
     "brand.app_title": "منظومة متابعة الدورة المستندية",
     "brand.org_name": "مكتب الشؤون الهندسية",
     "brand.org_parent": "لجنة إعادة إعمار منطقة الصابري ووسط البلاد",
@@ -292,11 +295,21 @@
       "level": "info",
       "text": ""
     },
+    "ui.dashboard": {
+      "sections": []
+    },
     "ui.features": {
       "analysis": true,
       "export": true,
       "ideas_for_all": true,
       "quality_notes": true
+    },
+    "ui.labels": {},
+    "ui.motion": "full",
+    "ui.nav": {
+      "hidden": [],
+      "labels": {},
+      "order": []
     },
     "ui.status_labels": {
       "done": "مكتمل",
