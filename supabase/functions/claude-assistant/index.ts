@@ -76,7 +76,8 @@ Deno.serve(async (req: Request) => {
     return reply(disabled ? 409 : 403, { code: disabled ? "disabled" : "forbidden", error: msg });
   }
 
-  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  // المفتاح كما أُضيف، بعد إزالة المسافات والأسطر وعلامات الاقتباس التي تُنسخ معه أحياناً
+  const key = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").replace(/\s+/g, "").replace(/^["'`]+|["'`]+$/g, "");
   if (!key) return reply(503, { code: "missing_key", error: "لم يُضف مفتاح Anthropic بعد (ANTHROPIC_API_KEY)" });
 
   const context = (ctx ?? {}) as Record<string, unknown>;
@@ -100,29 +101,50 @@ Deno.serve(async (req: Request) => {
     `ملخص المنظومة الآن (JSON):\n${snapshot}`,
   ].filter(Boolean).join("\n\n");
 
-  let res: Response;
-  try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
+  const payload = JSON.stringify({
+    model,
+    max_tokens: 2048,
+    // الملخص ثابت أثناء المحادثة: تخزينه مؤقتاً يخفض التكلفة والزمن
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+    messages: turns,
+  });
+  // يُرسل المفتاح بالترويسة x-api-key، وإن رُفض يُعاد بترويسة Authorization (الصيغتان مقبولتان لدى Anthropic)
+  const call = (bearer: boolean) =>
+    fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": key,
+        ...(bearer ? { Authorization: `Bearer ${key}` } : { "x-api-key": key }),
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        // الملخص ثابت أثناء المحادثة: تخزينه مؤقتاً يخفض التكلفة والزمن
-        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-        messages: turns,
-      }),
+      body: payload,
     });
+
+  let res: Response;
+  try {
+    res = await call(false);
+    if (res.status === 401) {
+      const again = await call(true);
+      if (again.status !== 401) res = again;
+    }
   } catch (e) {
     return reply(502, { code: "anthropic", error: `تعذّر الاتصال بخدمة Claude: ${(e as Error).message}` });
   }
 
   // deno-lint-ignore no-explicit-any
   const out: any = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    // تشخيص دون كشف المفتاح: نوعه وطوله وآخر أربعة أحرف منه للمطابقة مع لوحة Anthropic
+    const hint = key.startsWith("sk-ant-admin")
+      ? "المضاف مفتاح إدارة (Admin key) لا يصلح للأسئلة؛ أنشئ مفتاحاً من API Keys."
+      : !key.startsWith("sk-ant-")
+      ? "المضاف لا يبدو مفتاح Anthropic API (يبدأ عادةً بـ sk-ant-api)."
+      : "المفتاح مرفوض: ربما أُلغي، أو نُسخ ناقصاً، أو يتبع حساباً آخر.";
+    return reply(502, {
+      code: "bad_key",
+      error: `${hint} (الطول ${key.length}، وينتهي بـ …${key.slice(-4)}). صحّحه في Supabase ← Edge Functions ← Secrets ← ANTHROPIC_API_KEY.`,
+    });
+  }
   if (!res.ok) {
     return reply(502, { code: "anthropic", error: out?.error?.message ?? `HTTP ${res.status}` });
   }
