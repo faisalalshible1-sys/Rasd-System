@@ -316,7 +316,6 @@ class _Sidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
-    final cs = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(

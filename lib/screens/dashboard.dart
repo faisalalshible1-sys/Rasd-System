@@ -179,7 +179,7 @@ class _DashboardPageState extends State<DashboardPage> {
               title: 'آخر النشاط',
               icon: Icons.history_rounded,
               trailing: hasActivity ? TextButton(onPressed: () => setState(() => _view = 'activity'), child: const Text('عرض الكل')) : null,
-              child: _ActivityFeed(key: ValueKey('feed6-${app.dataVersion}'), limit: 6),
+              child: const _ActivityFeed(limit: 6),
             ),
           ],
         ),
@@ -541,7 +541,7 @@ class _DashboardPageState extends State<DashboardPage> {
       title: 'آخر النشاط',
       icon: Icons.history_rounded,
       subtitle: app.canAudit ? 'كل العمليات في المنظومة' : 'العمليات على ${term('contracts')}',
-      child: _ActivityFeed(key: ValueKey('feed40-${app.dataVersion}'), limit: 40),
+      child: const _ActivityFeed(limit: 40),
     );
   }
 }
@@ -852,12 +852,31 @@ class _ActivityFeed extends StatefulWidget {
 }
 
 class _ActivityFeedState extends State<_ActivityFeed> {
-  Future<List<AuditEntry>>? _future;
+  List<AuditEntry>? _rows;
+  bool _error = false;
+  int _version = -1;
 
+  /// يُعاد التحميل مع كل تحديث للبيانات، وتبقى السطور السابقة ظاهرة حتى تصل الجديدة.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _future ??= AppScope.read(context).loadAudit(limit: widget.limit);
+    final app = AppScope.of(context);
+    if (app.dataVersion != _version) _load(app);
+  }
+
+  Future<void> _load(AppState app) async {
+    _version = app.dataVersion;
+    try {
+      final r = await app.loadAudit(limit: widget.limit);
+      if (mounted) {
+        setState(() {
+          _rows = r;
+          _error = false;
+        });
+      }
+    } catch (_) {
+      if (mounted && _rows == null) setState(() => _error = true);
+    }
   }
 
   static IconData _icon(String action) => switch (action.split('.').first) {
@@ -888,22 +907,19 @@ class _ActivityFeedState extends State<_ActivityFeed> {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
     final cs = Theme.of(context).colorScheme;
-    return FutureBuilder<List<AuditEntry>>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Column(children: [
-            Skeleton(height: 12),
-            SizedBox(height: 12),
-            Skeleton(height: 12, width: 260),
-            SizedBox(height: 12),
-            Skeleton(height: 12, width: 200),
-          ]);
-        }
-        if (snap.hasError) return Text('تعذّر تحميل النشاط.', style: TextStyle(color: sem.muted));
-        final rows = snap.data ?? const <AuditEntry>[];
-        if (rows.isEmpty) return Text('لا يوجد نشاط مسجل بعد.', style: TextStyle(color: sem.muted));
-        return Column(
+    final rows = _rows;
+    if (_error) return Text('تعذّر تحميل النشاط.', style: TextStyle(color: sem.muted));
+    if (rows == null) {
+      return const Column(children: [
+        Skeleton(height: 12),
+        SizedBox(height: 12),
+        Skeleton(height: 12, width: 260),
+        SizedBox(height: 12),
+        Skeleton(height: 12, width: 200),
+      ]);
+    }
+    if (rows.isEmpty) return Text('لا يوجد نشاط مسجل بعد.', style: TextStyle(color: sem.muted));
+    return Column(
           children: staggered([
             for (final e in rows)
               InkWell(
@@ -946,8 +962,6 @@ class _ActivityFeedState extends State<_ActivityFeed> {
               ),
           ], stepMs: 30),
         );
-      },
-    );
   }
 }
 
