@@ -1,5 +1,23 @@
 {
-  "custom_fields": [],
+  "custom_fields": [
+    {
+      "active": true,
+      "created_at": "2026-11-05T17:43:59.597135+00:00",
+      "editable_by": [
+        "office_staff"
+      ],
+      "key": "c1",
+      "kind": "select",
+      "label": "حقل تجريبي",
+      "options": [
+        "1.",
+        "2.",
+        "3."
+      ],
+      "section": "بيانات إضافية",
+      "sort": 1
+    }
+  ],
   "departments": [
     {
       "can_supervise": true,
@@ -282,10 +300,14 @@
     "brand.app_title": "منظومة متابعة الدورة المستندية",
     "brand.org_name": "مكتب الشؤون الهندسية",
     "brand.org_parent": "لجنة إعادة إعمار منطقة الصابري ووسط البلاد",
-    "brand.primary_color": "#0F766E",
+    "brand.primary_color": "#963037",
+    "finance.advance_recovery_rate": 0,
     "finance.currency": "د.ل",
+    "finance.deduction_types": [],
     "finance.guarantee_final_rate": 0.02,
     "finance.guarantee_initial_rate": 0.05,
+    "finance.retention_rate": 0.0,
+    "finance.tax_rate": 0,
     "security.freeze": false,
     "security.idle_minutes": 30,
     "security.require_mfa_all": false,
@@ -295,7 +317,26 @@
       "level": "info",
       "text": ""
     },
-    "ui.appearance": {},
+    "ui.appearance": {
+      "card_style": "outlined",
+      "charts": {
+        "animate": true,
+        "breakdown": "donut",
+        "curved": true,
+        "grid": true,
+        "legend": true,
+        "palette": "brand",
+        "points": true,
+        "stroke": 2.4,
+        "trend": "area",
+        "values": false
+      },
+      "dark_tone": "slate",
+      "density": "comfortable",
+      "font_scale": 1.0,
+      "light_tone": "gray",
+      "radius": 16.0
+    },
     "ui.dashboard": {
       "sections": []
     },
