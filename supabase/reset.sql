@@ -6,7 +6,7 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
-drop table if exists public.user_devices, public.contract_extracts, public.contract_variations cascade;
+drop table if exists public.extract_payments, public.user_devices, public.contract_extracts, public.contract_variations cascade;
 drop table if exists public.contract_engineers, public.contract_works cascade;
 drop table if exists public.app_releases, public.app_settings, public.ideas, public.custom_fields cascade;
 drop table if exists
@@ -41,7 +41,9 @@ begin
         'recalc_contract_finance', 'finance_children_after', 'materialize_finance', 'can_edit_finance', 'set_work_values',
         'save_variation', 'delete_variation', 'save_extract', 'delete_extract', 'finance_history', 'security_target_ok',
         'lock_user', 'unlock_user', 'my_lock', 'request_header', 'register_device', 'my_devices', 'forget_my_device',
-        'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts', 'ai_action_log')
+        'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts', 'ai_action_log',
+        'sync_extract_paid', 'extract_payments_after', 'contract_extracts_move_payments', 'add_extract_payment',
+        'delete_extract_payment', 'set_contract_advance')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

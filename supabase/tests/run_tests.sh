@@ -24,9 +24,12 @@ $P -d dctest -f "$DIR/migrations/20261102000010_contracts.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261102000010_contracts.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261105000011_finance_security.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261105000011_finance_security.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261105000012_finance_v5.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261105000012_finance_v5.sql" >/dev/null
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/10_rules_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/20_platform_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/30_users_admin_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/40_hardening_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/50_contracts_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/60_finance_security_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/70_finance_v5_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
