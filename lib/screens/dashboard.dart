@@ -1,11 +1,16 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../models.dart';
 import '../ui/audit_text.dart';
+import '../ui/charts.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'contract_finance.dart' show extractStatusColor;
+import 'finance.dart' show ExtractPipeline, FinanceStats;
 import 'project_detail.dart';
 
 /// أقسام الرئيسية (يرتّبها المدير ويخفيها من «التخصيص والتطوير»؛ النظرة الشاملة ثابتة).
@@ -83,7 +88,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 'finance' => _finance(context, app, st),
                 'team' => _team(context, app, st),
                 'activity' => _activity(context, app),
-                _ => _overview(context, app, st, views.any((v) => v.$1 == 'activity')),
+                _ => _overview(context, app, st, views.any((v) => v.$1 == 'activity'), views.any((v) => v.$1 == 'cycle')),
               },
             ),
           ),
@@ -106,16 +111,122 @@ class _DashboardPageState extends State<DashboardPage> {
   // ---------------------------------------------------------------
   // نظرة شاملة
   // ---------------------------------------------------------------
-  Widget _overview(BuildContext context, AppState app, _Stats st, bool hasActivity) {
+  Widget _overview(BuildContext context, AppState app, _Stats st, bool hasActivity, bool hasCycle) {
     final sem = Sem.of(context);
     final cs = Theme.of(context).colorScheme;
     final n = st.list.length;
     String share(int v) => n == 0 ? '—' : '${pctText(v / n)} من ${term('contracts')}';
     final pending = app.pendingRequests;
     final attention = _attention(app, st.list);
+    final fs = FinanceStats(app, st.list);
+    final referredColor = extractStatusColor(context, 'referred');
+    final guardColor = Color.lerp(cs.primary, sem.ok, 0.45)!;
+    final hasMoney = fs.adjusted > 0 || fs.executed > 0 || fs.paid > 0;
+
+    // المستحقات بانتظار الصرف: المحالة أولاً (الأقدم إحالة)، ثم المعتمدة غير المحالة (الأقدم اعتماداً).
+    final awaiting = [...fs.extracts.where((x) => x.unpaid > 0 && (x.isReferred || x.status == 'approved'))]
+      ..sort((a, b) {
+        if (a.isReferred != b.isReferred) return a.isReferred ? -1 : 1;
+        final da = (a.isReferred ? a.referredOn : a.approvedOn) ?? DateTime(2100);
+        final db = (b.isReferred ? b.referredOn : b.approvedOn) ?? DateTime(2100);
+        return da.compareTo(db);
+      });
+
+    // المنفذ والمدفوع آخر 12 شهراً
+    final now = DateTime.now();
+    final months = [for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i)];
+    int idx(DateTime? d) => d == null ? -1 : months.indexWhere((m) => m.year == d.year && m.month == d.month);
+    final execM = List<double>.filled(12, 0), paidM = List<double>.filled(12, 0);
+    for (final x in fs.extracts) {
+      if (!x.counted) continue;
+      final i = idx(x.approvedOn ?? x.when);
+      if (i >= 0) execM[i] += x.gross;
+    }
+    for (final c in fs.cash) {
+      final j = idx(c.$1);
+      if (j >= 0) paidM[j] += c.$2;
+    }
+    const monthNames = ['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'];
+    final hasTrend = execM.any((v) => v > 0) || paidM.any((v) => v > 0);
+
+    final quick = <(IconData, String, VoidCallback)>[
+      (Icons.folder_open_rounded, term('contracts'), () => app.openProjects()),
+      (Icons.account_balance_outlined, 'المالية', () => app.openFinance()),
+      if (app.v5Ready && fs.referredCount > 0)
+        (Icons.forward_to_inbox_outlined, 'المحالة للصرف', () => app.openFinance(view: 'extracts', status: 'referred')),
+      (Icons.receipt_long_outlined, 'سجل المستخلصات', () => app.openFinance(view: 'extracts')),
+      (Icons.verified_user_outlined, 'التأمينات والضمانات', () => app.openFinance(view: 'guarantees')),
+      if (!app.isAuditor) (Icons.fact_check_outlined, app.isDirector ? 'الاعتمادات' : 'طلباتي', () => app.setTab(2)),
+      if (app.canUseAssistant) (Icons.auto_awesome_outlined, 'اسأل Claude', () => app.setTab(6)),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _spaced(staggered([
+        // المؤشرات الرئيسية الأربعة
+        ResponsiveGrid(minItemWidth: 230, children: [
+          _Headline(
+            icon: Icons.fact_check_rounded,
+            label: 'نسبة إنجاز الدورة المستندية',
+            value: st.avg * 100,
+            kind: 'pct',
+            color: cs.primary,
+            meter: st.avg,
+            sub: '${st.complete} مكتملة · ${st.running} جارية · ${st.notStarted} لم تبدأ',
+            onTap: hasCycle ? () => setState(() => _view = 'cycle') : () => app.openProjects(),
+          ),
+          _Headline(
+            icon: Icons.forward_to_inbox_rounded,
+            label: 'المستخلصات المحالة للصرف',
+            value: fs.referredCount.toDouble(),
+            color: referredColor,
+            meter: fs.net <= 0 ? null : (fs.referredDue / fs.net).clamp(0, 1).toDouble(),
+            sub: app.v5Ready ? '${fmtMoney(fs.referredDue)} $currencyLabel بانتظار الصرف' : 'تتوفر بعد تحديث قاعدة البيانات',
+            onTap: () => app.openFinance(view: 'extracts', status: 'referred'),
+          ),
+          _Headline(
+            icon: Icons.task_alt_rounded,
+            label: 'المستخلصات المصروفة',
+            value: fs.paidCount.toDouble(),
+            color: sem.ok,
+            meter: fs.net <= 0 ? null : (fs.extractsPaid / fs.net).clamp(0, 1).toDouble(),
+            sub: 'مدفوع ${fmtMoney(fs.extractsPaid)} $currencyLabel${fs.partialCount > 0 ? ' · ${fs.partialCount} جزئياً' : ''}',
+            onTap: () => app.openFinance(view: 'extracts', status: 'paid'),
+          ),
+          _Headline(
+            icon: Icons.shield_rounded,
+            label: 'إجمالي التأمينات',
+            value: fs.guarantees,
+            kind: 'money',
+            color: guardColor,
+            sub: 'محتجز ${compactMoney(fs.retention)} · ابتدائي ${compactMoney(fs.gInitial)} · نهائي ${compactMoney(fs.gFinal)}',
+            onTap: () => app.openFinance(view: 'guarantees'),
+          ),
+        ]),
+        // وصول سريع
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final q in quick)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ActionChip(avatar: Icon(q.$1, size: 18), label: Text(q.$2), onPressed: q.$3),
+              ),
+          ]),
+        ),
+        if (app.isDirector && pending.isNotEmpty)
+          Material(
+            color: sem.wipSoft,
+            borderRadius: BorderRadius.circular(14),
+            child: ListTile(
+              leading: Icon(Icons.fact_check, color: sem.wip),
+              title: Text('${pending.length} طلب اعتماد بانتظار قرارك', style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('نماذج حساسة لن تتغير حتى تعتمدها أو ترفضها'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => app.setTab(2),
+            ),
+          ),
+        // الدورة المستندية
         ResponsiveGrid(minItemWidth: 200, children: [
           _Metric(icon: Icons.folder_rounded, label: term('contracts'), value: n.toDouble(), sub: 'ضمن التصفية', onTap: () => app.openProjects()),
           _Metric(
@@ -140,41 +251,73 @@ class _DashboardPageState extends State<DashboardPage> {
               color: sem.muted,
               onTap: () => app.openProjects(cycle: CycleState.notStarted)),
         ]),
-        if (st.withFinance > 0)
-          ResponsiveGrid(minItemWidth: 200, children: [
-            _Metric(icon: Icons.request_quote_rounded, label: 'قيمة الأعمال التعاقدية', value: st.contract, kind: 'money', sub: currencyLabel),
-            _Metric(
-              icon: Icons.construction_rounded,
-              label: 'قيمة الأعمال المنفذة',
-              value: st.executed,
-              kind: 'money',
-              color: sem.ok,
-              sub: st.execRatio == null ? currencyLabel : '${pctText(st.execRatio!, digits: 1)} من التعاقدية',
-            ),
-            _Metric(
-              icon: Icons.verified_outlined,
-              label: 'الضمانات (ابتدائي + نهائي)',
-              value: st.gInitial + st.gFinal,
-              kind: 'money',
-              color: cs.primary,
-              sub: '${rateText(guaranteeInitialRate)} + ${rateText(guaranteeFinalRate)} من المنفذ',
-            ),
-          ]),
-        if (app.isDirector && pending.isNotEmpty)
-          Material(
-            color: sem.wipSoft,
-            borderRadius: BorderRadius.circular(14),
-            child: ListTile(
-              leading: Icon(Icons.fact_check, color: sem.wip),
-              title: Text('${pending.length} طلب اعتماد بانتظار قرارك', style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('نماذج حساسة لن تتغير حتى تعتمدها أو ترفضها'),
-              trailing: const Icon(Icons.chevron_left),
-              onTap: () => app.setTab(2),
-            ),
+        // الموقف المالي
+        if (hasMoney)
+          SectionCard(
+            title: 'الموقف المالي',
+            icon: Icons.account_balance_outlined,
+            trailing: TextButton(onPressed: () => app.openFinance(), child: const Text('التفاصيل')),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ResponsiveGrid(minItemWidth: 160, spacing: 8, children: [
+                _MoneyCell(label: 'الإجمالي بعد التغيير', value: fs.adjusted, color: cs.primary),
+                _MoneyCell(label: 'قيمة الأعمال المنفذة', value: fs.executed, sub: fs.execRatio == null ? null : pctText(fs.execRatio!, digits: 1)),
+                _MoneyCell(label: 'المدفوع', value: fs.paid, color: sem.ok, sub: fs.paidRatio == null ? null : pctText(fs.paidRatio!, digits: 1)),
+                _MoneyCell(label: 'مستحق غير مدفوع', value: fs.outstanding, color: fs.outstanding > 0 ? sem.wip : null),
+                _MoneyCell(label: 'المتبقي للدفع', value: fs.remainingToPay),
+                if (fs.advanceCount > 0) _MoneyCell(label: 'دفعات مقدمة متبقية للاسترداد', value: fs.advanceRemaining),
+              ]),
+              if (fs.adjusted > 0) ...[
+                const SizedBox(height: 14),
+                StackBar(parts: [
+                  ('مدفوع', fs.paid, sem.ok),
+                  ('مستحق', fs.outstanding, sem.wip),
+                  ('تأمين محتجز', fs.retention, cs.primary),
+                  ('استقطاعات أخرى', fs.otherThanRetention, sem.danger),
+                  ('لم يُنفَّذ', fs.unexecutedUnpaid, sem.todo),
+                ]),
+              ],
+            ]),
           ),
         _TwoCol(
-          start: [_attentionCard(context, app, attention.take(5).toList())],
+          start: [
+            if (fs.extracts.isNotEmpty)
+              SectionCard(
+                title: 'مسار المستخلصات',
+                icon: Icons.route_outlined,
+                trailing: TextButton(onPressed: () => app.openFinance(view: 'extracts'), child: const Text('السجل')),
+                child: ExtractPipeline(st: fs, compact: true, onTap: (s) => app.openFinance(view: 'extracts', status: s)),
+              ),
+            if (awaiting.isNotEmpty)
+              SectionCard(
+                title: 'بانتظار الصرف',
+                icon: Icons.pending_actions_outlined,
+                trailing: Text('الأقدم أولاً', style: TextStyle(color: sem.muted, fontSize: 12)),
+                child: Column(children: [
+                  for (final x in awaiting.take(6)) _awaitingTile(context, app, x),
+                  if (awaiting.length > 6)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton(
+                        onPressed: () => app.openFinance(view: 'cash'),
+                        child: Text('عرض الكل (${awaiting.length})'),
+                      ),
+                    ),
+                ]),
+              ),
+            _attentionCard(context, app, attention.take(5).toList()),
+          ],
           end: [
+            if (hasTrend)
+              SectionCard(
+                title: 'المنفذ والمدفوع شهرياً',
+                icon: Icons.timeline_rounded,
+                trailing: Text('آخر 12 شهراً', style: TextStyle(color: sem.muted, fontSize: 12)),
+                child: TrendChart(
+                  height: 200,
+                  labels: [for (final m in months) '${monthNames[m.month - 1]} ${(m.year % 100).toString().padLeft(2, '0')}'],
+                  series: [ChartSeries('المنفذ', execM), ChartSeries('المدفوع', paidM, color: sem.ok)],
+                ),
+              ),
             SectionCard(
               title: 'آخر النشاط',
               icon: Icons.history_rounded,
@@ -184,6 +327,33 @@ class _DashboardPageState extends State<DashboardPage> {
           ],
         ),
       ])),
+    );
+  }
+
+  Widget _awaitingTile(BuildContext context, AppState app, ContractExtract x) {
+    final sem = Sem.of(context);
+    final color = extractStatusColor(context, x.status);
+    final since = x.isReferred ? x.referredOn : x.approvedOn;
+    final days = since == null ? null : DateTime.now().difference(since).inDays;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      onTap: () => _openContract(context, x.projectId),
+      leading: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+        child: Text(x.isFinal ? 'خ' : '${x.seq}', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+      ),
+      title: Text('${app.project(x.projectId)?.contractTitle ?? ''} · ${x.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        [x.statusLabel, if (days != null) 'منذ $days يوماً'].join(' · '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: days != null && days > 30 ? sem.danger : sem.muted, fontSize: 12),
+      ),
+      trailing: Text(compactMoney(x.unpaid),
+          style: TextStyle(fontWeight: FontWeight.w800, color: color, fontFeatures: const [FontFeature.tabularFigures()])),
     );
   }
 
@@ -843,6 +1013,126 @@ class _Metric extends StatelessWidget {
       ),
     );
     return onTap == null ? card : HoverLift(child: card);
+  }
+}
+
+/// مؤشر رئيسي في أعلى الرئيسية: رقم كبير وشرح ومقياس اختياري.
+class _Headline extends StatelessWidget {
+  const _Headline({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.kind = 'count',
+    this.sub,
+    this.meter,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final double value;
+  final String kind; // count | money | pct
+  final Color color;
+  final String? sub;
+  final double? meter;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final t = Theme.of(context).textTheme;
+    String fmt(double v) => switch (kind) {
+          'money' => compactMoney(v),
+          'pct' => '${v.toStringAsFixed(1)}%',
+          _ => '${v.round()}',
+        };
+    final radius = BorderRadius.circular(math.max(12.0, appearance.radius));
+    final card = Material(
+      color: cardColor(context),
+      shape: RoundedRectangleBorder(borderRadius: radius, side: BorderSide(color: sem.rule)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(border: BorderDirectional(start: BorderSide(color: color, width: 4))),
+          padding: const EdgeInsetsDirectional.fromSTEB(14, 14, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, color: color, size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(label,
+                      maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w600, height: 1.25)),
+                ),
+                if (onTap != null) Icon(Icons.chevron_left_rounded, size: 18, color: sem.muted),
+              ]),
+              const SizedBox(height: 10),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerStart,
+                child: AnimatedCount(
+                  value: value,
+                  format: fmt,
+                  style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: color, fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(sub ?? ' ', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.labelMedium?.copyWith(color: sem.muted)),
+              const SizedBox(height: 10),
+              meter == null
+                  ? const SizedBox(height: 6)
+                  : AnimatedMeter(value: meter!.clamp(0, 1).toDouble(), color: color, height: 6),
+            ],
+          ),
+        ),
+      ),
+    );
+    return onTap == null ? card : HoverLift(child: card);
+  }
+}
+
+/// خلية مبلغ صغيرة في بطاقة الموقف المالي.
+class _MoneyCell extends StatelessWidget {
+  const _MoneyCell({required this.label, required this.value, this.color, this.sub});
+
+  final String label;
+  final double value;
+  final Color? color;
+  final String? sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular((appearance.radius * 0.7).clamp(6, 16))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: sem.muted, fontSize: 12)),
+        const SizedBox(height: 3),
+        Row(children: [
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(compactMoney(value),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: color, fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+          ),
+          if (sub != null) ...[
+            const SizedBox(width: 6),
+            Text(sub!, style: TextStyle(color: sem.muted, fontSize: 11.5)),
+          ],
+        ]),
+      ]),
+    );
   }
 }
 

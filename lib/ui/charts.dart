@@ -534,8 +534,9 @@ class BreakdownChart extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (centerValue != null)
-                Text(centerValue!, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              if (centerTitle != null) Text(centerTitle!, style: TextStyle(color: sem.muted, fontSize: 11.5)),
+                Text(centerValue!, maxLines: 1, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              if (centerTitle != null)
+                Text(centerTitle!, maxLines: 1, textAlign: TextAlign.center, style: TextStyle(color: sem.muted, fontSize: 11.5)),
             ],
           );
     final legend = Column(
@@ -566,16 +567,29 @@ class BreakdownChart extends StatelessWidget {
       ],
     );
     return LayoutBuilder(builder: (context, c) {
+      // الحلقة تصغر قليلاً لتبقى بجانب المفتاح في البطاقات المتوسطة، ولا تنزل تحته إلا في العرض الضيق.
+      const legendMin = 190.0;
+      final side = c.maxWidth.isFinite && c.maxWidth >= 150 + 16 + legendMin;
+      final dim = side ? math.min(size, c.maxWidth - 16 - legendMin).clamp(math.min(150.0, size), size).toDouble() : math.min(size, c.maxWidth.isFinite ? c.maxWidth : size);
+      final hole = dim * (kind == 'pie' ? 0 : 0.62);
       final graphic = SizedBox.square(
-        dimension: size,
-        child: Stack(alignment: Alignment.center, children: [ring, if (center != null) center]),
+        dimension: dim,
+        child: Stack(alignment: Alignment.center, children: [
+          Positioned.fill(child: ring),
+          if (center != null)
+            SizedBox(
+              width: math.max(40.0, hole - 14),
+              child: FittedBox(fit: BoxFit.scaleDown, child: center),
+            ),
+        ]),
       );
       if (!st.legend) return Center(child: graphic);
-      if (c.maxWidth < size + 220) {
-        return Column(children: [graphic, const SizedBox(height: 12), legend]);
+      if (!side) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Center(child: graphic), const SizedBox(height: 12), legend]);
       }
       return Row(
-        children: [graphic, const SizedBox(width: 20), Expanded(child: legend)],
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [graphic, const SizedBox(width: 16), Expanded(child: legend)],
       );
     });
   }

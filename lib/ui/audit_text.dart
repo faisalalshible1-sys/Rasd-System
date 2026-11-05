@@ -135,6 +135,17 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'عدّل المستخلص رقم ${text(d['seq'])}${stFrom != null && stFrom != stTo ? ': $stFrom ← $stTo' : ''}${paid.isNotEmpty ? ' · المدفوع $paid' : ''}';
     case 'finance.extract_delete':
       return 'حذف المستخلص رقم ${text(d['seq'])} (${_m(d['gross'])})';
+    case 'finance.payment_add':
+      final ref = text(d['ref_no']);
+      return 'سجّل دفعة ${_m(d['amount'])} على المستخلص رقم ${text(d['seq'])} (${paymentMethodLabels[text(d['method'])] ?? text(d['method'])}${ref.isNotEmpty ? ' $ref' : ''}) بتاريخ ${text(d['paid_on']).replaceAll('-', '/')}';
+    case 'finance.payment_delete':
+      return 'حذف دفعة ${_m(d['amount'])} من المستخلص رقم ${text(d['seq'])}';
+    case 'finance.advance':
+      final to = d['amount'] is Map ? (d['amount'] as Map)['to'] : null;
+      final from = d['amount'] is Map ? (d['amount'] as Map)['from'] : null;
+      final on = d['paid_on'] is Map ? text((d['paid_on'] as Map)['to']) : '';
+      if (to == null) return 'أزال الدفعة المقدمة للعقد (${_m(from)})';
+      return 'الدفعة المقدمة للعقد: ${from == null ? '' : '${_m(from)} ← '}${_m(to)}${on.isNotEmpty ? ' · صُرفت ${on.replaceAll('-', '/')}' : ' · لم تُصرف'}';
     case 'security.user_lock':
       final until = text(d['until']);
       return 'قفل دخول ${e.projectLabel}${until.startsWith('infinity') ? ' حتى يُفك' : ''} — ${text(d['reason'])}';
@@ -181,6 +192,10 @@ const Map<String, String> settingLabels = {
   'finance.guarantee_initial_rate': 'نسبة الضمان الابتدائي',
   'finance.guarantee_final_rate': 'نسبة الضمان النهائي',
   'finance.currency': 'رمز العملة',
+  'finance.retention_rate': 'نسبة التأمين الافتراضية',
+  'finance.tax_rate': 'نسبة الضرائب الافتراضية',
+  'finance.advance_recovery_rate': 'نسبة استرداد الدفعة المقدمة',
+  'finance.deduction_types': 'أنواع الاستقطاعات المخصصة',
   'security.require_mfa_director': 'فرض التحقق على المدير',
   'security.require_mfa_all': 'فرض التحقق على الجميع',
   'security.idle_minutes': 'القفل التلقائي',

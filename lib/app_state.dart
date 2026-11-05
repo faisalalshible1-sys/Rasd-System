@@ -49,6 +49,11 @@ class AppState extends ChangeNotifier {
   Map<String, List<ContractVariation>> _varBy = {};
   Map<String, List<ContractExtract>> _extBy = {};
 
+  // الإصدار الخامس: سجل دفعات المستخلصات والإحالة للصرف والدفعة المقدمة
+  List<ExtractPayment> payments = [];
+  bool v5Ready = false;
+  Map<String, List<ExtractPayment>> _payBy = {};
+
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
 
@@ -203,6 +208,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel2;
   RealtimeChannel? _channel3;
   RealtimeChannel? _channel4;
+  RealtimeChannel? _channel5;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -405,6 +411,9 @@ class AppState extends ChangeNotifier {
     return out;
   }
 
+  /// دفعات مستخلص من سجل الصرف.
+  List<ExtractPayment> paymentsOf(String extractId) => _payBy[extractId] ?? const [];
+
   /// أوامر تغيير العقد.
   List<ContractVariation> variationsOf(String projectId) => _varBy[projectId] ?? const [];
 
@@ -605,6 +614,10 @@ class AppState extends ChangeNotifier {
     for (final x in extracts) {
       (_extBy[x.projectId] ??= []).add(x);
     }
+    _payBy = {};
+    for (final y in payments) {
+      (_payBy[y.extractId] ??= []).add(y);
+    }
     _progressCache.clear();
     _notify();
   }
@@ -629,12 +642,31 @@ class AppState extends ChangeNotifier {
       _varBy = vb;
       _extBy = xb;
       v4Ready = true;
+      await _loadV5();
     } catch (_) {
       variations = [];
       extracts = [];
       _varBy = {};
       _extBy = {};
       v4Ready = false;
+    }
+  }
+
+  /// سجل دفعات المستخلصات (الإصدار الخامس)؛ يعمل التطبيق بدونه كما كان.
+  Future<void> _loadV5() async {
+    try {
+      final rows = await client.from('extract_payments').select().order('paid_on', ascending: true);
+      payments = rows.map(ExtractPayment.fromMap).toList();
+      final pb = <String, List<ExtractPayment>>{};
+      for (final y in payments) {
+        (pb[y.extractId] ??= []).add(y);
+      }
+      _payBy = pb;
+      v5Ready = true;
+    } catch (_) {
+      payments = [];
+      _payBy = {};
+      v5Ready = false;
     }
   }
 
@@ -699,6 +731,14 @@ class AppState extends ChangeNotifier {
     }
     ch4.subscribe();
     _channel4 = ch4;
+
+    // قناة الإصدار الخامس: دفعات المستخلصات
+    final old5 = _channel5;
+    if (old5 != null) client.removeChannel(old5);
+    final ch5 = client.channel('dc-v5');
+    ch5.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'extract_payments', callback: (_) => scheduleReload());
+    ch5.subscribe();
+    _channel5 = ch5;
   }
 
   void scheduleReload() {
@@ -721,6 +761,12 @@ class AppState extends ChangeNotifier {
     final old4 = _channel4;
     if (old4 != null) client.removeChannel(old4);
     _channel4 = null;
+    final old5 = _channel5;
+    if (old5 != null) client.removeChannel(old5);
+    _channel5 = null;
+    payments = [];
+    _payBy = {};
+    v5Ready = false;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -773,6 +819,8 @@ class AppState extends ChangeNotifier {
     if (old3 != null) client.removeChannel(old3);
     final old4 = _channel4;
     if (old4 != null) client.removeChannel(old4);
+    final old5 = _channel5;
+    if (old5 != null) client.removeChannel(old5);
     _heartbeat?.cancel();
     super.dispose();
   }
@@ -788,6 +836,16 @@ class AppState extends ChangeNotifier {
   void setScope({String? owner, String? company}) {
     if (owner != null) ownerFilter = owner;
     if (company != null) companyFilter = company;
+    _notify();
+  }
+
+  /// طلب فتح المالية على عرض وحالة مستخلص محددين (تستهلكه صفحة المالية مرة واحدة).
+  ({String view, String? status, int seq})? financeRequest;
+  int _financeSeq = 0;
+
+  void openFinance({String view = 'summary', String? status}) {
+    financeRequest = (view: view, status: status, seq: ++_financeSeq);
+    tab = 7;
     _notify();
   }
 
@@ -1056,9 +1114,18 @@ class AppState extends ChangeNotifier {
     double paidAmount = 0,
     DateTime? paidOn,
     String notes = '',
+    DateTime? referredOn,
+    String referralNo = '',
+    Map<String, double> custom = const {},
   }) async {
     String? d(DateTime? v) => v == null ? null : dbDate(v);
     final res = await client.rpc('save_extract', params: {
+      // الصيغة الموسعة (الإحالة للصرف والاستقطاعات المخصصة) عند توفر قاعدة الإصدار الخامس
+      if (v5Ready) ...{
+        'p_referred_on': d(referredOn),
+        'p_referral_no': referralNo.trim(),
+        'p_custom': {for (final e in custom.entries) if (e.value > 0) e.key: e.value},
+      },
       'p_id': id,
       'p_project': projectId,
       'p_work': workId,
@@ -1086,6 +1153,48 @@ class AppState extends ChangeNotifier {
   Future<void> deleteExtract(String id) async {
     await client.rpc('delete_extract', params: {'p_id': id});
     await loadAll();
+  }
+
+  Future<void> addExtractPayment(String extractId,
+      {required double amount, DateTime? paidOn, String method = 'transfer', String refNo = '', String notes = ''}) async {
+    await client.rpc('add_extract_payment', params: {
+      'p_extract': extractId,
+      'p_amount': amount,
+      'p_paid_on': paidOn == null ? null : dbDate(paidOn),
+      'p_method': method,
+      'p_ref_no': refNo.trim(),
+      'p_notes': notes.trim(),
+    });
+    await loadAll();
+  }
+
+  Future<void> deleteExtractPayment(String id) async {
+    await client.rpc('delete_extract_payment', params: {'p_id': id});
+    await loadAll();
+  }
+
+  /// الدفعة المقدمة للعقد (null لإزالتها).
+  Future<void> setContractAdvance(String projectId, {double? amount, DateTime? paidOn}) async {
+    await client.rpc('set_contract_advance', params: {
+      'p_project': projectId,
+      'p_amount': amount,
+      'p_paid_on': paidOn == null ? null : dbDate(paidOn),
+    });
+    await loadAll();
+  }
+
+  /// استرداد مقترح من الدفعة المقدمة لمستخلص قيمة أعماله [gross] (لا يتجاوز الرصيد المتبقي).
+  double suggestedAdvanceRecovery(Project p, double gross, {String? excludeExtractId}) {
+    final adv = p.advanceAmount ?? 0;
+    if (adv <= 0 || gross <= 0) return 0;
+    final rate = settings.advanceRecoveryRate > 0
+        ? settings.advanceRecoveryRate
+        : ((p.contractValue ?? 0) > 0 ? adv / p.contractValue! : 0.0);
+    final used = extractsOf(p.id)
+        .where((x) => x.status != 'rejected' && x.id != excludeExtractId)
+        .fold<double>(0, (a, x) => a + x.advanceRecovery);
+    final remaining = (adv - used).clamp(0, double.infinity).toDouble();
+    return roundMoney((gross * rate).clamp(0, remaining).toDouble());
   }
 
   /// سجل التعديلات المالية (لعقد أو للعقود كلها).
@@ -1234,11 +1343,29 @@ class AppState extends ChangeNotifier {
             other: x.otherDeductions,
             status: st,
             approvedOn: day('approved_on') ?? x.approvedOn,
-            paidAmount: i.containsKey('paid_amount') ? (numOf('paid_amount') ?? 0) : (st == 'approved' || st == 'paid' ? x.paidAmount : 0),
+            paidAmount: i.containsKey('paid_amount')
+                ? (numOf('paid_amount') ?? 0)
+                : (st == 'approved' || st == 'referred' || st == 'paid' ? x.paidAmount : 0),
             paidOn: day('paid_on') ?? x.paidOn,
             notes: x.notes,
+            referredOn: day('referred_on') ?? x.referredOn,
+            referralNo: i.containsKey('referral_no') ? str('referral_no') : x.referralNo,
+            custom: x.customDeductions,
           );
           a.result = 'حُدّث المستخلص';
+        case 'propose_extract_payment':
+          await addExtractPayment(
+            str('extract_id'),
+            amount: numOf('amount') ?? 0,
+            paidOn: day('paid_on'),
+            method: paymentMethodLabels.containsKey(str('method')) ? str('method') : 'transfer',
+            refNo: str('ref_no'),
+            notes: 'اقتراح من مساعد Claude',
+          );
+          a.result = 'سُجّلت الدفعة';
+        case 'propose_contract_advance':
+          await setContractAdvance(str('project_id'), amount: numOf('amount'), paidOn: day('paid_on'));
+          a.result = 'حُفظت الدفعة المقدمة';
         case 'propose_contract_no':
           await setContractNo(str('project_id'), str('contract_no'));
           a.result = 'حُفظ رقم العقد';

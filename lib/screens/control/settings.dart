@@ -65,7 +65,8 @@ class _SettingsSectionState extends State<SettingsSection> {
     await _save(key, v, 'حُفظ «$title»');
   }
 
-  Future<void> _editRate(String key, String title, double current) async {
+  Future<void> _editRate(String key, String title, double current,
+      {double max = 50, String message = 'تُعاد حسابات الضمان في كل المشاريع فور الحفظ.', String ok = 'حُفظت النسبة وأُعيد حساب الضمانات'}) async {
     final v = await textInputDialog(context,
         title: title,
         label: 'النسبة المئوية',
@@ -74,14 +75,38 @@ class _SettingsSectionState extends State<SettingsSection> {
         initial: (current * 100).toStringAsFixed(current * 100 == (current * 100).roundToDouble() ? 0 : 2),
         multiline: false,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        message: 'تُعاد حسابات الضمان في كل المشاريع فور الحفظ.');
+        message: message);
     if (v == null) return;
     final n = double.tryParse(v.replaceAll('%', '').replaceAll('٫', '.').trim());
-    if (n == null || n < 0 || n > 50) {
-      if (mounted) showToast(context, 'اكتب نسبة بين 0 و50', error: true);
+    if (n == null || n < 0 || n > max) {
+      if (mounted) showToast(context, 'اكتب نسبة بين 0 و${max.round()}', error: true);
       return;
     }
-    await _save(key, n / 100, 'حُفظت النسبة وأُعيد حساب الضمانات');
+    await _save(key, n / 100, ok);
+  }
+
+  Future<void> _saveDeductionTypes(List<DeductionType> list, String ok) =>
+      _save('finance.deduction_types', [for (final t in list) t.toJson()], ok);
+
+  Future<void> _editDeductionType(List<DeductionType> list, DeductionType? t) async {
+    final r = await showDialog<DeductionType>(context: context, builder: (_) => _DeductionTypeDialog(type: t));
+    if (r == null) return;
+    if (list.any((x) => x.key != r.key && x.label.trim() == r.label.trim())) {
+      if (mounted) showToast(context, 'يوجد استقطاع بالاسم نفسه', error: true);
+      return;
+    }
+    final next = [for (final x in list) x.key == r.key ? r : x, if (t == null) r];
+    await _saveDeductionTypes(next, t == null ? 'أُضيف «${r.label}»' : 'حُفظ «${r.label}»');
+  }
+
+  Future<void> _removeDeductionType(List<DeductionType> list, DeductionType t) async {
+    final ok = await confirmDialog(context,
+        title: 'إزالة «${t.label}»؟',
+        message: 'لا يظهر في المستخلصات الجديدة. المستخلصات المسجلة به تحتفظ بقيمه وتظهر باسمه المختصر حتى تُعدَّل.',
+        confirmLabel: 'إزالة',
+        danger: true);
+    if (!ok) return;
+    await _saveDeductionTypes([for (final x in list) if (x.key != t.key) x], 'أُزيل «${t.label}»');
   }
 
   @override
@@ -311,6 +336,153 @@ class _SettingsSectionState extends State<SettingsSection> {
             ],
           ),
         ),
+        if (app.v5Ready) ...[
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'النسب الافتراضية للمستخلصات',
+            icon: Icons.percent_rounded,
+            subtitle: 'تُقترح تلقائياً عند تسجيل مستخلص جديد ويمكن تعديلها في كل مستخلص. لا تغيّر المستخلصات المسجلة.',
+            child: Column(
+              children: [
+                SettingRow(
+                  icon: Icons.lock_outline_rounded,
+                  title: 'التأمين المحتجز',
+                  subtitle: '${rateText(s.retentionRate)} من قيمة أعمال المستخلص',
+                  trailing: const Icon(Icons.edit_outlined, size: 20),
+                  onTap: () => _editRate('finance.retention_rate', 'نسبة التأمين المحتجز', s.retentionRate,
+                      message: 'تُقترح في المستخلصات الجديدة.', ok: 'حُفظت نسبة التأمين'),
+                ),
+                SettingRow(
+                  icon: Icons.account_balance_outlined,
+                  title: 'الضرائب والرسوم',
+                  subtitle: s.taxRate > 0 ? '${rateText(s.taxRate)} من قيمة أعمال المستخلص' : 'لا تُقترح (0%)',
+                  trailing: const Icon(Icons.edit_outlined, size: 20),
+                  onTap: () => _editRate('finance.tax_rate', 'نسبة الضرائب والرسوم', s.taxRate,
+                      message: 'تُقترح في المستخلصات الجديدة. 0 لإيقافها.', ok: 'حُفظت نسبة الضرائب'),
+                ),
+                SettingRow(
+                  icon: Icons.savings_outlined,
+                  title: 'استرداد الدفعة المقدمة',
+                  subtitle: s.advanceRecoveryRate > 0
+                      ? '${rateText(s.advanceRecoveryRate)} من قيمة أعمال كل مستخلص حتى تكتمل'
+                      : 'بنسبة الدفعة إلى القيمة التعاقدية (0%)',
+                  trailing: const Icon(Icons.edit_outlined, size: 20),
+                  onTap: () => _editRate('finance.advance_recovery_rate', 'نسبة استرداد الدفعة المقدمة', s.advanceRecoveryRate,
+                      max: 100,
+                      message: '0 = تُسترد بنسبة الدفعة إلى القيمة التعاقدية للعقد.',
+                      ok: 'حُفظت نسبة الاسترداد'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'استقطاعات مخصصة',
+            icon: Icons.playlist_add_rounded,
+            subtitle: 'أنواع استقطاع إضافية تظهر حقولاً في كل مستخلص (مثل التأمينات الاجتماعية أو الدمغة)، ولكل منها نسبة افتراضية اختيارية.',
+            trailing: s.deductionTypes.length >= 12
+                ? null
+                : IconButton.filledTonal(
+                    tooltip: 'نوع استقطاع جديد',
+                    onPressed: _busy ? null : () => _editDeductionType(s.deductionTypes, null),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (s.deductionTypes.isEmpty)
+                  Text('لا استقطاعات مخصصة. الأنواع الأساسية: التأمين، والدفعة المقدمة، والغرامات، والضرائب، وأخرى.',
+                      style: TextStyle(color: sem.muted))
+                else
+                  for (final t in s.deductionTypes)
+                    SettingRow(
+                      icon: Icons.remove_circle_outline_rounded,
+                      title: t.label,
+                      subtitle: t.rate == null ? 'بلا نسبة افتراضية' : 'النسبة الافتراضية ${rateText(t.rate!)}',
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          tooltip: 'تعديل',
+                          onPressed: _busy ? null : () => _editDeductionType(s.deductionTypes, t),
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                        ),
+                        IconButton(
+                          tooltip: 'إزالة',
+                          onPressed: _busy ? null : () => _removeDeductionType(s.deductionTypes, t),
+                          icon: Icon(Icons.delete_outline, size: 20, color: sem.danger),
+                        ),
+                      ]),
+                    ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// نافذة نوع استقطاع مخصص: الاسم والنسبة الافتراضية (اختيارية).
+class _DeductionTypeDialog extends StatefulWidget {
+  const _DeductionTypeDialog({this.type});
+
+  final DeductionType? type;
+
+  @override
+  State<_DeductionTypeDialog> createState() => _DeductionTypeDialogState();
+}
+
+class _DeductionTypeDialogState extends State<_DeductionTypeDialog> {
+  late final _label = TextEditingController(text: widget.type?.label ?? '');
+  late final _rate = TextEditingController(
+      text: widget.type?.rate == null ? '' : (widget.type!.rate! * 100).toStringAsFixed(widget.type!.rate! * 100 == (widget.type!.rate! * 100).roundToDouble() ? 0 : 2));
+  String? _error;
+
+  @override
+  void dispose() {
+    _label.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final label = _label.text.trim();
+    if (label.length < 2 || label.length > 40) {
+      setState(() => _error = 'اكتب اسماً من 2 إلى 40 حرفاً.');
+      return;
+    }
+    double? rate;
+    final r = _rate.text.replaceAll('%', '').replaceAll('٫', '.').trim();
+    if (r.isNotEmpty) {
+      final n = double.tryParse(r);
+      if (n == null || n < 0 || n > 50) {
+        setState(() => _error = 'النسبة بين 0 و50، أو اتركها فارغة.');
+        return;
+      }
+      rate = n / 100;
+    }
+    final key = widget.type?.key ?? 'd${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+    Navigator.of(context).pop(DeductionType(key: key, label: label, rate: rate));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.type == null ? 'نوع استقطاع جديد' : 'تعديل «${widget.type!.label}»'),
+      content: SizedBox(
+        width: 400,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(controller: _label, maxLength: 40, autofocus: true, decoration: fieldDeco('اسم الاستقطاع')),
+          TextField(
+            controller: _rate,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: fieldDeco('النسبة الافتراضية % (اختيارية)', helper: 'تُحسب من قيمة أعمال المستخلص').copyWith(suffixText: '%'),
+          ),
+          if (_error != null) ...[const SizedBox(height: 10), InfoBanner(text: _error!, level: 'critical')],
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
+        FilledButton(onPressed: _done, child: const Text('حفظ')),
       ],
     );
   }

@@ -53,6 +53,19 @@ class FinanceStats {
       legacyPaid += p.paymentsTotal;
       manualDeductions += p.deductions ?? 0;
       if ((p.contractValue ?? 0) > 0) withValue++;
+      final adv = p.advanceAmount ?? 0;
+      if (adv > 0) {
+        advanceCount++;
+        advanceTotal += adv;
+        advancePaid += p.advancePaid;
+        advanceRecovered += p.advanceRecovered;
+        advanceRemaining += p.advanceRemaining;
+        if (p.advancePaid > 0) {
+          advRecPaid += p.advanceRecovered;
+          advRemPaid += p.advanceRemaining;
+          cash.add((p.advancePaidOn, p.advancePaid, null, p));
+        }
+      }
     }
     for (final x in extracts) {
       if (x.counted) {
@@ -63,10 +76,39 @@ class FinanceStats {
         penalties += x.penalties;
         taxes += x.taxes;
         otherDed += x.otherDeductions;
+        for (final e in x.customDeductions.entries) {
+          custom[e.key] = (custom[e.key] ?? 0) + e.value;
+        }
+        extractsPaid += x.paidAmount;
         countedCount++;
+        // الدفعات بتواريخها من السجل، أو دفعة واحدة بتاريخ الدفع لمستخلص بلا سجل.
+        final pays = app.paymentsOf(x.id);
+        if (pays.isNotEmpty) {
+          for (final pay in pays) {
+            cash.add((pay.paidOn, pay.amount, x, null));
+          }
+        } else if (x.paidAmount > 0) {
+          cash.add((x.paidOn, x.paidAmount, x, null));
+        }
+        switch (x.status) {
+          case 'approved':
+            approvedCount++;
+            approvedDue += x.unpaid;
+          case 'referred':
+            referredCount++;
+            referredDue += x.unpaid;
+            referredNet += x.net;
+          case 'paid':
+            paidCount++;
+            paidNet += x.net;
+        }
+        if (x.status != 'paid' && x.paidAmount > 0) partialCount++;
       } else if (x.status == 'submitted' || x.status == 'draft') {
         pendingCount++;
         pendingValue += x.gross;
+        if (x.status == 'draft') draftCount++;
+      } else if (x.status == 'rejected') {
+        rejectedCount++;
       }
     }
     for (final v in variations) {
@@ -86,7 +128,25 @@ class FinanceStats {
   double remainingWork = 0, remainingToPay = 0, retention = 0, gInitial = 0, gFinal = 0, legacyPaid = 0, manualDeductions = 0;
   double gross = 0, net = 0, deductions = 0, advance = 0, penalties = 0, taxes = 0, otherDed = 0, pendingValue = 0;
   double varAdd = 0, varDeduct = 0;
-  int withValue = 0, countedCount = 0, pendingCount = 0;
+  int withValue = 0, countedCount = 0, pendingCount = 0, draftCount = 0, rejectedCount = 0;
+  // مسار المستخلص: معتمد ← محال للصرف ← مدفوع
+  int approvedCount = 0, referredCount = 0, paidCount = 0, partialCount = 0;
+  double approvedDue = 0, referredDue = 0, referredNet = 0, paidNet = 0, extractsPaid = 0;
+  // الدفعات المقدمة
+  int advanceCount = 0;
+  double advanceTotal = 0, advancePaid = 0, advanceRecovered = 0, advanceRemaining = 0, advRecPaid = 0, advRemPaid = 0;
+  // الاستقطاعات المخصصة بمفاتيحها
+  final Map<String, double> custom = {};
+  // حركة النقد: (التاريخ، المبلغ، المستخلص أو null، العقد للدفعة المقدمة)
+  final List<(DateTime?, double, ContractExtract?, Project?)> cash = [];
+
+  double get customTotal => custom.values.fold(0, (a, v) => a + v);
+
+  /// الاستقطاعات غير التأمين، دون ما استُرد من دفعات مقدمة مصروفة (فهي داخلة في المدفوع).
+  double get otherThanRetention => math.max(0, deductions - retention - advRecPaid);
+
+  /// الأعمال التي لم تُنفَّذ ولم يُدفع عنها مقدماً.
+  double get unexecutedUnpaid => math.max(0, remainingWork - advRemPaid);
 
   double? get execRatio => adjusted <= 0 ? null : executed / adjusted;
   double? get paidRatio => adjusted <= 0 ? null : paid / adjusted;
@@ -105,6 +165,8 @@ class _FinancePageState extends State<FinancePage> {
   int _months12 = 12; // نطاق الرسوم الزمنية بالأشهر (0 = منذ أول مستخلص)
   String? _trendType; // تجاوز شكل الرسم الزمني في هذه الجلسة
   bool _exporting = false;
+  String? _statusFilter; // حالة مستخلص مطلوبة من رابط في الرئيسية
+  int _reqSeq = 0;
 
   Future<void> _export(AppState app, List<Project> list) async {
     setState(() => _exporting = true);
@@ -122,6 +184,13 @@ class _FinancePageState extends State<FinancePage> {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     if (!app.loadedOnce) return const SkeletonPage(cards: 5);
+    final req = app.financeRequest;
+    if (req != null) {
+      app.financeRequest = null;
+      _view = financeViews.any((v) => v.$1 == req.view) ? req.view : 'summary';
+      _statusFilter = req.status;
+      _reqSeq = req.seq;
+    }
     final list = app.scoped;
     final st = FinanceStats(app, list);
     return PageBody(
@@ -166,7 +235,10 @@ class _FinancePageState extends State<FinancePage> {
                     label: Text(v.$2),
                     selected: _view == v.$1,
                     showCheckmark: false,
-                    onSelected: (_) => setState(() => _view = v.$1),
+                    onSelected: (_) => setState(() {
+                      _view = v.$1;
+                      _statusFilter = null;
+                    }),
                   ),
                 ),
             ]),
@@ -176,10 +248,10 @@ class _FinancePageState extends State<FinancePage> {
         MotionSwitcher(
           expand: false,
           child: KeyedSubtree(
-            key: ValueKey(_view),
+            key: ValueKey('$_view-$_reqSeq'),
             child: switch (_view) {
               'contracts' => _ContractsView(app: app, list: list),
-              'extracts' => _ExtractsView(app: app, st: st),
+              'extracts' => _ExtractsView(app: app, st: st, initialStatus: _statusFilter),
               'variations' => _VariationsView(app: app, st: st),
               'guarantees' => _GuaranteesView(app: app, st: st),
               'cash' => _cash(context, app, st),
@@ -268,8 +340,10 @@ class _FinancePageState extends State<FinancePage> {
         grossM[i] += x.gross;
         netM[i] += x.net;
       }
-      final j = _idx(months, x.paidOn);
-      if (j >= 0) paidM[j] += x.paidAmount;
+    }
+    for (final c in st.cash) {
+      final j = _idx(months, c.$1);
+      if (j >= 0) paidM[j] += c.$2;
     }
     final cumExec = <double>[];
     final cumPaid = <double>[];
@@ -323,6 +397,25 @@ class _FinancePageState extends State<FinancePage> {
               icon: Icons.payments_outlined, color: sem.ok, sub: st.paidRatio == null ? null : '${pctText(st.paidRatio!, digits: 1)} من الإجمالي',
               onTap: () => setState(() => _view = 'cash')),
           kpi('مستحق غير مدفوع', st.outstanding, icon: Icons.pending_actions_outlined, color: st.outstanding > 0 ? sem.wip : null),
+          if (app.v5Ready)
+            kpi('محال للصرف', st.referredDue,
+                icon: Icons.forward_to_inbox_outlined,
+                color: extractStatusColor(context, 'referred'),
+                sub: '${st.referredCount} مستخلص بانتظار الصرف',
+                onTap: () => setState(() {
+                      _view = 'extracts';
+                      _statusFilter = 'referred';
+                      _reqSeq++;
+                    })),
+          kpi('المستخلصات المصروفة', st.extractsPaid,
+              icon: Icons.task_alt_rounded,
+              color: sem.ok,
+              sub: '${st.paidCount} مدفوع كاملاً${st.partialCount > 0 ? ' · ${st.partialCount} جزئياً' : ''}',
+              onTap: () => setState(() => _view = 'cash')),
+          if (st.advanceCount > 0)
+            kpi('الدفعات المقدمة', st.advanceTotal,
+                icon: Icons.savings_outlined,
+                sub: '${st.advanceCount} عقد · المتبقي للاسترداد ${compactMoney(st.advanceRemaining)}'),
           kpi('المتبقي من الأعمال', st.remainingWork, icon: Icons.hourglass_bottom_rounded),
           kpi('المتبقي للدفع', st.remainingToPay, icon: Icons.account_balance_wallet_outlined),
           kpi('التأمين المحتجز', st.retention, icon: Icons.lock_outline_rounded, onTap: () => setState(() => _view = 'guarantees')),
@@ -362,8 +455,8 @@ class _FinancePageState extends State<FinancePage> {
                 ('المدفوع', st.paid),
                 ('مستحق غير مدفوع', st.outstanding),
                 ('تأمين محتجز', st.retention),
-                ('استقطاعات أخرى', math.max(0, st.deductions - st.retention)),
-                ('لم يُنفَّذ بعد', st.remainingWork),
+                ('استقطاعات أخرى', st.otherThanRetention),
+                ('لم يُنفَّذ بعد', st.unexecutedUnpaid),
               ],
             ),
           ),
@@ -412,9 +505,22 @@ class _FinancePageState extends State<FinancePage> {
     final cs = Theme.of(context).colorScheme;
     final months = _monthRange(st);
     final paidM = List<double>.filled(months.length, 0);
+    final advM = List<double>.filled(months.length, 0);
+    for (final c in st.cash) {
+      final j = _idx(months, c.$1);
+      if (j < 0) continue;
+      if (c.$3 == null) {
+        advM[j] += c.$2;
+      } else {
+        paidM[j] += c.$2;
+      }
+    }
+    final ledger = [...st.cash]..sort((a, b) => (b.$1 ?? DateTime(2000)).compareTo(a.$1 ?? DateTime(2000)));
+    final byMethod = <String, double>{};
     for (final x in st.extracts) {
-      final j = _idx(months, x.paidOn);
-      if (j >= 0) paidM[j] += x.paidAmount;
+      for (final pay in app.paymentsOf(x.id)) {
+        byMethod[pay.methodLabel] = (byMethod[pay.methodLabel] ?? 0) + pay.amount;
+      }
     }
     // أعمار المستحقات غير المدفوعة منذ الاعتماد
     final buckets = <String, double>{'حتى 30 يوماً': 0, '31–60 يوماً': 0, '61–90 يوماً': 0, 'أكثر من 90 يوماً': 0, 'بلا تاريخ اعتماد': 0};
@@ -441,9 +547,19 @@ class _FinancePageState extends State<FinancePage> {
           StatCard(label: 'المدفوع', value: compactMoney(st.paid), sub: '${fmtMoney(st.paid)} $currencyLabel', icon: Icons.payments_outlined, color: sem.ok),
           StatCard(
               label: 'منه من المستخلصات',
-              value: compactMoney(st.paid - st.legacyPaid),
-              sub: 'والدفعات اليدوية ${compactMoney(st.legacyPaid)}',
+              value: compactMoney(st.extractsPaid),
+              sub: [
+                if (st.advancePaid > 0) 'دفعات مقدمة ${compactMoney(st.advancePaid)}',
+                if (st.legacyPaid > 0) 'يدوية ${compactMoney(st.legacyPaid)}',
+              ].join(' · ').ifEmpty('${st.paidCount} مستخلص مدفوع كاملاً'),
               icon: Icons.receipt_long_outlined),
+          if (app.v5Ready)
+            StatCard(
+                label: 'محال للصرف',
+                value: compactMoney(st.referredDue),
+                sub: '${st.referredCount} مستخلص · معتمد لم يُحل ${st.approvedCount}',
+                icon: Icons.forward_to_inbox_outlined,
+                color: extractStatusColor(context, 'referred')),
           StatCard(
               label: 'مستحق غير مدفوع',
               value: compactMoney(st.outstanding),
@@ -456,7 +572,10 @@ class _FinancePageState extends State<FinancePage> {
           title: 'المدفوعات حسب الشهر',
           icon: Icons.bar_chart_rounded,
           trailing: _rangeChips(),
-          child: TrendChart(type: 'bar', labels: [for (final m in months) _monthLabel(m)], series: [ChartSeries('المدفوع', paidM, color: sem.ok)]),
+          child: TrendChart(type: 'bar', labels: [for (final m in months) _monthLabel(m)], series: [
+            ChartSeries('مدفوع المستخلصات', paidM, color: sem.ok),
+            if (advM.any((v) => v > 0)) ChartSeries('دفعات مقدمة', advM, color: cs.primary),
+          ]),
         ),
         _TwoUp(children: [
           SectionCard(
@@ -486,6 +605,39 @@ class _FinancePageState extends State<FinancePage> {
                   ]),
           ),
         ]),
+        if (ledger.isNotEmpty)
+          SectionCard(
+            title: 'سجل الدفعات',
+            icon: Icons.receipt_outlined,
+            subtitle: 'كل دفعة بتاريخها: دفعات المستخلصات من سجلها، والدفعات المقدمة للعقود. الأحدث أولاً.',
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (byMethod.length > 1) ...[
+                Wrap(spacing: 18, runSpacing: 4, children: [
+                  for (final e in byMethod.entries)
+                    Text('${e.key}: ${fmtMoney(e.value)}', style: _tab.copyWith(fontSize: 12.5, color: sem.muted)),
+                ]),
+                const SizedBox(height: 6),
+              ],
+              for (final c in ledger.take(40))
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  onTap: () => _open(context, c.$3?.projectId ?? c.$4!.id),
+                  leading: Icon(c.$3 == null ? Icons.savings_outlined : Icons.check_circle_outline_rounded, color: c.$3 == null ? cs.primary : sem.ok),
+                  title: Text(
+                    c.$3 == null
+                        ? '${c.$4!.contractTitle} · دفعة مقدمة'
+                        : '${app.project(c.$3!.projectId)?.contractTitle ?? ''} · ${c.$3!.title}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(c.$1 == null ? 'بلا تاريخ' : dayText(c.$1), style: TextStyle(color: sem.muted, fontSize: 12)),
+                  trailing: Text(fmtMoney(c.$2), style: _tab.copyWith(fontWeight: FontWeight.w800)),
+                ),
+              if (ledger.length > 40)
+                Text('و${ledger.length - 40} دفعة أقدم.', style: TextStyle(color: sem.muted, fontSize: 12)),
+            ]),
+          ),
         if (unpaid.isNotEmpty)
           SectionCard(
             title: 'مستخلصات معتمدة لم تُدفع كاملاً',
@@ -496,12 +648,14 @@ class _FinancePageState extends State<FinancePage> {
                   contentPadding: EdgeInsets.zero,
                   onTap: () => _open(context, x.projectId),
                   leading: CircleAvatar(
-                    backgroundColor: sem.wipSoft,
-                    child: Text('${x.seq}', style: TextStyle(color: sem.wip, fontWeight: FontWeight.w800)),
+                    backgroundColor: extractStatusColor(context, x.status).withValues(alpha: 0.14),
+                    child: Text('${x.seq}', style: TextStyle(color: extractStatusColor(context, x.status), fontWeight: FontWeight.w800)),
                   ),
                   title: Text('${app.project(x.projectId)?.contractTitle ?? ''} · ${x.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: Text([
-                    if (x.approvedOn != null) 'اعتُمد ${dayText(x.approvedOn)} (منذ ${DateTime.now().difference(x.approvedOn!).inDays} يوماً)',
+                    x.statusLabel,
+                    if (x.isReferred && x.referredOn != null) 'أُحيل ${dayText(x.referredOn)} (منذ ${DateTime.now().difference(x.referredOn!).inDays} يوماً)'
+                    else if (x.approvedOn != null) 'اعتُمد ${dayText(x.approvedOn)} (منذ ${DateTime.now().difference(x.approvedOn!).inDays} يوماً)',
                     'الصافي ${fmtMoney(x.net)} · المدفوع ${fmtMoney(x.paidAmount)}',
                   ].join(' · ')),
                   trailing: Text(fmtMoney(x.unpaid), style: _tab.copyWith(fontWeight: FontWeight.w800, color: sem.wip)),
@@ -528,16 +682,15 @@ class _TwoUp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // بلا IntrinsicHeight: الرسوم تقيس عرضها بـ LayoutBuilder، والقياس الجوهري يكسر تخطيطها فينزل النص والرسم عن موضعهما.
     return LayoutBuilder(builder: (context, c) {
-      if (c.maxWidth < 860) return Column(children: _spaced(children));
-      return IntrinsicHeight(
-        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const SizedBox(width: 14),
-            Expanded(child: children[i]),
-          ],
-        ]),
-      );
+      if (c.maxWidth < 860) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _spaced(children));
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          Expanded(child: children[i]),
+        ],
+      ]);
     });
   }
 }
@@ -712,17 +865,18 @@ class _ContractsViewState extends State<_ContractsView> {
 // المستخلصات
 // ---------------------------------------------------------------
 class _ExtractsView extends StatefulWidget {
-  const _ExtractsView({required this.app, required this.st});
+  const _ExtractsView({required this.app, required this.st, this.initialStatus});
 
   final AppState app;
   final FinanceStats st;
+  final String? initialStatus;
 
   @override
   State<_ExtractsView> createState() => _ExtractsViewState();
 }
 
 class _ExtractsViewState extends State<_ExtractsView> {
-  final Set<String> _status = {};
+  late final Set<String> _status = {if (widget.initialStatus != null) widget.initialStatus!};
   String _q = '';
 
   @override
@@ -747,6 +901,24 @@ class _ExtractsViewState extends State<_ExtractsView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _spaced([
+        SectionCard(
+          title: 'مسار المستخلصات',
+          icon: Icons.route_outlined,
+          subtitle: 'من التقديم إلى الاعتماد ثم الإحالة للصرف ثم الدفع. اضغط مرحلة لتصفية السجل.',
+          child: ExtractPipeline(
+            st: st,
+            selected: _status,
+            onTap: (s) => setState(() {
+              if (_status.length == 1 && _status.contains(s)) {
+                _status.clear();
+              } else {
+                _status
+                  ..clear()
+                  ..add(s);
+              }
+            }),
+          ),
+        ),
         _TwoUp(children: [
           SectionCard(
             title: 'الاستقطاعات من المستخلصات المعتمدة',
@@ -759,6 +931,7 @@ class _ExtractsViewState extends State<_ExtractsView> {
                 ('استرداد الدفعة المقدمة', st.advance),
                 ('الغرامات', st.penalties),
                 ('الضرائب والرسوم', st.taxes),
+                for (final e in st.custom.entries) (deductionLabel(app, e.key), e.value),
                 ('أخرى', st.otherDed),
               ],
             ),
@@ -847,7 +1020,9 @@ class _ExtractsViewState extends State<_ExtractsView> {
                 [
                   if (x.periodTo != null) 'حتى ${dayText(x.periodTo)}',
                   if (x.approvedOn != null) 'اعتُمد ${dayText(x.approvedOn)}',
+                  if (x.referredOn != null && x.counted) 'أُحيل ${dayText(x.referredOn)}',
                   if (x.paidOn != null) 'دُفع ${dayText(x.paidOn)}',
+                  if (x.counted && x.paidAmount > 0 && !x.isPaid) 'مدفوع جزئياً ${fmtMoney(x.paidAmount)}',
                 ].join(' · '),
                 style: TextStyle(color: sem.muted, fontSize: 12),
               ),
@@ -1078,4 +1253,94 @@ class _FinanceLogState extends State<_FinanceLog> {
                     ]),
     );
   }
+}
+
+/// مسار المستخلصات: عدد كل مرحلة وقيمتها، من المسودة إلى المدفوع.
+class ExtractPipeline extends StatelessWidget {
+  const ExtractPipeline({super.key, required this.st, this.selected = const {}, this.onTap, this.compact = false});
+
+  final FinanceStats st;
+  final Set<String> selected;
+  final void Function(String status)? onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final v5 = st.app.v5Ready;
+    final stages = <(String, int, double, String)>[];
+    final count = <String, int>{};
+    final value = <String, double>{};
+    for (final x in st.extracts) {
+      count[x.status] = (count[x.status] ?? 0) + 1;
+      // القيمة المعروضة: الصافي للمراحل المالية، وقيمة الأعمال لما قبل الاعتماد.
+      value[x.status] = (value[x.status] ?? 0) + (x.counted ? x.net : x.gross);
+    }
+    for (final s in extractStatuses) {
+      if (s == 'referred' && !v5) continue;
+      if (s == 'rejected' && (count[s] ?? 0) == 0) continue;
+      final hint = switch (s) {
+        'draft' => 'قيمة أعمال',
+        'submitted' => 'بانتظار الاعتماد',
+        'approved' => 'لم يُحل للصرف',
+        'referred' => 'بانتظار الصرف',
+        'paid' => 'صافٍ مدفوع',
+        _ => 'قيمة أعمال',
+      };
+      stages.add((s, count[s] ?? 0, value[s] ?? 0, hint));
+    }
+    final total = st.extracts.length;
+    return LayoutBuilder(builder: (context, c) {
+      final perRow = c.maxWidth >= 760 ? stages.length : (c.maxWidth >= 420 ? 3 : 2);
+      final w = (c.maxWidth - (perRow - 1) * 8) / perRow;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final e in stages)
+          SizedBox(
+            width: w,
+            child: Material(
+              color: selected.contains(e.$1) ? extractStatusColor(context, e.$1).withValues(alpha: 0.16) : sem.surface2,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap == null ? null : () => onTap!(e.$1),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(10, compact ? 8 : 10, 10, compact ? 8 : 10),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(color: extractStatusColor(context, e.$1), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(extractStatusLabels[e.$1]!,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: sem.muted, fontSize: 12)),
+                      ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text('${e.$2}', style: _tab.copyWith(fontWeight: FontWeight.w800, fontSize: compact ? 18 : 20)),
+                    Text(compactMoney(e.$3), maxLines: 1, overflow: TextOverflow.ellipsis, style: _tab.copyWith(fontSize: 12)),
+                    if (!compact) ...[
+                      const SizedBox(height: 6),
+                      AnimatedMeter(
+                        value: total == 0 ? 0 : e.$2 / total,
+                        color: extractStatusColor(context, e.$1),
+                        height: 5,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(e.$4, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: sem.muted, fontSize: 11)),
+                    ],
+                  ]),
+                ),
+              ),
+            ),
+          ),
+      ]);
+    });
+  }
+}
+
+extension _IfEmpty on String {
+  String ifEmpty(String other) => isEmpty ? other : this;
 }

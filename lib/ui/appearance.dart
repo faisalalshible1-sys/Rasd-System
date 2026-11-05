@@ -314,17 +314,18 @@ const Map<String, Tone> darkTones = {
 
 /// الوضع الفاتح: تدرّج رصاصي بين الخلفية والشريط والبطاقات والحقول.
 const Map<String, Tone> lightTones = {
+  // رصاصي متدرّج بوضوح: الخلفية أغمق، ثم الشريط، ثم البطاقات، والنوافذ أفتحها، دون أبيض صرف.
   'gray': Tone(
     label: 'رصاصي متدرّج',
-    background: Color(0xFFE6E8EB),
-    bar: Color(0xFFF1F2F4),
-    surface: Color(0xFFF8F9FA),
-    surface2: Color(0xFFEDEFF1),
-    surface3: Color(0xFFFFFFFF),
-    rule: Color(0xFFD2D6DB),
-    muted: Color(0xFF59616C),
-    text: Color(0xFF1F2328),
-    input: Color(0xFFEEF0F2),
+    background: Color(0xFFD5D9DE),
+    bar: Color(0xFFE1E4E8),
+    surface: Color(0xFFECEEF1),
+    surface2: Color(0xFFE0E3E7),
+    surface3: Color(0xFFF4F5F7),
+    rule: Color(0xFFC3C8CF),
+    muted: Color(0xFF4E5660),
+    text: Color(0xFF1B1F24),
+    input: Color(0xFFE4E7EB),
     overlay: Color(0xFF2B3036),
   ),
   'silver': Tone(

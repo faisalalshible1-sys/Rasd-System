@@ -238,6 +238,13 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
     ('التأمين المحتجز', sum(projects.map((p) => p.retentionHeld))),
     ('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', sum(projects.map((p) => p.guaranteeInitial ?? 0))),
     ('الضمان النهائي ${rateText(guaranteeFinalRate)}', sum(projects.map((p) => p.guaranteeFinal ?? 0))),
+    ('إجمالي التأمينات والضمانات',
+        sum(projects.map((p) => p.retentionHeld + (p.guaranteeInitial ?? 0) + (p.guaranteeFinal ?? 0)))),
+    ('المحال للصرف (غير المدفوع)', sum(ex.where((x) => x.isReferred).map((x) => x.unpaid))),
+    ('مدفوع المستخلصات', sum(counted.map((x) => x.paidAmount))),
+    ('الدفعات المقدمة', sum(projects.map((p) => p.advanceAmount ?? 0))),
+    ('المسترد من الدفعات المقدمة', sum(projects.map((p) => p.advanceRecovered))),
+    ('المتبقي للاسترداد', sum(projects.map((p) => p.advanceRemaining))),
   ];
   summary.appendRow(head(['البند', 'القيمة ($currencyLabel)']));
   for (final r in rows) {
@@ -245,13 +252,16 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
   }
   summary.appendRow(<CellValue?>[TextCellValue('عدد العقود'), IntCellValue(projects.length)]);
   summary.appendRow(<CellValue?>[TextCellValue('عدد المستخلصات المعتمدة'), IntCellValue(counted.length)]);
+  summary.appendRow(<CellValue?>[TextCellValue('عدد المستخلصات المحالة للصرف'), IntCellValue(ex.where((x) => x.isReferred).length)]);
+  summary.appendRow(<CellValue?>[TextCellValue('عدد المستخلصات المصروفة'), IntCellValue(ex.where((x) => x.isPaid).length)]);
   summary.appendRow(<CellValue?>[TextCellValue('تاريخ التقرير'), TextCellValue(_stamp(DateTime.now()))]);
 
   // العقود
   final cs = excel['العقود'];
   cs.appendRow(head(['ت', 'رقم العقد', 'رقم التكليف', 'اسم المشروع', 'الشركات', 'المالك', 'القيمة التعاقدية', 'مصدرها', 'صافي أوامر التغيير',
     'القيمة بعد التغيير', 'المنفذ', 'مصدره', 'نسبة التنفيذ %', 'عدد المستخلصات', 'إجمالي المستخلصات', 'صافيها', 'المدفوع', 'نسبة الدفع %',
-    'مستحق غير مدفوع', 'المتبقي من الأعمال', 'المتبقي للدفع', 'التأمين المحتجز', 'الضمان الابتدائي', 'الضمان النهائي', 'الخصومات اليدوية']));
+    'مستحق غير مدفوع', 'المتبقي من الأعمال', 'المتبقي للدفع', 'التأمين المحتجز', 'الضمان الابتدائي', 'الضمان النهائي', 'الخصومات اليدوية',
+    'الدفعة المقدمة', 'تاريخ صرفها', 'المسترد منها', 'المتبقي للاسترداد']));
   var i = 0;
   for (final p in projects) {
     i++;
@@ -282,14 +292,32 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
       m(p.guaranteeInitial),
       m(p.guaranteeFinal),
       m(p.deductions),
+      m(p.advanceAmount),
+      TextCellValue(p.advancePaidOn == null ? '' : _day(p.advancePaidOn!)),
+      DoubleCellValue(p.advanceRecovered),
+      DoubleCellValue(p.advanceRemaining),
     ]);
   }
 
   // المستخلصات
   final xs = excel['المستخلصات'];
+  // الاستقطاعات المخصصة: أعمدة بأسماء أنواعها (المعرّفة في الإعدادات ثم أي مفتاح آخر مسجل)
+  final customKeys = <String>[
+    for (final t in app.settings.deductionTypes) t.key,
+    for (final x in ex)
+      for (final k in x.customDeductions.keys) k,
+  ].toSet().toList();
+  String customLabel(String k) {
+    for (final t in app.settings.deductionTypes) {
+      if (t.key == k) return t.label;
+    }
+    return k;
+  }
+
   xs.appendRow(head(['العقد', 'رقم المستخلص', 'النوع', 'الرقم لدى الجهة', 'بداية الفترة', 'نهاية الفترة', 'تاريخ التقديم', 'الحالة', 'تاريخ الاعتماد',
-    'قيمة الأعمال', 'التأمين المحتجز', 'استرداد الدفعة المقدمة', 'الغرامات', 'الضرائب والرسوم', 'استقطاعات أخرى', 'الصافي', 'المدفوع', 'تاريخ الدفع',
-    'غير المدفوع', 'ملاحظات']));
+    'تاريخ الإحالة للصرف', 'رقم الإحالة',
+    'قيمة الأعمال', 'التأمين المحتجز', 'استرداد الدفعة المقدمة', 'الغرامات', 'الضرائب والرسوم', for (final k in customKeys) customLabel(k),
+    'استقطاعات أخرى', 'الصافي', 'المدفوع', 'تاريخ الدفع', 'عدد الدفعات', 'غير المدفوع', 'ملاحظات']));
   for (final x in ex) {
     xs.appendRow(<CellValue?>[
       TextCellValue(app.project(x.projectId)?.contractTitle ?? ''),
@@ -301,18 +329,56 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
       TextCellValue(x.submittedOn == null ? '' : _day(x.submittedOn!)),
       TextCellValue(x.statusLabel),
       TextCellValue(x.approvedOn == null ? '' : _day(x.approvedOn!)),
+      TextCellValue(x.referredOn == null ? '' : _day(x.referredOn!)),
+      TextCellValue(x.referralNo),
       DoubleCellValue(x.gross),
       DoubleCellValue(x.retention),
       DoubleCellValue(x.advanceRecovery),
       DoubleCellValue(x.penalties),
       DoubleCellValue(x.taxes),
+      for (final k in customKeys) DoubleCellValue(x.customDeductions[k] ?? 0),
       DoubleCellValue(x.otherDeductions),
       DoubleCellValue(x.net),
       DoubleCellValue(x.paidAmount),
       TextCellValue(x.paidOn == null ? '' : _day(x.paidOn!)),
+      IntCellValue(app.paymentsOf(x.id).length),
       DoubleCellValue(x.unpaid),
       TextCellValue(x.notes),
     ]);
+  }
+
+  // سجل الدفعات
+  final ps = excel['سجل الدفعات'];
+  ps.appendRow(head(['العقد', 'البيان', 'تاريخ الدفع', 'المبلغ', 'طريقة الدفع', 'المرجع', 'ملاحظات']));
+  final payRows = <(DateTime?, List<CellValue?>)>[];
+  for (final x in ex) {
+    for (final pay in app.paymentsOf(x.id)) {
+      payRows.add((pay.paidOn, <CellValue?>[
+        TextCellValue(app.project(x.projectId)?.contractTitle ?? ''),
+        TextCellValue(x.title),
+        TextCellValue(pay.paidOn == null ? '' : _day(pay.paidOn!)),
+        DoubleCellValue(pay.amount),
+        TextCellValue(pay.methodLabel),
+        TextCellValue(pay.refNo),
+        TextCellValue(pay.notes),
+      ]));
+    }
+  }
+  for (final p in projects) {
+    if (p.advancePaid <= 0) continue;
+    payRows.add((p.advancePaidOn, <CellValue?>[
+      TextCellValue(p.contractTitle),
+      TextCellValue('دفعة مقدمة'),
+      TextCellValue(p.advancePaidOn == null ? '' : _day(p.advancePaidOn!)),
+      DoubleCellValue(p.advancePaid),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+    ]));
+  }
+  payRows.sort((a, b) => (a.$1 ?? DateTime(2000)).compareTo(b.$1 ?? DateTime(2000)));
+  for (final r in payRows) {
+    ps.appendRow(r.$2);
   }
 
   // أوامر التغيير

@@ -290,6 +290,9 @@ class Project {
     this.extractsNet = 0,
     this.extractsPaid = 0,
     this.retentionHeld = 0,
+    this.advanceAmount,
+    this.advancePaidOn,
+    this.advanceRecovered = 0,
     this.extra = const {},
     this.updatedAt,
     this.updatedBy,
@@ -327,6 +330,9 @@ class Project {
   final double extractsNet; // صافيها بعد الاستقطاعات
   final double extractsPaid; // المدفوع منها
   final double retentionHeld; // التأمين المحتجز منها
+  final double? advanceAmount; // الدفعة المقدمة للعقد
+  final DateTime? advancePaidOn; // تاريخ صرفها
+  final double advanceRecovered; // ما استُرد منها في المستخلصات المعتمدة
   final Map<String, dynamic> extra; // قيم الحقول الإضافية
   final DateTime? updatedAt;
   final String? updatedBy;
@@ -349,8 +355,14 @@ class Project {
   /// القيمة بعد أوامر التغيير.
   double? get adjustedValue => contractValue == null && variationsNet == 0 ? null : (contractValue ?? 0) + variationsNet;
 
-  /// كل المدفوع: مدفوع المستخلصات والدفعات المسجلة يدوياً.
-  double get paidTotal => extractsPaid + paymentsTotal;
+  /// الدفعة المقدمة المصروفة (لها تاريخ صرف).
+  double get advancePaid => advancePaidOn == null ? 0 : (advanceAmount ?? 0);
+
+  /// رصيد الدفعة المقدمة الذي لم يُسترد بعد.
+  double get advanceRemaining => ((advanceAmount ?? 0) - advanceRecovered).clamp(0, double.infinity).toDouble();
+
+  /// كل المدفوع: مدفوع المستخلصات، والدفعة المقدمة المصروفة، والدفعات المسجلة يدوياً.
+  double get paidTotal => extractsPaid + advancePaid + paymentsTotal;
 
   /// المتبقي من العقد (أعمال لم تُنفَّذ بعد) = القيمة بعد التغيير − المنفذ.
   double? get remainingWork {
@@ -414,6 +426,9 @@ class Project {
         extractsNet: _money(m['extracts_net']) ?? 0,
         extractsPaid: _money(m['extracts_paid']) ?? 0,
         retentionHeld: _money(m['retention_held']) ?? 0,
+        advanceAmount: _money(m['advance_amount']),
+        advancePaidOn: _date(m['advance_paid_on']),
+        advanceRecovered: _money(m['advance_recovered']) ?? 0,
         extra: m['extra'] is Map ? Map<String, dynamic>.from(m['extra'] as Map) : const {},
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
@@ -516,15 +531,77 @@ class ContractVariation {
 }
 
 /// حالات المستخلص بالترتيب.
-const List<String> extractStatuses = ['draft', 'submitted', 'approved', 'paid', 'rejected'];
+const List<String> extractStatuses = ['draft', 'submitted', 'approved', 'referred', 'paid', 'rejected'];
 
 const Map<String, String> extractStatusLabels = {
   'draft': 'مسودة',
   'submitted': 'مقدَّم',
   'approved': 'معتمد',
+  'referred': 'محال للصرف',
   'paid': 'مدفوع',
   'rejected': 'مرفوض',
 };
+
+/// طرق صرف الدفعات.
+const Map<String, String> paymentMethodLabels = {
+  'transfer': 'حوالة مصرفية',
+  'cheque': 'صك',
+  'cash': 'نقداً',
+  'other': 'أخرى',
+};
+
+/// دفعة من سجل صرف المستخلص.
+class ExtractPayment {
+  const ExtractPayment({
+    required this.id,
+    required this.extractId,
+    required this.projectId,
+    required this.amount,
+    required this.paidOn,
+    required this.method,
+    required this.refNo,
+    required this.notes,
+    this.createdAt,
+    this.createdBy,
+  });
+
+  final String id;
+  final String extractId;
+  final String projectId;
+  final double amount;
+  final DateTime? paidOn;
+  final String method;
+  final String refNo;
+  final String notes;
+  final DateTime? createdAt;
+  final String? createdBy;
+
+  String get methodLabel => paymentMethodLabels[method] ?? method;
+
+  factory ExtractPayment.fromMap(Map<String, dynamic> m) => ExtractPayment(
+        id: _str(m['id']),
+        extractId: _str(m['extract_id']),
+        projectId: _str(m['project_id']),
+        amount: _money(m['amount']) ?? 0,
+        paidOn: _date(m['paid_on']),
+        method: _str(m['method']).isEmpty ? 'transfer' : _str(m['method']),
+        refNo: _str(m['ref_no']),
+        notes: _str(m['notes']),
+        createdAt: _date(m['created_at']),
+        createdBy: m['created_by'] as String?,
+      );
+}
+
+/// استقطاع مخصص يعرّفه مدير المكتب (الاسم ونسبة افتراضية اختيارية من قيمة الأعمال).
+class DeductionType {
+  const DeductionType({required this.key, required this.label, this.rate});
+
+  final String key;
+  final String label;
+  final double? rate;
+
+  Map<String, dynamic> toJson() => {'key': key, 'label': label, 'rate': rate};
+}
 
 /// مستخلص: قيمة الأعمال في الفترة، واستقطاعاتها، وصافيها، وما دُفع منه.
 class ContractExtract {
@@ -554,12 +631,20 @@ class ContractExtract {
     this.createdAt,
     this.updatedAt,
     this.updatedBy,
+    this.referredOn,
+    this.referralNo = '',
+    this.customDeductions = const {},
+    this.customTotal = 0,
   });
 
   final String id;
   final String projectId;
   final String? originProject;
   final String? workId;
+  final DateTime? referredOn; // تاريخ الإحالة للصرف
+  final String referralNo; // رقم كتاب الإحالة
+  final Map<String, double> customDeductions; // الاستقطاعات المخصصة بمفاتيحها
+  final double customTotal;
   final int seq;
   final String refNo;
   final String kind; // interim | final
@@ -582,12 +667,13 @@ class ContractExtract {
   final DateTime? updatedAt;
   final String? updatedBy;
 
-  bool get counted => status == 'approved' || status == 'paid';
+  bool get counted => status == 'approved' || status == 'referred' || status == 'paid';
   bool get isPaid => status == 'paid';
+  bool get isReferred => status == 'referred';
   bool get isFinal => kind == 'final';
   bool get merged => originProject != null && originProject != projectId;
-  double get deductionsTotal => retention + advanceRecovery + penalties + taxes + otherDeductions;
-  double get otherThanRetention => advanceRecovery + penalties + taxes + otherDeductions;
+  double get deductionsTotal => retention + advanceRecovery + penalties + taxes + otherDeductions + customTotal;
+  double get otherThanRetention => advanceRecovery + penalties + taxes + otherDeductions + customTotal;
   double get unpaid => counted ? (net - paidAmount).clamp(0, double.infinity).toDouble() : 0;
   String get statusLabel => extractStatusLabels[status] ?? status;
   String get title => 'مستخلص ${isFinal ? 'ختامي' : 'رقم $seq'}${refNo.isNotEmpty ? ' ($refNo)' : ''}';
@@ -621,6 +707,15 @@ class ContractExtract {
         createdAt: _date(m['created_at']),
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
+        referredOn: _date(m['referred_on']),
+        referralNo: _str(m['referral_no']),
+        customDeductions: m['custom_deductions'] is Map
+            ? {
+                for (final e in (m['custom_deductions'] as Map).entries)
+                  if (e.value is num) e.key.toString(): (e.value as num).toDouble(),
+              }
+            : const {},
+        customTotal: _money(m['custom_total']) ?? 0,
       );
 }
 
@@ -748,6 +843,8 @@ class AssistantAction {
     'propose_form_status': 'حالة نموذج',
     'propose_setting': 'إعداد',
     'propose_idea': 'فكرة تطوير',
+    'propose_extract_payment': 'دفعة مستخلص',
+    'propose_contract_advance': 'دفعة مقدمة',
   };
 
   String get title => titles[name] ?? name;
@@ -919,6 +1016,9 @@ const Map<String, String> auditActionLabels = {
   'finance.extract_add': 'سجّل مستخلصاً',
   'finance.extract_update': 'عدّل مستخلصاً',
   'finance.extract_delete': 'حذف مستخلصاً',
+  'finance.payment_add': 'سجّل دفعة مستخلص',
+  'finance.payment_delete': 'حذف دفعة مستخلص',
+  'finance.advance': 'عدّل الدفعة المقدمة',
   'security.user_lock': 'قفل دخول حساب',
   'security.user_unlock': 'فكّ قفل حساب',
   'security.device_new': 'دخل من جهاز جديد',
@@ -1321,6 +1421,24 @@ class LiveSettings {
 
   /// المصطلحات المخصصة (العقد، الأعمال...).
   Map<String, String> get terms => strMap(raw['ui.labels']);
+
+  /// النسب الافتراضية للمستخلصات (من قيمة الأعمال).
+  double get retentionRate => number('finance.retention_rate', 0.1);
+  double get taxRate => number('finance.tax_rate', 0);
+
+  /// نسبة استرداد الدفعة المقدمة من كل مستخلص (0 = بنسبة الدفعة إلى قيمة العقد).
+  double get advanceRecoveryRate => number('finance.advance_recovery_rate', 0);
+
+  /// الاستقطاعات المخصصة التي يعرّفها المدير.
+  List<DeductionType> get deductionTypes {
+    final v = raw['finance.deduction_types'];
+    if (v is! List) return const [];
+    return [
+      for (final x in v)
+        if (x is Map && x['key'] is String && x['label'] is String)
+          DeductionType(key: x['key'] as String, label: x['label'] as String, rate: x['rate'] is num ? (x['rate'] as num).toDouble() : null),
+    ];
+  }
 
   bool get aiEnabled => flag('ai.enabled', true);
   String get aiModel => str('ai.model', 'claude-sonnet-5-5');

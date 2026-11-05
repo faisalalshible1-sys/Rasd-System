@@ -392,13 +392,14 @@ class Sem {
     muted: Color(0xFF9AA4B1),
   );
 
-  Sem _withTone(Tone t) => Sem(
+  Sem _withTone(Tone t, {bool dark = false}) => Sem(
         ok: ok,
         okSoft: okSoft,
         wip: wip,
         wipSoft: wipSoft,
         todo: todo,
-        todoSoft: todoSoft,
+        // في الفاتح يُشتق مسار المقاييس من درجة البطاقة حتى يبقى ظاهراً على الرصاصي
+        todoSoft: dark ? todoSoft : Color.lerp(t.surface2, t.rule, 0.6)!,
         na: na,
         danger: danger,
         dangerSoft: dangerSoft,
@@ -414,7 +415,7 @@ class Sem {
   static Sem forBrightness(Brightness b) {
     final isDark = b == Brightness.dark;
     final key = isDark ? 'd:${appearance.darkTone}' : 'l:${appearance.lightTone}';
-    return _cache.putIfAbsent(key, () => (isDark ? _darkBase : _lightBase)._withTone(appearance.tone(b)));
+    return _cache.putIfAbsent(key, () => (isDark ? _darkBase : _lightBase)._withTone(appearance.tone(b), dark: isDark));
   }
 
   static Sem get light => forBrightness(Brightness.light);

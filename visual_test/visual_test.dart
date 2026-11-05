@@ -7,7 +7,9 @@ import 'package:dc_app/app_state.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/auth.dart';
+import 'package:dc_app/screens/contract_finance.dart';
 import 'package:dc_app/screens/control/appearance.dart';
+import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
@@ -130,7 +132,9 @@ AppState _sampleState() {
         final gross = (value * (0.12 + 0.05 * k)).roundToDouble();
         final retention = (gross * 0.1).roundToDouble();
         final taxes = (gross * 0.02).roundToDouble();
-        final net = gross - retention - taxes;
+        final stamp = i == 2 ? (gross * 0.005).roundToDouble() : 0.0;
+        final adv = i == 2 ? (gross * 0.1).roundToDouble() : 0.0;
+        final net = gross - retention - taxes - stamp - adv;
         final status = k < count ? 'paid' : const ['submitted', 'approved', 'referred', 'paid', 'draft'][i % 5];
         final paid = status == 'paid' ? net : (status == 'referred' && i.isEven ? (net * 0.4).roundToDouble() : 0.0);
         xs.add(ContractExtract.fromMap({
@@ -145,6 +149,9 @@ AppState _sampleState() {
           'gross_amount': gross,
           'retention': retention,
           'taxes': taxes,
+          'custom_deductions': i == 2 ? {'stamp': stamp} : null,
+          'custom_total': stamp,
+          'advance_recovery': adv,
           'net_amount': net,
           'status': status,
           'approved_on': const ['approved', 'referred', 'paid'].contains(status) ? _day(160 - k * 30) : null,
@@ -191,7 +198,8 @@ AppState _sampleState() {
       'extracts_paid': counted.fold<double>(0, (a, x) => a + x.paidAmount),
       'retention_held': counted.fold<double>(0, (a, x) => a + x.retention),
       'advance_amount': i == 2 ? 230000.0 : null,
-      'advance_recovered': i == 2 ? 60000.0 : 0,
+      'advance_paid_on': i == 2 ? _day(220) : null,
+      'advance_recovered': counted.fold<double>(0, (a, x) => a + x.advanceRecovery),
       'updated_at': _iso(i),
     }));
     works.add(ContractWork.fromMap({
@@ -216,6 +224,34 @@ AppState _sampleState() {
   app.works = works;
   app.extracts = extracts;
   app.variations = variations;
+  // سجل دفعات: دفعتان لكل مستخلص مدفوع في العقد الثالث، ودفعة جزئية للمحال
+  final payments = <ExtractPayment>[];
+  for (final x in extracts) {
+    if (x.paidAmount <= 0) continue;
+    final split = x.projectId == 'p-003' && x.isPaid;
+    final first = split ? (x.paidAmount * 0.6).roundToDouble() : x.paidAmount;
+    payments.add(ExtractPayment.fromMap({
+      'id': 'pay-${x.id}-1',
+      'extract_id': x.id,
+      'project_id': x.projectId,
+      'amount': first,
+      'paid_on': x.paidOn == null ? _day(10) : _day(DateTime.now().difference(x.paidOn!).inDays + 12),
+      'method': 'transfer',
+      'ref_no': 'ح-${x.seq}01',
+    }));
+    if (split) {
+      payments.add(ExtractPayment.fromMap({
+        'id': 'pay-${x.id}-2',
+        'extract_id': x.id,
+        'project_id': x.projectId,
+        'amount': x.paidAmount - first,
+        'paid_on': x.paidOn == null ? _day(5) : _day(DateTime.now().difference(x.paidOn!).inDays),
+        'method': 'cheque',
+        'ref_no': 'ص-${x.seq}02',
+      }));
+    }
+  }
+  app.payments = payments;
   app.statuses = statuses;
   app.engineers = [
     ContractEngineer.fromMap({'id': 'e1', 'project_id': 'p-001', 'kind': 'sup', 'name': 'م. سراج لطيوش', 'assign_no': 'ت-77', 'sort': 1}),
@@ -227,8 +263,20 @@ AppState _sampleState() {
   app.v2Ready = true;
   app.v3Ready = true;
   app.v4Ready = true;
+  app.v5Ready = true;
   app.loadedOnce = true;
-  app.settings = LiveSettings({'ai.enabled': true, 'ai.model': 'claude-sonnet-5-5', 'finance.currency': 'د.ل'});
+  app.settings = LiveSettings({
+    'ai.enabled': true,
+    'ai.model': 'claude-sonnet-5-5',
+    'finance.currency': 'د.ل',
+    'finance.retention_rate': 0.1,
+    'finance.tax_rate': 0.02,
+    'finance.advance_recovery_rate': 0,
+    'finance.deduction_types': [
+      {'key': 'stamp', 'label': 'رسم الدمغة', 'rate': 0.005},
+      {'key': 'social', 'label': 'الضمان الاجتماعي', 'rate': null},
+    ],
+  });
   app.settings.applyGlobals();
   app.indexData();
   return app;
@@ -290,6 +338,30 @@ void main() {
     await _shot(tester, '10_finance_summary_light', app, const HomeShell());
     await _shot(tester, '11_finance_summary_dark', app, const HomeShell(), dark: true);
     await _shot(tester, '12_finance_summary_mobile', app, _scaffold(const FinancePage()), size: _mobile);
+  });
+
+  testWidgets('finance views', (tester) async {
+    final app = _sampleState();
+    app.openFinance(view: 'extracts');
+    await _shot(tester, '13_finance_extracts_light', app, _scaffold(const FinancePage()), size: const Size(1200, 3000));
+    app.openFinance(view: 'cash');
+    await _shot(tester, '14_finance_cash_light', app, _scaffold(const FinancePage()), size: const Size(1200, 3400));
+    app.openFinance(view: 'guarantees');
+    await _shot(tester, '15_finance_guarantees_dark', app, _scaffold(const FinancePage()), size: const Size(1200, 2200), dark: true);
+  });
+
+  testWidgets('dialogs and settings', (tester) async {
+    final app = _sampleState();
+    final p = app.project('p-003')!;
+    final x = app.extractsOf('p-003').last;
+    await _shot(tester, '32_extract_dialog_light', app,
+        _scaffold(Center(child: ExtractDialog(app: app, project: p, extract: x))), size: const Size(1200, 1800));
+    await _shot(tester, '33_extract_new_mobile', app,
+        _scaffold(Center(child: ExtractDialog(app: app, project: p))), size: const Size(400, 1800));
+    final ref = app.extracts.firstWhere((e) => e.isReferred);
+    await _shot(tester, '34_payment_dialog_dark', app,
+        _scaffold(Center(child: PaymentDialog(app: app, extract: ref))), size: const Size(900, 1100), dark: true);
+    await _shot(tester, '35_settings_light', app, _scaffold(const SettingsSection()), size: const Size(1200, 3200));
   });
 
   testWidgets('dashboard views', (tester) async {

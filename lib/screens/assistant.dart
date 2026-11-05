@@ -460,6 +460,9 @@ class _ActionCard extends StatelessWidget {
     'status': 'الحالة',
     'paid_amount': 'المدفوع',
     'paid_on': 'تاريخ الدفع',
+    'referred_on': 'تاريخ الإحالة للصرف',
+    'referral_no': 'رقم الإحالة',
+    'method': 'طريقة الدفع',
     'contract_no': 'رقم العقد',
     'key': 'الإعداد',
     'value': 'القيمة الجديدة',
@@ -487,6 +490,8 @@ class _ActionCard extends StatelessWidget {
         return switch (s) { 'add' => 'زيادة', 'deduct' => 'نقص', 'final' => 'ختامي', 'interim' => 'جاري', _ => s };
       case 'status':
         return extractStatusLabels[s] ?? parseStatus(s).label;
+      case 'method':
+        return paymentMethodLabels[s] ?? s;
       case 'key':
         return settingLabels[s] ?? s;
     }
