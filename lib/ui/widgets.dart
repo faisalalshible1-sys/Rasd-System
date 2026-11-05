@@ -32,7 +32,7 @@ class SectionCard extends StatelessWidget {
     required this.title,
     this.trailing,
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding,
     this.icon,
     this.subtitle,
   });
@@ -40,7 +40,7 @@ class SectionCard extends StatelessWidget {
   final String title;
   final Widget? trailing;
   final Widget child;
-  final EdgeInsets padding;
+  final EdgeInsets? padding;
   final IconData? icon;
   final String? subtitle;
 
@@ -50,12 +50,8 @@ class SectionCard extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     return Container(
-      decoration: BoxDecoration(
-        color: sem.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: sem.rule),
-      ),
-      padding: padding,
+      decoration: cardDecoration(context),
+      padding: padding ?? EdgeInsets.all(appearance.pad + 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -194,13 +190,15 @@ class StatCard extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     final c = color ?? Theme.of(context).colorScheme.primary;
     final card = Material(
-      color: sem.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: sem.rule)),
+      color: cardColor(context),
+      elevation: cardElevation(context),
+      shadowColor: Colors.black26,
+      shape: cardShape(context),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(appearance.radius),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(appearance.pad),
           child: Row(
             children: [
               if (icon != null) ...[
@@ -639,14 +637,17 @@ class KpiTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
+    final r = (appearance.radius * 0.8).clamp(6.0, 22.0);
     return Material(
-      color: sem.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: sem.rule)),
+      color: cardColor(context),
+      elevation: cardElevation(context),
+      shadowColor: Colors.black26,
+      shape: cardShape(context, radius: r),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(r),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: appearance.pad - 2, vertical: appearance.pad - 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

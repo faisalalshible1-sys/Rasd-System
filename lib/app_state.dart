@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'models.dart';
+import 'ui/appearance.dart';
 
 /// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
 /// قاعدة البيانات هي صاحبة القرار في الصلاحيات؛ ما هنا يحدد ما يُعرض من أزرار فقط.
@@ -40,11 +42,35 @@ class AppState extends ChangeNotifier {
   Map<String, List<ContractWork>> _worksBy = {};
   Map<String, List<ContractEngineer>> _engBy = {};
 
+  // الإصدار الرابع: المالية الموسعة (أوامر التغيير والمستخلصات) والأمان الموسع
+  List<ContractVariation> variations = [];
+  List<ContractExtract> extracts = [];
+  bool v4Ready = false;
+  Map<String, List<ContractVariation>> _varBy = {};
+  Map<String, List<ContractExtract>> _extBy = {};
+
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
 
   // تفضيلات هذا الجهاز
   ThemeMode themeMode = ThemeMode.system;
+
+  /// «تذكرني»: يبقى الدخول محفوظاً ويُوثَّق الجهاز. بدونها يُطلب الدخول عند كل فتح.
+  bool rememberMe = true;
+  String rememberedEmail = '';
+
+  /// معرّف هذا الجهاز في سجل الأجهزة (عشوائي، يُنشأ مرة واحدة).
+  String deviceKey = '';
+
+  /// دخل المستخدم في هذا التشغيل (لا يُطلب الدخول ثانية حتى مع إلغاء «تذكرني»).
+  bool signedInThisRun = false;
+  bool _loginEventPending = false;
+
+  /// سبب الخروج الأمني الأخير (جهاز محظور أو قفل) لعرضه في شاشة الدخول.
+  String? securityNotice;
+
+  /// يُستدعى عند اكتشاف حظر الجهاز أو قفل الحساب أثناء الاستخدام.
+  void Function(String kind)? onSecurityHalt;
 
   Future<void> loadPrefs() async {
     try {
@@ -54,7 +80,91 @@ class AppState extends ChangeNotifier {
         'dark' => ThemeMode.dark,
         _ => ThemeMode.system,
       };
+      rememberMe = p.getBool('remember_me') ?? true;
+      rememberedEmail = p.getString('remember_email') ?? '';
+      deviceKey = p.getString('device_key') ?? '';
+      if (deviceKey.length < 16) {
+        final r = Random.secure();
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        deviceKey = 'dc-${List.generate(28, (_) => chars[r.nextInt(chars.length)]).join()}';
+        await p.setString('device_key', deviceKey);
+      }
+    } catch (_) {
+      if (deviceKey.isEmpty) deviceKey = 'dc-${DateTime.now().microsecondsSinceEpoch}';
+    }
+  }
+
+  /// قبل محاولة الدخول: اختيار «تذكرني» يحدد توثيق الجهاز عند تسجيله.
+  void prepareLogin({required bool remember}) {
+    rememberMe = remember;
+    signedInThisRun = true;
+    _loginEventPending = true;
+  }
+
+  /// يحفظ اختيار «تذكرني» بعد دخول ناجح.
+  Future<void> rememberLogin({required bool remember, required String email}) async {
+    rememberMe = remember;
+    rememberedEmail = remember ? email.trim() : '';
+    signedInThisRun = true;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool('remember_me', remember);
+      if (remember) {
+        await p.setString('remember_email', email.trim());
+      } else {
+        await p.remove('remember_email');
+      }
     } catch (_) {}
+  }
+
+  /// اسم المنصة لسجل الأجهزة.
+  static String get devicePlatform {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      TargetPlatform.windows => 'windows',
+      TargetPlatform.macOS => 'macos',
+      TargetPlatform.linux => 'linux',
+      _ => 'other',
+    };
+  }
+
+  /// يسجّل هذا الجهاز (دخول أو فتح أو نبضة) ويُرجع حالته: ok أو blocked أو locked.
+  /// قاعدة بيانات أقدم بلا سجل أجهزة: يُعتبر ok.
+  Future<String> registerDevice({String? event}) async {
+    final ev = event ?? (_loginEventPending ? 'login' : 'open');
+    final wasLogin = ev == 'login';
+    try {
+      final res = await client.rpc('register_device', params: {
+        'p_device_key': deviceKey,
+        'p_platform': devicePlatform,
+        'p_label': platformLabels[devicePlatform] ?? devicePlatform,
+        'p_app_version': AppConfig.appVersion.length > 30 ? AppConfig.appVersion.substring(0, 30) : AppConfig.appVersion,
+        // التوثيق يتبع اختيار «تذكرني» عند الدخول فقط؛ الفتح والنبضة لا يغيّرانه
+        'p_trusted': wasLogin ? rememberMe : null,
+        'p_event': ev,
+      });
+      if (wasLogin) _loginEventPending = false;
+      if (res is Map) {
+        if (res['blocked'] == true) return 'blocked';
+        if (res['locked'] == true) return 'locked';
+      }
+      return 'ok';
+    } catch (_) {
+      return 'ok';
+    }
+  }
+
+  Timer? _heartbeat;
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(const Duration(minutes: 15), (_) async {
+      if (_disposed || client.auth.currentSession == null) return;
+      final st = await registerDevice(event: 'ping');
+      if (st != 'ok') onSecurityHalt?.call(st);
+    });
   }
 
   Future<void> setThemeMode(ThemeMode m) async {
@@ -92,6 +202,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel;
   RealtimeChannel? _channel2;
   RealtimeChannel? _channel3;
+  RealtimeChannel? _channel4;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -202,6 +313,12 @@ class AppState extends ChangeNotifier {
 
   bool canAssignAnyEngineer(Project p) => engineerKinds.any((k) => canAssignEngineer(p, k));
 
+  /// قيم البنود وأوامر التغيير والمستخلصات: من يختص بالبيانات المالية للعقد.
+  bool canEditFinanceItems(Project p) => v4Ready && canEditFinance(p);
+
+  /// المستخلص المدفوع لا يعدّله ولا يحذفه إلا مدير المكتب.
+  bool canEditExtract(Project p, ContractExtract x) => canEditFinanceItems(p) && (!x.isPaid || isDirector);
+
   /// مساعد Claude: لمدير المكتب وحده، ويمكن إيقافه من الإعدادات.
   bool get canUseAssistant => isDirector && v3Ready && settings.aiEnabled;
 
@@ -288,6 +405,12 @@ class AppState extends ChangeNotifier {
     return out;
   }
 
+  /// أوامر تغيير العقد.
+  List<ContractVariation> variationsOf(String projectId) => _varBy[projectId] ?? const [];
+
+  /// مستخلصات العقد بالترتيب.
+  List<ContractExtract> extractsOf(String projectId) => _extBy[projectId] ?? const [];
+
   ContractWork? work(String? id) {
     if (id == null) return null;
     for (final w in works) {
@@ -325,6 +448,7 @@ class AppState extends ChangeNotifier {
     _subscribe();
     _updateTimer?.cancel();
     _updateTimer = Timer.periodic(const Duration(hours: 3), (_) => checkForUpdate());
+    _startHeartbeat();
   }
 
   /// منصة هذه النسخة كما تُسجَّل في جدول الإصدارات.
@@ -398,6 +522,7 @@ class AppState extends ChangeNotifier {
       if (mine != null) me = mine;
       await _loadV2();
       await _loadV3();
+      await _loadV4();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -422,6 +547,7 @@ class AppState extends ChangeNotifier {
       ]);
       settings = LiveSettings({for (final row in r[0]) row['key'].toString(): row['value']});
       settings.applyGlobals();
+      appearance = Appearance.fromJson(settings.raw['ui.appearance']);
       stages = r[1].map(StageDef.fromMap).toList();
       if (stages.isNotEmpty) stageNames = [for (final st in stages) st.name];
       customFields = r[2].map(CustomField.fromMap).toList();
@@ -461,13 +587,45 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// جداول الإصدار الرابع (أوامر التغيير والمستخلصات)؛ يعمل التطبيق بدونها كما كان.
+  Future<void> _loadV4() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('contract_variations').select().order('created_at', ascending: true),
+        client.from('contract_extracts').select().order('seq', ascending: true),
+      ]);
+      variations = r[0].map(ContractVariation.fromMap).toList();
+      extracts = r[1].map(ContractExtract.fromMap).toList();
+      final vb = <String, List<ContractVariation>>{};
+      for (final v in variations) {
+        (vb[v.projectId] ??= []).add(v);
+      }
+      final xb = <String, List<ContractExtract>>{};
+      for (final x in extracts) {
+        (xb[x.projectId] ??= []).add(x);
+      }
+      _varBy = vb;
+      _extBy = xb;
+      v4Ready = true;
+    } catch (_) {
+      variations = [];
+      extracts = [];
+      _varBy = {};
+      _extBy = {};
+      v4Ready = false;
+    }
+  }
+
   /// إعدادات الهوية قبل تسجيل الدخول.
   Future<void> loadPublicSettings() async {
     try {
       final res = await client.rpc('public_settings');
       if (res is Map) {
         publicSettings = Map<String, dynamic>.from(res);
-        if (settings.raw.isEmpty) motionSetting = normalizeMotion(publicSettings['ui.motion']);
+        if (settings.raw.isEmpty) {
+          motionSetting = normalizeMotion(publicSettings['ui.motion']);
+          appearance = Appearance.fromJson(publicSettings['ui.appearance']);
+        }
         _notify();
       }
     } catch (_) {
@@ -509,6 +667,16 @@ class AppState extends ChangeNotifier {
     }
     ch3.subscribe();
     _channel3 = ch3;
+
+    // قناة الإصدار الرابع: أوامر التغيير والمستخلصات
+    final old4 = _channel4;
+    if (old4 != null) client.removeChannel(old4);
+    final ch4 = client.channel('dc-v4');
+    for (final t in const ['contract_variations', 'contract_extracts']) {
+      ch4.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch4.subscribe();
+    _channel4 = ch4;
   }
 
   void scheduleReload() {
@@ -528,6 +696,15 @@ class AppState extends ChangeNotifier {
     final old3 = _channel3;
     if (old3 != null) client.removeChannel(old3);
     _channel3 = null;
+    final old4 = _channel4;
+    if (old4 != null) client.removeChannel(old4);
+    _channel4 = null;
+    _heartbeat?.cancel();
+    variations = [];
+    extracts = [];
+    _varBy = {};
+    _extBy = {};
+    v4Ready = false;
     settings = LiveSettings.empty();
     stages = [];
     allFormDefs = [];
@@ -571,6 +748,9 @@ class AppState extends ChangeNotifier {
     if (old2 != null) client.removeChannel(old2);
     final old3 = _channel3;
     if (old3 != null) client.removeChannel(old3);
+    final old4 = _channel4;
+    if (old4 != null) client.removeChannel(old4);
+    _heartbeat?.cancel();
     super.dispose();
   }
 
@@ -788,6 +968,108 @@ class AppState extends ChangeNotifier {
     if (!v3Ready) return const [];
     final res = await client.rpc('merged_sources', params: {'p_target': targetId});
     return res is List ? res.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+  }
+
+  // ---------------------------------------------------------------
+  // المالية الموسعة: قيم البنود، وأوامر التغيير، والمستخلصات
+  // ---------------------------------------------------------------
+  Future<void> setWorkValues(String workId, {double? contractValue, double? executedValue}) async {
+    await client.rpc('set_work_values', params: {
+      'p_work': workId,
+      'p_contract_value': contractValue,
+      'p_executed_value': executedValue,
+    });
+    await loadAll();
+  }
+
+  Future<String> saveVariation({
+    String? id,
+    required String projectId,
+    String? workId,
+    required String refNo,
+    required String title,
+    required String kind,
+    required double amount,
+    DateTime? approvedOn,
+    String notes = '',
+  }) async {
+    final res = await client.rpc('save_variation', params: {
+      'p_id': id,
+      'p_project': projectId,
+      'p_work': workId,
+      'p_ref_no': refNo.trim(),
+      'p_title': title.trim(),
+      'p_kind': kind,
+      'p_amount': amount,
+      'p_approved_on': approvedOn == null ? null : dbDate(approvedOn),
+      'p_notes': notes.trim(),
+    });
+    await loadAll();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> deleteVariation(String id) async {
+    await client.rpc('delete_variation', params: {'p_id': id});
+    await loadAll();
+  }
+
+  Future<String> saveExtract({
+    String? id,
+    required String projectId,
+    String? workId,
+    required String refNo,
+    required String kind,
+    DateTime? periodFrom,
+    DateTime? periodTo,
+    DateTime? submittedOn,
+    required double gross,
+    double retention = 0,
+    double advance = 0,
+    double penalties = 0,
+    double taxes = 0,
+    double other = 0,
+    required String status,
+    DateTime? approvedOn,
+    double paidAmount = 0,
+    DateTime? paidOn,
+    String notes = '',
+  }) async {
+    String? d(DateTime? v) => v == null ? null : dbDate(v);
+    final res = await client.rpc('save_extract', params: {
+      'p_id': id,
+      'p_project': projectId,
+      'p_work': workId,
+      'p_ref_no': refNo.trim(),
+      'p_kind': kind,
+      'p_period_from': d(periodFrom),
+      'p_period_to': d(periodTo),
+      'p_submitted_on': d(submittedOn),
+      'p_gross': gross,
+      'p_retention': retention,
+      'p_advance': advance,
+      'p_penalties': penalties,
+      'p_taxes': taxes,
+      'p_other': other,
+      'p_status': status,
+      'p_approved_on': d(approvedOn),
+      'p_paid_amount': paidAmount,
+      'p_paid_on': d(paidOn),
+      'p_notes': notes.trim(),
+    });
+    await loadAll();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> deleteExtract(String id) async {
+    await client.rpc('delete_extract', params: {'p_id': id});
+    await loadAll();
+  }
+
+  /// سجل التعديلات المالية (لعقد أو للعقود كلها).
+  Future<List<AuditEntry>> financeHistory({String? projectId, int limit = 400}) async {
+    if (!v4Ready) return const [];
+    final res = await client.rpc('finance_history', params: {'p_project': projectId, 'p_limit': limit});
+    return res is List ? res.whereType<Map>().map((e) => AuditEntry.fromMap(Map<String, dynamic>.from(e))).toList() : const [];
   }
 
   // ---------------------------------------------------------------
@@ -1083,6 +1365,71 @@ class AppState extends ChangeNotifier {
     return res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
   }
 
+  // ---- الأمان الموسع: الأجهزة، والقفل، والحركة، والتنبيهات ----
+  Future<List<UserDevice>> securityDevices() async {
+    final res = await client.rpc('security_devices');
+    return res is List ? res.whereType<Map>().map((e) => UserDevice(Map<String, dynamic>.from(e))).toList() : const [];
+  }
+
+  Future<List<Map<String, dynamic>>> securityTimeline({String? userId, int days = 30, int limit = 800}) async {
+    final res = await client.rpc('security_timeline', params: {'p_user': userId, 'p_days': days, 'p_limit': limit});
+    return res is List ? res.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+  }
+
+  Future<List<Map<String, dynamic>>> securityAlerts() async {
+    final res = await client.rpc('security_alerts');
+    return res is List ? res.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : const [];
+  }
+
+  /// قفل الدخول: دقائق محددة، أو null حتى يُفك يدوياً. يُرجع عدد الجلسات المنتهية.
+  Future<int> lockUser(String userId, {int? minutes, required String reason}) async {
+    final res = await client.rpc('lock_user', params: {'p_user': userId, 'p_minutes': minutes, 'p_reason': reason.trim()});
+    return (res as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> unlockUser(String userId) async {
+    await client.rpc('unlock_user', params: {'p_user': userId});
+  }
+
+  Future<int> setDeviceBlocked(String deviceId, bool blocked) async {
+    final res = await client.rpc('set_device_blocked', params: {'p_device': deviceId, 'p_blocked': blocked});
+    return (res as num?)?.toInt() ?? 0;
+  }
+
+  Future<List<UserDevice>> myDevices() async {
+    try {
+      final res = await client.rpc('my_devices');
+      return res is List ? res.whereType<Map>().map((e) => UserDevice(Map<String, dynamic>.from(e))).toList() : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> forgetMyDevice(String deviceId) async {
+    await client.rpc('forget_my_device', params: {'p_device': deviceId});
+  }
+
+  /// حالة قفل حسابي: {locked, until, reason}.
+  Future<Map<String, dynamic>> myLock() async {
+    try {
+      final res = await client.rpc('my_lock');
+      return res is Map ? Map<String, dynamic>.from(res) : const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// معاينة المظهر قبل حفظه (تُعاد عند الإلغاء).
+  void previewAppearance(Appearance a) {
+    appearance = a;
+    _notify();
+  }
+
+  void restoreAppearance() {
+    appearance = Appearance.fromJson(settings.raw['ui.appearance']);
+    _notify();
+  }
+
   /// حذف مستخدم نهائياً (لمدير المكتب وحده، بتأكيد بريد المستخدم).
   Future<void> deleteUser(String userId, String confirmEmail) async {
     await client.rpc('delete_user', params: {'p_user': userId, 'p_confirm_email': confirmEmail.trim()});
@@ -1157,6 +1504,9 @@ String friendlyError(Object e) {
     if (m.contains('projects_has_identity')) return 'اكتب رقم التكليف أو اسم المشروع على الأقل.';
     if (m.contains('contract_works_identity')) return 'اكتب وصف العمل أو الشركة.';
     if (m.contains('contract_engineers_name_check')) return 'اسم المهندس من حرفين إلى 120 حرفاً.';
+    if (m.contains('contract_extracts_deductions')) return 'الاستقطاعات أكبر من قيمة الأعمال في المستخلص.';
+    if (m.contains('contract_extracts_paid')) return 'المدفوع أكبر من صافي المستخلص.';
+    if (m.contains('contract_extracts_period')) return 'بداية فترة المستخلص بعد نهايتها.';
     return m;
   }
   if (e is AuthException) {

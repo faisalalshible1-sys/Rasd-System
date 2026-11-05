@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models.dart';
+import 'appearance.dart';
 import 'motion.dart';
+
+export 'appearance.dart';
 
 /// الهوية البصرية مأخوذة من شعار صندوق التنمية وإعادة إعمار ليبيا
 /// ولجنة إعادة إعمار منطقة الصابري ووسط البلاد: ذهبي الختم، حبر الخط، وألوان العلم.
@@ -26,39 +29,59 @@ const String appFontFamily = 'Readex Pro';
 ThemeData buildTheme(Brightness brightness, {Color? brand}) {
   final isDark = brightness == Brightness.dark;
   final primary = brand ?? Brand.goldDeep;
+  final ap = appearance;
+  final tone = ap.tone(brightness);
   final seed = ColorScheme.fromSeed(seedColor: primary, brightness: brightness);
   final hsl = HSLColor.fromColor(primary);
   final scheme = isDark
       ? seed.copyWith(
-          primary: hsl.withLightness((hsl.lightness + 0.32).clamp(0.55, 0.78)).toColor(),
-          onPrimary: const Color(0xFF1C1607),
-          primaryContainer: hsl.withLightness(0.2).withSaturation((hsl.saturation * 0.6).clamp(0.0, 1.0)).toColor(),
+          // لون الهوية في الداكن أفتح وأقل تشبعاً حتى يريح العين
+          primary: hsl
+              .withLightness((hsl.lightness + 0.3).clamp(0.55, 0.74))
+              .withSaturation((hsl.saturation * 0.78).clamp(0.0, 1.0))
+              .toColor(),
+          onPrimary: const Color(0xFF17140C),
+          primaryContainer: hsl.withLightness(0.24).withSaturation((hsl.saturation * 0.45).clamp(0.0, 1.0)).toColor(),
           onPrimaryContainer: hsl.withLightness(0.86).toColor(),
-          secondary: Brand.flagGreen,
-          surface: const Color(0xFF171716),
-          surfaceContainerLowest: const Color(0xFF121211),
-          surfaceContainerLow: const Color(0xFF1B1B1A),
-          surfaceContainer: const Color(0xFF201F1E),
-          surfaceContainerHigh: const Color(0xFF282725),
-          outlineVariant: const Color(0xFF34322E),
+          secondary: const Color(0xFF5BAF82),
+          surface: tone.surface,
+          onSurface: tone.text,
+          onSurfaceVariant: tone.muted,
+          surfaceContainerLowest: tone.background,
+          surfaceContainerLow: tone.bar,
+          surfaceContainer: tone.surface2,
+          surfaceContainerHigh: tone.surface3,
+          surfaceContainerHighest: tone.surface3,
+          outline: tone.muted,
+          outlineVariant: tone.rule,
         )
       : seed.copyWith(
           primary: primary,
           onPrimary: Colors.white,
-          primaryContainer: hsl.withLightness(0.93).withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0)).toColor(),
+          primaryContainer: hsl.withLightness(0.92).withSaturation((hsl.saturation * 0.6).clamp(0.0, 1.0)).toColor(),
           onPrimaryContainer: hsl.withLightness(0.22).toColor(),
           secondary: Brand.flagGreen,
-          surface: Colors.white,
-          surfaceContainerLowest: Colors.white,
-          surfaceContainerLow: const Color(0xFFF8F7F4),
-          surfaceContainer: const Color(0xFFF3F2EE),
-          surfaceContainerHigh: const Color(0xFFECEAE5),
-          outlineVariant: const Color(0xFFE3E1DB),
+          surface: tone.surface,
+          onSurface: tone.text,
+          onSurfaceVariant: tone.muted,
+          surfaceContainerLowest: tone.surface3,
+          surfaceContainerLow: tone.surface2,
+          surfaceContainer: tone.surface2,
+          surfaceContainerHigh: tone.background,
+          surfaceContainerHighest: tone.background,
+          outline: tone.muted,
+          outlineVariant: tone.rule,
         );
-  final sem = isDark ? Sem.dark : Sem.light;
-  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness, visualDensity: VisualDensity.standard);
-  final text = _arabicText(base.textTheme).apply(bodyColor: isDark ? const Color(0xFFECEAE4) : Brand.ink, displayColor: isDark ? Colors.white : Brand.ink);
-  final radius12 = BorderRadius.circular(12);
+  final sem = Sem.forBrightness(brightness);
+  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness, visualDensity: ap.visualDensity);
+  final text = _arabicText(base.textTheme)
+      .apply(bodyColor: tone.text, displayColor: tone.text, fontSizeFactor: ap.fontScale);
+  final r = ap.radius;
+  final radiusField = BorderRadius.circular((r * 0.72).clamp(6, 18));
+  final cardShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(r),
+    side: ap.cardStyle == 'outlined' ? BorderSide(color: sem.rule) : BorderSide.none,
+  );
 
   return base.copyWith(
     textTheme: text.copyWith(
@@ -68,18 +91,20 @@ ThemeData buildTheme(Brightness brightness, {Color? brand}) {
       bodyLarge: text.bodyLarge?.copyWith(height: 1.55),
       labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
     ),
-    scaffoldBackgroundColor: isDark ? const Color(0xFF0F0F0E) : const Color(0xFFF4F3EF),
+    scaffoldBackgroundColor: tone.background,
+    canvasColor: tone.background,
     dividerTheme: DividerThemeData(color: sem.rule, thickness: 1, space: 1),
     cardTheme: CardThemeData(
-      elevation: 0,
-      color: sem.surface,
+      elevation: ap.cardStyle == 'elevated' ? (isDark ? 3 : 2) : 0,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.5 : 0.12),
+      color: ap.cardStyle == 'filled' ? sem.surface2 : sem.surface,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: sem.rule)),
+      shape: cardShape,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
-      foregroundColor: isDark ? Colors.white : Brand.ink,
+      backgroundColor: tone.bar,
+      foregroundColor: tone.text,
       elevation: 0,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
@@ -87,78 +112,84 @@ ThemeData buildTheme(Brightness brightness, {Color? brand}) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: isDark ? const Color(0xFF1E1E1C) : const Color(0xFFF7F6F3),
+      fillColor: tone.input,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.rule)),
-      enabledBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.rule)),
-      focusedBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: scheme.primary, width: 1.6)),
-      errorBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.danger)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: radius12, borderSide: BorderSide(color: sem.danger, width: 1.6)),
+      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: ap.density == 'compact' ? 11 : 14),
+      border: OutlineInputBorder(borderRadius: radiusField, borderSide: BorderSide(color: sem.rule)),
+      enabledBorder: OutlineInputBorder(borderRadius: radiusField, borderSide: BorderSide(color: sem.rule)),
+      focusedBorder: OutlineInputBorder(borderRadius: radiusField, borderSide: BorderSide(color: scheme.primary, width: 1.6)),
+      errorBorder: OutlineInputBorder(borderRadius: radiusField, borderSide: BorderSide(color: sem.danger)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: radiusField, borderSide: BorderSide(color: sem.danger, width: 1.6)),
       labelStyle: TextStyle(color: sem.muted),
       floatingLabelStyle: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 46),
+        minimumSize: Size(0, ap.density == 'compact' ? 40 : 46),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: radius12),
+        shape: RoundedRectangleBorder(borderRadius: radiusField),
         textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 46),
+        minimumSize: Size(0, ap.density == 'compact' ? 40 : 46),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: radius12),
+        shape: RoundedRectangleBorder(borderRadius: radiusField),
         side: BorderSide(color: sem.rule),
+        foregroundColor: isDark ? tone.text : null,
         textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: radius12)),
+      style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: radiusField)),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: SegmentedButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: radius12),
+        shape: RoundedRectangleBorder(borderRadius: radiusField),
         side: BorderSide(color: sem.rule),
         selectedBackgroundColor: scheme.primaryContainer,
         selectedForegroundColor: scheme.onPrimaryContainer,
       ),
     ),
     chipTheme: ChipThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular((r * 0.6).clamp(6, 14))),
       side: BorderSide(color: sem.rule),
       backgroundColor: sem.surface,
       selectedColor: scheme.primaryContainer,
       labelStyle: text.labelMedium,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: sem.surface,
+      backgroundColor: isDark ? tone.surface2 : tone.surface3,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(r + 6)),
       titleTextStyle: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: sem.surface,
+      backgroundColor: isDark ? tone.surface2 : sem.surface,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(r + 8))),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: tone.surface3,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: radiusField, side: BorderSide(color: sem.rule)),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: radius12),
-      backgroundColor: isDark ? const Color(0xFF2C2B28) : Brand.ink,
+      shape: RoundedRectangleBorder(borderRadius: radiusField),
+      backgroundColor: tone.overlay,
       contentTextStyle: text.bodyMedium?.copyWith(color: Colors.white),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
+      backgroundColor: tone.bar,
       surfaceTintColor: Colors.transparent,
       indicatorColor: scheme.primaryContainer,
-      height: 66,
+      height: ap.density == 'compact' ? 60 : 66,
       labelTextStyle: WidgetStatePropertyAll(text.labelSmall?.copyWith(fontWeight: FontWeight.w600)),
     ),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: isDark ? const Color(0xFF151514) : Colors.white,
+      backgroundColor: tone.bar,
       indicatorColor: scheme.primaryContainer,
     ),
     tabBarTheme: TabBarThemeData(
@@ -167,9 +198,9 @@ ThemeData buildTheme(Brightness brightness, {Color? brand}) {
       dividerColor: sem.rule,
       indicatorSize: TabBarIndicatorSize.label,
     ),
-    listTileTheme: ListTileThemeData(shape: RoundedRectangleBorder(borderRadius: radius12)),
+    listTileTheme: ListTileThemeData(shape: RoundedRectangleBorder(borderRadius: radiusField)),
     tooltipTheme: TooltipThemeData(
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF2C2B28) : Brand.ink, borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: tone.overlay, borderRadius: BorderRadius.circular(8)),
       textStyle: text.bodySmall?.copyWith(color: Colors.white),
     ),
     // انتقال الصفحات: صعود وتلاشٍ للجديدة، وانكماش خفيف للسابقة (iOS يحتفظ بسحب الرجوع)
@@ -202,11 +233,37 @@ TextTheme _arabicText(TextTheme base) {
 
 bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
 
+/// لون البطاقة حسب شكلها المختار في «التخصيص والتطوير».
+Color cardColor(BuildContext context) => appearance.cardStyle == 'filled' ? Sem.of(context).surface2 : Sem.of(context).surface;
+
+/// زخرفة البطاقات الموحّدة: الاستدارة والحدود والظل من إعداد المظهر.
+BoxDecoration cardDecoration(BuildContext context, {Color? color, double? radius}) {
+  final sem = Sem.of(context);
+  final ap = appearance;
+  return BoxDecoration(
+    color: color ?? cardColor(context),
+    borderRadius: BorderRadius.circular(radius ?? ap.radius),
+    border: ap.cardStyle == 'outlined' ? Border.all(color: sem.rule) : null,
+    boxShadow: ap.cardStyle == 'elevated'
+        ? [BoxShadow(color: Colors.black.withValues(alpha: _isDark(context) ? 0.32 : 0.07), blurRadius: 18, offset: const Offset(0, 6))]
+        : null,
+  );
+}
+
+/// شكل البطاقات القابلة للضغط (Material).
+ShapeBorder cardShape(BuildContext context, {double? radius}) => RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius ?? appearance.radius),
+      side: appearance.cardStyle == 'outlined' ? BorderSide(color: Sem.of(context).rule) : BorderSide.none,
+    );
+
+/// ظل البطاقات المرتفعة.
+double cardElevation(BuildContext context) => appearance.cardStyle == 'elevated' ? (_isDark(context) ? 3 : 2) : 0;
+
 /// لون شريط التطبيق العلوي.
-Color barColor(BuildContext context) => _isDark(context) ? const Color(0xFF171716) : Colors.white;
+Color barColor(BuildContext context) => toneOf(context).bar;
 
 /// لون النص على الشريط العلوي.
-Color barForeground(BuildContext context) => _isDark(context) ? Colors.white : Brand.ink;
+Color barForeground(BuildContext context) => toneOf(context).text;
 
 /// شريط ألوان العلم كما يظهر تحت الخط في الشعار.
 class BrandStripe extends StatelessWidget implements PreferredSizeWidget {
@@ -219,7 +276,7 @@ class BrandStripe extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final black = _isDark(context) ? const Color(0xFF3A3936) : Brand.ink;
+    final black = _isDark(context) ? toneOf(context).rule : Brand.ink;
     return SizedBox(
       height: height,
       child: Row(
@@ -298,14 +355,14 @@ class Sem {
 
   final Color ok, okSoft, wip, wipSoft, todo, todoSoft, na, danger, dangerSoft, surface, surface2, rule, muted;
 
-  static const light = Sem(
+  static const _lightBase = Sem(
     ok: Color(0xFF1E7A4C),
     okSoft: Color(0xFFDCEFE4),
     wip: Color(0xFFC2570C),
     wipSoft: Color(0xFFFBE5D3),
-    todo: Color(0xFFACA9A2),
-    todoSoft: Color(0xFFECEAE5),
-    na: Color(0xFFCAC7C0),
+    todo: Color(0xFFA7ABB1),
+    todoSoft: Color(0xFFE6E8EB),
+    na: Color(0xFFC7CBD0),
     danger: Color(0xFFB4232F),
     dangerSoft: Color(0xFFF6DDE0),
     surface: Color(0xFFFFFFFF),
@@ -314,23 +371,52 @@ class Sem {
     muted: Color(0xFF5E5C57),
   );
 
-  static const dark = Sem(
-    ok: Color(0xFF4BB57E),
-    okSoft: Color(0xFF163226),
-    wip: Color(0xFFF08A4B),
-    wipSoft: Color(0xFF3B2416),
-    todo: Color(0xFF55534E),
-    todoSoft: Color(0xFF2A2926),
-    na: Color(0xFF3A3834),
-    danger: Color(0xFFEE6E79),
-    dangerSoft: Color(0xFF3A1C20),
-    surface: Color(0xFF1A1A19),
-    surface2: Color(0xFF222220),
-    rule: Color(0xFF34322E),
-    muted: Color(0xFFA3A098),
+  // ألوان الحالات في الداكن أهدأ تشبعاً حتى لا تُجهد العين
+  static const _darkBase = Sem(
+    ok: Color(0xFF5DB88A),
+    okSoft: Color(0xFF1E3A2E),
+    wip: Color(0xFFE39A62),
+    wipSoft: Color(0xFF3D2C20),
+    todo: Color(0xFF66707C),
+    todoSoft: Color(0xFF2A3038),
+    na: Color(0xFF3E4650),
+    danger: Color(0xFFE57C85),
+    dangerSoft: Color(0xFF402429),
+    surface: Color(0xFF20252C),
+    surface2: Color(0xFF272D35),
+    rule: Color(0xFF353D47),
+    muted: Color(0xFF9AA4B1),
   );
 
-  static Sem of(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? dark : light;
+  Sem _withTone(Tone t) => Sem(
+        ok: ok,
+        okSoft: okSoft,
+        wip: wip,
+        wipSoft: wipSoft,
+        todo: todo,
+        todoSoft: todoSoft,
+        na: na,
+        danger: danger,
+        dangerSoft: dangerSoft,
+        surface: t.surface,
+        surface2: t.surface2,
+        rule: t.rule,
+        muted: t.muted,
+      );
+
+  static final Map<String, Sem> _cache = {};
+
+  /// الألوان حسب الوضع ودرجته المختارة في «التخصيص والتطوير».
+  static Sem forBrightness(Brightness b) {
+    final isDark = b == Brightness.dark;
+    final key = isDark ? 'd:${appearance.darkTone}' : 'l:${appearance.lightTone}';
+    return _cache.putIfAbsent(key, () => (isDark ? _darkBase : _lightBase)._withTone(appearance.tone(b)));
+  }
+
+  static Sem get light => forBrightness(Brightness.light);
+  static Sem get dark => forBrightness(Brightness.dark);
+
+  static Sem of(BuildContext context) => forBrightness(Theme.of(context).brightness);
 
   Color statusColor(FormStatus s) => switch (s) {
         FormStatus.done => ok,

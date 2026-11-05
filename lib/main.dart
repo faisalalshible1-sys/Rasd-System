@@ -16,6 +16,13 @@ Future<void> main() async {
     await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
     state = AppState(Supabase.instance.client);
     await state.loadPrefs();
+    // بلا «تذكرني»: الدخول السابق لا يُستعاد، ويُطلب الدخول عند كل فتح (إلا رابط استعادة كلمة المرور)
+    final auth = Supabase.instance.client.auth;
+    if (!state.rememberMe && auth.currentSession != null && !Uri.base.toString().contains('recovery')) {
+      try {
+        await auth.signOut(scope: SignOutScope.local);
+      } catch (_) {}
+    }
     unawaited(state.loadPublicSettings());
   }
   runApp(DcApp(state: state));
@@ -25,7 +32,7 @@ Future<void> main() async {
 final Map<String, ThemeData> _themes = {};
 
 ThemeData _theme(Brightness b, Color brand) =>
-    _themes.putIfAbsent('${b.name}-${brand.toARGB32()}', () => buildTheme(b, brand: brand));
+    _themes.putIfAbsent('${b.name}-${brand.toARGB32()}-${appearance.hashCode}', () => buildTheme(b, brand: brand));
 
 class DcApp extends StatelessWidget {
   const DcApp({super.key, required this.state});

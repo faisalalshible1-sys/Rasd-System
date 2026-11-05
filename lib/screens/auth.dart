@@ -22,7 +22,7 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
-enum _Gate { checking, login, mfaChallenge, mfaEnroll, pending, error, ready, recovery }
+enum _Gate { checking, login, mfaChallenge, mfaEnroll, pending, error, ready, recovery, locked }
 
 class _AuthGateState extends State<AuthGate> {
   StreamSubscription<AuthState>? _sub;
@@ -36,6 +36,14 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
+    // حظر الجهاز أو قفل الحساب أثناء الاستخدام (يكتشفه فحص دوري كل 15 دقيقة)
+    app.onSecurityHalt = (kind) {
+      if (kind == 'blocked') {
+        _blockedSignOut();
+      } else {
+        _sync(force: true);
+      }
+    };
     _sub = auth.onAuthStateChange.listen((s) {
       if (s.event == AuthChangeEvent.passwordRecovery) {
         if (mounted) setState(() => _gate = _Gate.recovery);
@@ -49,7 +57,15 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void dispose() {
     _sub?.cancel();
+    if (app.onSecurityHalt != null) app.onSecurityHalt = null;
     super.dispose();
+  }
+
+  Future<void> _blockedSignOut() async {
+    app.securityNotice = 'هذا الجهاز محظور من الدخول بقرار أمني. ادخل من جهاز آخر موثوق، أو راجع مدير المكتب.';
+    try {
+      await auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
   }
 
   Future<void> _sync({bool force = false}) async {
@@ -79,7 +95,17 @@ class _AuthGateState extends State<AuthGate> {
       }
       await app.loadPublicSettings();
       await app.loadProfile();
+      // سجل الأجهزة: الجهاز المحظور يُخرج فوراً، والحساب المقفل لا يدخل
+      final device = await app.registerDevice();
+      if (device == 'blocked') {
+        await _blockedSignOut();
+        return;
+      }
       final me = app.me;
+      if (device == 'locked' || (me?.locked ?? false)) {
+        if (mounted) setState(() => _gate = _Gate.locked);
+        return;
+      }
       if (me == null || !me.active || me.role == null) {
         if (mounted) setState(() => _gate = _Gate.pending);
         return;
@@ -140,6 +166,8 @@ class _AuthGateState extends State<AuthGate> {
         );
       case _Gate.pending:
         return PendingScreen(profile: app.me, onRefresh: () => _sync(force: true));
+      case _Gate.locked:
+        return LockedScreen(profile: app.me, onRefresh: () => _sync(force: true));
       case _Gate.ready:
         return const HomeShell();
     }
@@ -313,8 +341,25 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _signUp = false;
   bool _busy = false;
   bool _obscure = true;
+  bool _remember = true;
+  bool _init = false;
   String? _error;
   String? _info;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_init) return;
+    _init = true;
+    final app = AppScope.read(context);
+    _remember = app.rememberMe;
+    if (app.rememberedEmail.isNotEmpty && _email.text.isEmpty) _email.text = app.rememberedEmail;
+    // سبب الخروج الأمني (جهاز محظور أو قفل) يُعرض مرة واحدة
+    if (app.securityNotice != null) {
+      _error = app.securityNotice;
+      app.securityNotice = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -362,7 +407,12 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         }
       } else {
+        final app = AppScope.read(context);
+        app.prepareLogin(remember: _remember);
         await auth.signInWithPassword(email: email, password: password);
+        await app.rememberLogin(remember: _remember, email: email);
+        // يعرض حفظ كلمة المرور في مدير كلمات المرور فقط مع «تذكرني»
+        TextInput.finishAutofillContext(shouldSave: _remember);
       }
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
@@ -398,6 +448,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!signupsOpen && _signUp) _signUp = false;
     return AuthFrame(
       child: AutofillGroup(
+        onDisposeAction: _remember ? AutofillContextAction.commit : AutofillContextAction.cancel,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -480,9 +531,31 @@ class _LoginScreenState extends State<LoginScreen> {
                   )),
             ),
             if (!_signUp)
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: TextButton(onPressed: _busy ? null : _forgot, child: const Text('نسيت كلمة المرور؟')),
+              Row(
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message: 'يبقى دخولك محفوظاً على هذا الجهاز، ويُعرض حفظ كلمة المرور، ويُسجَّل الجهاز موثوقاً لدى مدير الأمن.\n'
+                          'بدونها يُطلب الدخول عند كل فتح للتطبيق.',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: _busy ? null : () => setState(() => _remember = !_remember),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: _remember,
+                              visualDensity: VisualDensity.compact,
+                              onChanged: _busy ? null : (v) => setState(() => _remember = v ?? false),
+                            ),
+                            Flexible(child: Text('تذكرني وثِق بهذا الجهاز', style: t.bodyMedium, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  TextButton(onPressed: _busy ? null : _forgot, child: const Text('نسيت كلمة المرور؟')),
+                ],
               ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -925,6 +998,72 @@ class PendingScreen extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => Supabase.instance.client.auth.signOut(),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('تسجيل الخروج'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// الحساب مقفل الدخول مؤقتاً (أو حتى يُفك) بقرار مدير المكتب أو CISO.
+class LockedScreen extends StatefulWidget {
+  const LockedScreen({super.key, required this.profile, required this.onRefresh});
+
+  final Profile? profile;
+  final VoidCallback onRefresh;
+
+  @override
+  State<LockedScreen> createState() => _LockedScreenState();
+}
+
+class _LockedScreenState extends State<LockedScreen> {
+  Map<String, dynamic> _lock = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final l = await AppScope.read(context).myLock();
+      if (mounted) setState(() => _lock = l);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final until = DateTime.tryParse((_lock['until'] ?? '').toString())?.toLocal() ??
+        (widget.profile?.lockedUntil?.year == 9999 ? null : widget.profile?.lockedUntil?.toLocal());
+    final reason = (_lock['reason'] ?? widget.profile?.lockReason ?? '').toString();
+    return AuthFrame(
+      child: Column(
+        children: [
+          EmptyState(
+            icon: Icons.lock_clock_outlined,
+            title: 'الدخول إلى حسابك مقفل',
+            message: until == null
+                ? 'أُقفل الدخول إلى حسابك حتى يفكّه مدير المكتب أو مدير الأمن.'
+                : 'أُقفل الدخول مؤقتاً حتى ${dayText(until)} الساعة ${until.hour.toString().padLeft(2, '0')}:${until.minute.toString().padLeft(2, '0')}.',
+          ),
+          if (reason.trim().isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: sem.dangerSoft, borderRadius: BorderRadius.circular(14)),
+              child: Text('السبب: $reason', style: TextStyle(color: sem.danger, fontWeight: FontWeight.w600)),
+            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: FilledButton.icon(onPressed: widget.onRefresh, icon: const Icon(Icons.refresh), label: const Text('تحقق مجدداً'))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Supabase.instance.client.auth.signOut(scope: SignOutScope.local),
                   icon: const Icon(Icons.logout),
                   label: const Text('تسجيل الخروج'),
                 ),

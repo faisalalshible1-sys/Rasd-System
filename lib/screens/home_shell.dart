@@ -317,10 +317,9 @@ class _Sidebar extends StatelessWidget {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 272,
-      color: dark ? const Color(0xFF151514) : Colors.white,
+      color: toneOf(context).bar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -512,9 +511,8 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: dark ? const Color(0xFF151514) : Colors.white,
+      color: toneOf(context).bar,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

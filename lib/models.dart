@@ -228,6 +228,8 @@ class Profile {
     required this.department,
     required this.active,
     this.createdAt,
+    this.lockedUntil,
+    this.lockReason = '',
   });
 
   final String id;
@@ -237,6 +239,10 @@ class Profile {
   final String? department;
   final bool active;
   final DateTime? createdAt;
+  final DateTime? lockedUntil; // قفل الدخول المؤقت (أو الدائم حتى يُفك)
+  final String lockReason;
+
+  bool get locked => lockedUntil != null && lockedUntil!.isAfter(DateTime.now());
 
   String get displayName => fullName.trim().isNotEmpty ? fullName.trim() : (email.isNotEmpty ? email : 'مستخدم');
   bool get isDirector => active && role == AppRole.director;
@@ -250,6 +256,8 @@ class Profile {
         department: m['department'] as String?,
         active: m['active'] == true,
         createdAt: _date(m['created_at']),
+        lockedUntil: m['locked_until'] == 'infinity' ? DateTime(9999) : _date(m['locked_until']),
+        lockReason: _str(m['lock_reason']),
       );
 }
 
@@ -274,6 +282,14 @@ class Project {
     this.deductions,
     this.guaranteeInitial,
     this.guaranteeFinal,
+    this.valueSource = 'manual',
+    this.executedSource = 'manual',
+    this.variationsNet = 0,
+    this.extractsCount = 0,
+    this.extractsGross = 0,
+    this.extractsNet = 0,
+    this.extractsPaid = 0,
+    this.retentionHeld = 0,
     this.extra = const {},
     this.updatedAt,
     this.updatedBy,
@@ -301,6 +317,16 @@ class Project {
   final double? deductions;
   final double? guaranteeInitial; // 5% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
   final double? guaranteeFinal; // 2% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
+
+  // المالية الموسعة (تحسبها قاعدة البيانات من البنود والمستخلصات وأوامر التغيير)
+  final String valueSource; // manual | items
+  final String executedSource; // manual | items | extracts
+  final double variationsNet; // صافي أوامر التغيير (زيادة − نقص)
+  final int extractsCount; // المستخلصات المعتمدة والمدفوعة
+  final double extractsGross; // إجمالي قيمة أعمالها
+  final double extractsNet; // صافيها بعد الاستقطاعات
+  final double extractsPaid; // المدفوع منها
+  final double retentionHeld; // التأمين المحتجز منها
   final Map<String, dynamic> extra; // قيم الحقول الإضافية
   final DateTime? updatedAt;
   final String? updatedBy;
@@ -313,6 +339,40 @@ class Project {
   String engineer(String field) => engineers[field] ?? '';
 
   double get paymentsTotal => (paymentFirst ?? 0) + (paymentSecond ?? 0) + (paymentFinal ?? 0);
+
+  /// القيمة التعاقدية تُحسب من قيم البنود.
+  bool get valueFromItems => valueSource == 'items';
+
+  /// قيمة الأعمال المنفذة تُحسب من البنود أو المستخلصات.
+  bool get executedComputed => executedSource != 'manual';
+
+  /// القيمة بعد أوامر التغيير.
+  double? get adjustedValue => contractValue == null && variationsNet == 0 ? null : (contractValue ?? 0) + variationsNet;
+
+  /// كل المدفوع: مدفوع المستخلصات والدفعات المسجلة يدوياً.
+  double get paidTotal => extractsPaid + paymentsTotal;
+
+  /// المتبقي من العقد (أعمال لم تُنفَّذ بعد) = القيمة بعد التغيير − المنفذ.
+  double? get remainingWork {
+    final a = adjustedValue;
+    return a == null ? null : a - (executedValue ?? 0);
+  }
+
+  /// المتبقي للدفع من قيمة العقد = القيمة بعد التغيير − المدفوع.
+  double? get remainingToPay {
+    final a = adjustedValue;
+    return a == null ? null : a - paidTotal;
+  }
+
+  /// مستحق غير مدفوع من المستخلصات المعتمدة.
+  double get outstanding => (extractsNet - extractsPaid).clamp(0, double.infinity).toDouble();
+
+  /// نسبة المدفوع إلى القيمة بعد التغيير.
+  double? get paidRatio {
+    final a = adjustedValue;
+    if (a == null || a <= 0) return null;
+    return paidTotal / a;
+  }
 
   /// نسبة الأعمال المنفذة إلى التعاقدية (null إن لم تُدخل القيمتان).
   double? get executionRatio {
@@ -346,6 +406,14 @@ class Project {
         deductions: _money(m['deductions']),
         guaranteeInitial: _money(m['guarantee_initial']),
         guaranteeFinal: _money(m['guarantee_final']),
+        valueSource: _str(m['value_source']).isEmpty ? 'manual' : _str(m['value_source']),
+        executedSource: _str(m['executed_source']).isEmpty ? 'manual' : _str(m['executed_source']),
+        variationsNet: _money(m['variations_net']) ?? 0,
+        extractsCount: (m['extracts_count'] as num?)?.toInt() ?? 0,
+        extractsGross: _money(m['extracts_gross']) ?? 0,
+        extractsNet: _money(m['extracts_net']) ?? 0,
+        extractsPaid: _money(m['extracts_paid']) ?? 0,
+        retentionHeld: _money(m['retention_held']) ?? 0,
         extra: m['extra'] is Map ? Map<String, dynamic>.from(m['extra'] as Map) : const {},
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
@@ -364,6 +432,8 @@ class ContractWork {
     required this.notes,
     required this.sort,
     this.createdAt,
+    this.contractValue,
+    this.executedValue,
   });
 
   final String id;
@@ -375,6 +445,8 @@ class ContractWork {
   final String notes;
   final int sort;
   final DateTime? createdAt;
+  final double? contractValue; // القيمة التعاقدية للبند
+  final double? executedValue; // المنفذ من البند
 
   /// دُمج هذا العمل من عقد آخر (يعود إليه عند فك الدمج).
   bool get merged => originProject != null && originProject != projectId;
@@ -391,8 +463,202 @@ class ContractWork {
         notes: _str(m['notes']),
         sort: (m['sort'] as num?)?.toInt() ?? 0,
         createdAt: _date(m['created_at']),
+        contractValue: _money(m['contract_value']),
+        executedValue: _money(m['executed_value']),
       );
 }
+
+/// أمر تغيير: زيادة أو نقص على قيمة العقد.
+class ContractVariation {
+  const ContractVariation({
+    required this.id,
+    required this.projectId,
+    required this.originProject,
+    required this.workId,
+    required this.refNo,
+    required this.title,
+    required this.kind,
+    required this.amount,
+    required this.approvedOn,
+    required this.notes,
+    this.createdAt,
+  });
+
+  final String id;
+  final String projectId;
+  final String? originProject;
+  final String? workId;
+  final String refNo;
+  final String title;
+  final String kind; // add | deduct
+  final double amount;
+  final DateTime? approvedOn;
+  final String notes;
+  final DateTime? createdAt;
+
+  bool get isAdd => kind == 'add';
+  double get signed => isAdd ? amount : -amount;
+  bool get merged => originProject != null && originProject != projectId;
+
+  factory ContractVariation.fromMap(Map<String, dynamic> m) => ContractVariation(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        originProject: m['origin_project'] as String?,
+        workId: m['work_id'] as String?,
+        refNo: _str(m['ref_no']),
+        title: _str(m['title']),
+        kind: _str(m['kind']) == 'deduct' ? 'deduct' : 'add',
+        amount: _money(m['amount']) ?? 0,
+        approvedOn: _date(m['approved_on']),
+        notes: _str(m['notes']),
+        createdAt: _date(m['created_at']),
+      );
+}
+
+/// حالات المستخلص بالترتيب.
+const List<String> extractStatuses = ['draft', 'submitted', 'approved', 'paid', 'rejected'];
+
+const Map<String, String> extractStatusLabels = {
+  'draft': 'مسودة',
+  'submitted': 'مقدَّم',
+  'approved': 'معتمد',
+  'paid': 'مدفوع',
+  'rejected': 'مرفوض',
+};
+
+/// مستخلص: قيمة الأعمال في الفترة، واستقطاعاتها، وصافيها، وما دُفع منه.
+class ContractExtract {
+  const ContractExtract({
+    required this.id,
+    required this.projectId,
+    required this.originProject,
+    required this.workId,
+    required this.seq,
+    required this.refNo,
+    required this.kind,
+    required this.periodFrom,
+    required this.periodTo,
+    required this.submittedOn,
+    required this.gross,
+    required this.retention,
+    required this.advanceRecovery,
+    required this.penalties,
+    required this.taxes,
+    required this.otherDeductions,
+    required this.net,
+    required this.status,
+    required this.approvedOn,
+    required this.paidAmount,
+    required this.paidOn,
+    required this.notes,
+    this.createdAt,
+    this.updatedAt,
+    this.updatedBy,
+  });
+
+  final String id;
+  final String projectId;
+  final String? originProject;
+  final String? workId;
+  final int seq;
+  final String refNo;
+  final String kind; // interim | final
+  final DateTime? periodFrom;
+  final DateTime? periodTo;
+  final DateTime? submittedOn;
+  final double gross;
+  final double retention;
+  final double advanceRecovery;
+  final double penalties;
+  final double taxes;
+  final double otherDeductions;
+  final double net;
+  final String status;
+  final DateTime? approvedOn;
+  final double paidAmount;
+  final DateTime? paidOn;
+  final String notes;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final String? updatedBy;
+
+  bool get counted => status == 'approved' || status == 'paid';
+  bool get isPaid => status == 'paid';
+  bool get isFinal => kind == 'final';
+  bool get merged => originProject != null && originProject != projectId;
+  double get deductionsTotal => retention + advanceRecovery + penalties + taxes + otherDeductions;
+  double get otherThanRetention => advanceRecovery + penalties + taxes + otherDeductions;
+  double get unpaid => counted ? (net - paidAmount).clamp(0, double.infinity).toDouble() : 0;
+  String get statusLabel => extractStatusLabels[status] ?? status;
+  String get title => 'مستخلص ${isFinal ? 'ختامي' : 'رقم $seq'}${refNo.isNotEmpty ? ' ($refNo)' : ''}';
+
+  /// تاريخ المستخلص للرسوم الزمنية: الدفع ثم الاعتماد ثم التقديم ثم نهاية الفترة.
+  DateTime? get when => paidOn ?? approvedOn ?? submittedOn ?? periodTo ?? createdAt;
+
+  factory ContractExtract.fromMap(Map<String, dynamic> m) => ContractExtract(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        originProject: m['origin_project'] as String?,
+        workId: m['work_id'] as String?,
+        seq: (m['seq'] as num?)?.toInt() ?? 0,
+        refNo: _str(m['ref_no']),
+        kind: _str(m['kind']) == 'final' ? 'final' : 'interim',
+        periodFrom: _date(m['period_from']),
+        periodTo: _date(m['period_to']),
+        submittedOn: _date(m['submitted_on']),
+        gross: _money(m['gross_amount']) ?? 0,
+        retention: _money(m['retention']) ?? 0,
+        advanceRecovery: _money(m['advance_recovery']) ?? 0,
+        penalties: _money(m['penalties']) ?? 0,
+        taxes: _money(m['taxes']) ?? 0,
+        otherDeductions: _money(m['other_deductions']) ?? 0,
+        net: _money(m['net_amount']) ?? 0,
+        status: extractStatuses.contains(_str(m['status'])) ? _str(m['status']) : 'submitted',
+        approvedOn: _date(m['approved_on']),
+        paidAmount: _money(m['paid_amount']) ?? 0,
+        paidOn: _date(m['paid_on']),
+        notes: _str(m['notes']),
+        createdAt: _date(m['created_at']),
+        updatedAt: _date(m['updated_at']),
+        updatedBy: m['updated_by'] as String?,
+      );
+}
+
+/// جهاز دخل منه حساب (سجل الأجهزة).
+class UserDevice {
+  const UserDevice(this.raw);
+  final Map<String, dynamic> raw;
+
+  String get id => _str(raw['id']);
+  String get userId => _str(raw['user_id']);
+  String get name => _str(raw['name']);
+  String get email => _str(raw['email']);
+  String get platform => _str(raw['platform']);
+  String get label => _str(raw['label']);
+  String get userAgent => _str(raw['user_agent']);
+  String get ip => _str(raw['ip']);
+  String get firstIp => _str(raw['first_ip']);
+  String get appVersion => _str(raw['app_version']);
+  bool get trusted => raw['trusted'] == true;
+  DateTime? get firstSeen => _date(raw['first_seen']);
+  DateTime? get lastSeen => _date(raw['last_seen']);
+  DateTime? get lastLogin => _date(raw['last_login']);
+  int get signIns => (raw['sign_ins'] as num?)?.toInt() ?? 0;
+  int get opens => (raw['opens'] as num?)?.toInt() ?? 0;
+  DateTime? get blockedAt => _date(raw['blocked_at']);
+  bool get blocked => blockedAt != null;
+  String get blockedByName => _str(raw['blocked_by_name']);
+  String get display => label.isNotEmpty ? label : (platformLabels[platform] ?? (platform.isEmpty ? 'جهاز' : platform));
+}
+
+const Map<String, String> platformLabels = {
+  'android': 'Android',
+  'ios': 'iPhone/iPad',
+  'windows': 'Windows',
+  'web': 'متصفح الويب',
+  'macos': 'macOS',
+  'linux': 'Linux',
+};
 
 /// مهندس مكلّف في العقد برقم تكليفه. أكثر من مهندس من كل نوع.
 class ContractEngineer {
@@ -611,6 +877,22 @@ const Map<String, String> auditActionLabels = {
   'engineer.delete': 'ألغى تكليف مهندس',
   'engineer.set': 'حدّث أسماء المهندسين',
   'ai.ask': 'سأل مساعد Claude',
+  'ai.action': 'نفّذ اقتراحاً من مساعد Claude',
+  'finance.work_values': 'عدّل قيم بند',
+  'finance.variation_add': 'سجّل أمر تغيير',
+  'finance.variation_update': 'عدّل أمر تغيير',
+  'finance.variation_delete': 'حذف أمر تغيير',
+  'finance.extract_add': 'سجّل مستخلصاً',
+  'finance.extract_update': 'عدّل مستخلصاً',
+  'finance.extract_delete': 'حذف مستخلصاً',
+  'security.user_lock': 'قفل دخول حساب',
+  'security.user_unlock': 'فكّ قفل حساب',
+  'security.device_new': 'دخل من جهاز جديد',
+  'security.device_trust': 'وثّق جهازاً',
+  'security.device_untrust': 'ألغى توثيق جهاز',
+  'security.device_block': 'حظر جهازاً',
+  'security.device_unblock': 'رفع حظر جهاز',
+  'security.device_blocked_attempt': 'حاول الدخول من جهاز محظور',
 };
 
 const Map<String, String> projectFieldLabels = {

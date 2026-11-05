@@ -83,7 +83,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
           children: [
             Container(
               width: 270,
-              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF121211) : const Color(0xFFFAF9F6),
+              color: toneOf(context).surface2,
               child: ListView(
                 padding: const EdgeInsets.all(12),
                 children: [

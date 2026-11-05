@@ -8,6 +8,7 @@ import '../ui/audit_text.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'contract_finance.dart';
 import 'projects.dart';
 
 /// صفحة العقد: رقمه وأعماله المدمجة ومهندسوه بأرقام تكليفهم وقيمه المالية ونماذج دورته المستندية.
@@ -475,6 +476,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       if (app.v3Ready) _worksCard(context, app, p),
       if (app.v3Ready) _engineersCard(context, app, p),
       _financeCard(context, app, p),
+      if (app.v4Ready)
+        ExtractsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
+      if (app.v4Ready)
+        VariationsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
       _cycleCard(context, app, p, pr),
       if (app.activeFields.isNotEmpty) _extraCard(context, app, p),
       _notesCard(context, app, p),
@@ -766,6 +771,27 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     if (engs.isNotEmpty) _meta(context, Icons.engineering_outlined, engs.map((e) => e.name).join('، ')),
                   ],
                 ),
+                if (app.v4Ready && (w.contractValue != null || w.executedValue != null)) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        'القيمة ${fmtMoney(w.contractValue)} · المنفذ ${fmtMoney(w.executedValue)}',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()]),
+                      ),
+                    ),
+                    if ((w.contractValue ?? 0) > 0 && w.executedValue != null)
+                      Text(pctText((w.executedValue! / w.contractValue!), digits: 1), style: TextStyle(fontSize: 12, color: sem.muted)),
+                  ]),
+                  if ((w.contractValue ?? 0) > 0 && w.executedValue != null) ...[
+                    const SizedBox(height: 4),
+                    AnimatedMeter(
+                      value: (w.executedValue! / w.contractValue!).clamp(0, 1).toDouble(),
+                      color: w.executedValue! > w.contractValue! ? sem.danger : sem.ok,
+                      height: 6,
+                    ),
+                  ],
+                ],
                 if (w.notes.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -779,19 +805,28 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               ],
             ),
           ),
-          if (canEdit)
+          if (canEdit || app.canEditFinanceItems(p))
             PopupMenuButton<String>(
               tooltip: 'خيارات العمل',
-              onSelected: (v) {
+              onSelected: (v) async {
                 if (v == 'edit') {
                   _editWork(app, p, w);
+                } else if (v == 'values') {
+                  final ok = await showWorkValuesDialog(context, app, p, w);
+                  if (ok && mounted) {
+                    showToast(context, 'حُفظت قيم البند');
+                    _loadSide();
+                  }
                 } else {
                   _deleteWork(app, w);
                 }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('تعديل'))),
-                if (!w.merged)
+                if (app.canEditFinanceItems(p))
+                  const PopupMenuItem(value: 'values', child: ListTile(leading: Icon(Icons.price_change_outlined), title: Text('قيم البند'))),
+                if (canEdit)
+                  const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('تعديل'))),
+                if (canEdit && !w.merged)
                   const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('حذف'))),
               ],
             ),
@@ -949,8 +984,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       return r.ok ? r.value : stored;
     }
 
-    final contract = val('contract_value', p.contractValue);
-    final executed = val('executed_value', p.executedValue);
+    final v4 = app.v4Ready;
+    final lockValue = v4 && p.valueFromItems;
+    final lockExec = v4 && p.executedComputed;
+    final contract = lockValue ? p.contractValue : val('contract_value', p.contractValue);
+    final executed = lockExec ? p.executedValue : val('executed_value', p.executedValue);
     final base = v3 ? executed : contract;
     final gInitial = base == null ? null : roundMoney(base * guaranteeInitialRate);
     final gFinal = base == null ? null : roundMoney(base * guaranteeFinalRate);
@@ -961,17 +999,27 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
 
     Widget field(String f) {
       final r = parseMoney(_fin[f]!.text);
+      final locked = (f == 'contract_value' && lockValue) || (f == 'executed_value' && lockExec);
+      final helper = !locked
+          ? null
+          : f == 'contract_value'
+              ? 'تُحسب من مجموع قيم البنود'
+              : (p.executedSource == 'extracts' ? 'تُحسب من المستخلصات المعتمدة' : 'تُحسب من المنفذ في البنود');
       return TextField(
         controller: _fin[f],
-        readOnly: !canEdit,
+        readOnly: !canEdit || locked,
         style: tabular,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         onChanged: (_) => setState(() => _finDirty = true),
         onSubmitted: (_) {
           if (canEdit && _finDirty) _saveFinance(p);
         },
-        decoration: fieldDeco(projectFieldLabels[f]!, hint: canEdit ? '0' : '—', error: r.ok ? null : 'اكتب مبلغاً صحيحاً')
-            .copyWith(suffixText: currencyLabel),
+        decoration: fieldDeco(projectFieldLabels[f]!, hint: canEdit ? '0' : '—', helper: helper, error: r.ok ? null : 'اكتب مبلغاً صحيحاً')
+            .copyWith(
+              suffixText: currencyLabel,
+              prefixIcon: locked ? const Icon(Icons.functions_rounded, size: 18) : null,
+              fillColor: locked ? sem.surface2 : null,
+            ),
       );
     }
 
@@ -1008,6 +1056,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (v4) ...[
+              ContractFinanceOverview(project: p),
+              Divider(height: 28, color: sem.rule),
+              Text('القيم اليدوية والدفعات', style: TextStyle(color: sem.muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+            ],
             group([field('contract_value'), if (v3) field('executed_value')]),
             if (v3) ...[
               const SizedBox(height: 12),
@@ -1040,7 +1094,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               computed('الضمان النهائي ${rateText(guaranteeFinalRate)}', gFinal),
             ]),
             const SizedBox(height: 10),
-            group([field('deductions'), computed('إجمالي الدفعات', paid)]),
+            group([field('deductions'), computed(v4 ? 'الدفعات المسجلة يدوياً' : 'إجمالي الدفعات', paid)]),
             const SizedBox(height: 8),
             Text(
               'يُحسب الضمان الابتدائي (${rateText(guaranteeInitialRate)}) والنهائي (${rateText(guaranteeFinalRate)}) تلقائياً من '
