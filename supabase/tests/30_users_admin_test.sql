@@ -83,7 +83,8 @@ select pg_temp.check((select d -> 'profile' ->> 'email' = 'staff.new@test.ly' an
                      'يفتح البيانات الكاملة لمستخدم');
 select pg_temp.expect_error($$select public.set_setting('security.freeze', 'true')$$, 'مدقق الأمن يغيّر الإعدادات');
 select pg_temp.expect_error($$select public.set_user_access((select id from profiles where email = 'gone@test.ly'), 'contracts', null, true)$$, 'مدقق الأمن يغيّر الصلاحيات');
-select pg_temp.expect_error($$select public.revoke_user_sessions((select id from profiles where email = 'gone@test.ly'))$$, 'مدقق الأمن يُخرج مستخدماً');
+select pg_temp.check(public.revoke_user_sessions((select id from profiles where email = 'gone@test.ly')) >= 0,
+                     'CISO يُخرج مستخدماً من أجهزته (إجراء أمني متاح له منذ ترحيل 11)');
 select pg_temp.expect_error($$select public.reset_user_mfa((select id from profiles where email = 'gone@test.ly'))$$, 'مدقق الأمن يلغي التحقق');
 select pg_temp.expect_error($$select public.delete_user((select id from profiles where email = 'gone@test.ly'), 'gone@test.ly')$$, 'مدقق الأمن يحذف مستخدماً');
 select pg_temp.expect_error($$select public.set_form_status((select id from projects where assign_no = '005'), 'f03', 'done')$$, 'مدقق الأمن يحدّث نموذجاً');

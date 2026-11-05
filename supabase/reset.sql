@@ -6,6 +6,7 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
+drop table if exists public.user_devices, public.contract_extracts, public.contract_variations cascade;
 drop table if exists public.contract_engineers, public.contract_works cascade;
 drop table if exists public.app_releases, public.app_settings, public.ideas, public.custom_fields cascade;
 drop table if exists
@@ -36,7 +37,11 @@ begin
         'reset_user_mfa', 'login_history', 'is_auditor', 'can_audit', 'user_details', 'delete_user',
         'sync_engineer_names', 'contract_engineers_after', 'projects_first_work', 'set_contract_no', 'save_work',
         'delete_work', 'engineer_form', 'can_assign_engineer', 'save_engineer', 'delete_engineer', 'merge_contracts',
-        'unmerge_contract', 'merged_sources', 'ai_context', 'ai_log')
+        'unmerge_contract', 'merged_sources', 'ai_context', 'ai_log',
+        'recalc_contract_finance', 'finance_children_after', 'materialize_finance', 'can_edit_finance', 'set_work_values',
+        'save_variation', 'delete_variation', 'save_extract', 'delete_extract', 'finance_history', 'security_target_ok',
+        'lock_user', 'unlock_user', 'my_lock', 'request_header', 'register_device', 'my_devices', 'forget_my_device',
+        'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;
