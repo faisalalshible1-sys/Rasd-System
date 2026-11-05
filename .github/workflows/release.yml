@@ -164,7 +164,13 @@ jobs:
           fi
           set +e
           npx --yes netlify-cli deploy --prod --dir=build/web --site="$NETLIFY_SITE_ID" --message="v$VERSION" --json > deploy.json 2> deploy.err; code=$?
-          if [ $code -ne 0 ]; then cat deploy.err; bash tool/ci_annotate.sh deploy.err "netlify"; exit $code; fi
+          if [ $code -ne 0 ]; then
+            # تعذّر النشر على Netlify (رمز منتهٍ أو مرفوض مثلاً): لا يوقف إصدار أندرويد وويندوز، ويبقى الويب على نسخته السابقة
+            cat deploy.err
+            reason=$(grep -m1 -E "Error|Forbidden|Unauthorized" deploy.err | sed 's/^[^A-Za-z]*//' | cut -c1-160)
+            echo "::warning title=الويب لم يُنشر::تعذّر النشر على Netlify ($reason). جدّد رمز NETLIFY_AUTH_TOKEN في أسرار GitHub ثم أعد نشر الويب؛ نسخة الويب متاحة في ملفات التشغيل (release-web)."
+            exit 0
+          fi
           url=$(python3 -c "import json; d=json.load(open('deploy.json')); print(d.get('url') or d.get('deploy_url') or '')")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "::notice title=الويب::$url"
