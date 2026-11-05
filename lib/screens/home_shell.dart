@@ -16,6 +16,7 @@ import 'analysis.dart';
 import 'assistant.dart';
 import 'control/control_panel.dart';
 import 'dashboard.dart';
+import 'finance.dart';
 import 'ideas.dart';
 import 'project_detail.dart';
 import 'projects.dart';
@@ -30,6 +31,7 @@ class Tabs {
   static const ideas = 4;
   static const control = 5;
   static const assistant = 6;
+  static const finance = 7;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -41,12 +43,14 @@ const Map<int, String> tabKeys = {
   Tabs.ideas: 'ideas',
   Tabs.control: 'control',
   Tabs.assistant: 'assistant',
+  Tabs.finance: 'finance',
 };
 
 /// صفحات القائمة التي يرتّبها المدير ويسمّيها ويخفيها عن الموظفين (لوحة التحكم والمساعد ثابتان للإدارة).
 const List<(String, String, IconData)> navCatalog = [
   ('home', 'الرئيسية', Icons.space_dashboard_outlined),
   ('projects', 'العقود', Icons.folder_open_outlined),
+  ('finance', 'المالية', Icons.account_balance_outlined),
   ('requests', 'الاعتمادات / طلباتي', Icons.fact_check_outlined),
   ('analysis', 'التحليل', Icons.insights_outlined),
   ('ideas', 'الأفكار والتطوير', Icons.lightbulb_outline_rounded),
@@ -71,6 +75,7 @@ List<_Dest> _destinations(AppState app) {
   final all = <_Dest>[
     const _Dest(Tabs.home, 'الرئيسية', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
     _Dest(Tabs.projects, term('contracts'), Icons.folder_open_outlined, Icons.folder_rounded),
+    const _Dest(Tabs.finance, 'المالية', Icons.account_balance_outlined, Icons.account_balance_rounded),
     if (!app.isAuditor)
       _Dest(Tabs.requests, app.isDirector ? 'الاعتمادات' : 'طلباتي', Icons.fact_check_outlined, Icons.fact_check_rounded,
           badge: requestsBadge),
@@ -111,6 +116,7 @@ Widget _page(int id) => switch (id) {
       Tabs.ideas => const IdeasPage(),
       Tabs.control => const ControlPanelPage(),
       Tabs.assistant => const AssistantPage(),
+      Tabs.finance => const FinancePage(),
       _ => const DashboardPage(),
     };
 

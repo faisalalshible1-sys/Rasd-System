@@ -112,10 +112,54 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'ai.ask':
       final tokens = ((d['input_tokens'] as num?)?.toInt() ?? 0) + ((d['output_tokens'] as num?)?.toInt() ?? 0);
       return 'سأل مساعد Claude (${text(d['model'])}${tokens > 0 ? ' · $tokens رمزاً' : ''})';
+    case 'finance.work_values':
+      String fromTo(Object? v) {
+        if (v is! Map) return '';
+        String m(Object? x) => x is num ? fmtMoney(x.toDouble()) : '—';
+        return '${m(v['from'])} ← ${m(v['to'])}';
+      }
+      return 'عدّل قيم البند «${text(d['title'])}»: القيمة ${fromTo(d['contract_value'])}، المنفذ ${fromTo(d['executed_value'])}';
+    case 'finance.variation_add':
+      return 'سجّل أمر تغيير (${text(d['kind']) == 'deduct' ? 'نقص' : 'زيادة'}) «${text(d['title'])}» بقيمة ${_m(d['amount'])}';
+    case 'finance.variation_update':
+      final amt = d['amount'] is Map ? '${_m((d['amount'] as Map)['from'])} ← ${_m((d['amount'] as Map)['to'])}' : '';
+      return 'عدّل أمر التغيير «${text(d['title'])}»${amt.isNotEmpty ? ': $amt' : ''}';
+    case 'finance.variation_delete':
+      return 'حذف أمر التغيير «${text(d['title'])}» (${_m(d['amount'])})';
+    case 'finance.extract_add':
+      return 'سجّل المستخلص رقم ${text(d['seq'])} (${extractStatusLabels[text(d['status'])] ?? text(d['status'])}) بقيمة ${_m(d['gross'])}، صافيه ${_m(d['net'])}';
+    case 'finance.extract_update':
+      final stFrom = d['status'] is Map ? extractStatusLabels[text((d['status'] as Map)['from'])] : null;
+      final stTo = d['status'] is Map ? extractStatusLabels[text((d['status'] as Map)['to'])] : null;
+      final paid = d['paid'] is Map ? _m((d['paid'] as Map)['to']) : '';
+      return 'عدّل المستخلص رقم ${text(d['seq'])}${stFrom != null && stFrom != stTo ? ': $stFrom ← $stTo' : ''}${paid.isNotEmpty ? ' · المدفوع $paid' : ''}';
+    case 'finance.extract_delete':
+      return 'حذف المستخلص رقم ${text(d['seq'])} (${_m(d['gross'])})';
+    case 'security.user_lock':
+      final until = text(d['until']);
+      return 'قفل دخول ${e.projectLabel}${until.startsWith('infinity') ? ' حتى يُفك' : ''} — ${text(d['reason'])}';
+    case 'security.user_unlock':
+      return 'فكّ قفل دخول ${e.projectLabel}';
+    case 'security.device_new':
+      return 'دخل ${e.projectLabel} من جهاز جديد (${platformLabels[text(d['platform'])] ?? text(d['platform'])}${text(d['ip']).isNotEmpty ? ' · ${text(d['ip'])}' : ''})';
+    case 'security.device_trust':
+      return 'وثّق ${e.projectLabel} جهازه (${text(d['label'])})';
+    case 'security.device_untrust':
+      return 'أُلغي توثيق جهاز ${e.projectLabel} (${text(d['label'])})';
+    case 'security.device_block':
+      return 'حظر جهاز ${e.projectLabel} (${text(d['label'])})';
+    case 'security.device_unblock':
+      return 'رفع حظر جهاز ${e.projectLabel} (${text(d['label'])})';
+    case 'security.device_blocked_attempt':
+      return 'محاولة دخول من جهاز محظور لـ ${e.projectLabel}${text(d['ip']).isNotEmpty ? ' (${text(d['ip'])})' : ''}';
+    case 'ai.action':
+      return 'نفّذ اقتراح مساعد Claude: ${text(d['summary'])}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
 }
+
+String _m(Object? v) => v is num ? '${fmtMoney(v.toDouble())} $currencyLabel' : '—';
 
 /// أسماء الإعدادات كما تُعرض في السجل.
 const Map<String, String> settingLabels = {
@@ -130,6 +174,7 @@ const Map<String, String> settingLabels = {
   'ui.nav': 'القائمة الرئيسية',
   'ui.dashboard': 'أقسام الرئيسية',
   'ui.labels': 'المصطلحات',
+  'ui.appearance': 'المظهر والرسوم البيانية',
   'ai.enabled': 'تشغيل مساعد Claude',
   'ai.model': 'نموذج مساعد Claude',
   'ai.instructions': 'تعليمات مساعد Claude',

@@ -7,6 +7,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import '../dashboard.dart';
 import '../home_shell.dart';
+import 'appearance.dart';
 import 'control_panel.dart';
 
 /// التخصيص والتطوير (للمدير وحده): الحركة، والقائمة، وأقسام الرئيسية، والمصطلحات، ومساعد Claude.
@@ -171,7 +172,7 @@ class _CustomizeSectionState extends State<CustomizeSection> {
         PageHeader(
           icon: Icons.auto_fix_high_outlined,
           title: 'التخصيص والتطوير',
-          subtitle: 'شكّل المنظومة من داخلها: الحركة، والقائمة، وأقسام الرئيسية، والمصطلحات، ومساعد Claude. '
+          subtitle: 'شكّل المنظومة من داخلها: المظهر والرسوم، والحركة، والقائمة، وأقسام الرئيسية، والمصطلحات، ومساعد Claude. '
               'تسري التغييرات فوراً على كل الأجهزة، وتُسجَّل في سجل التدقيق.',
           actions: [if (_busy) const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))],
         ),
@@ -183,6 +184,7 @@ class _CustomizeSectionState extends State<CustomizeSection> {
           const SizedBox(height: 16),
         ],
         ...staggered(stepMs: 70, [
+          const AppearanceEditor(),
           _motionCard(context, s),
           _navCard(context, app),
           _dashCard(context),

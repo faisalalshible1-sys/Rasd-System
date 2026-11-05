@@ -12,6 +12,7 @@ import 'fields.dart';
 import 'overview.dart';
 import 'permissions.dart';
 import 'security.dart';
+import 'security_ops.dart';
 import 'settings.dart';
 import 'structure.dart';
 import 'users.dart';
@@ -44,6 +45,8 @@ final List<_Section> _sections = [
   _Section(Icons.auto_fix_high_outlined, 'التخصيص والتطوير', 'الحركة والقائمة والرئيسية والمصطلحات ومساعد Claude',
       () => const CustomizeSection(), needsV2: true),
   _Section(Icons.shield_outlined, 'مركز الأمان', 'التحقق بخطوتين والجلسات وسجل الدخول والتجميد', () => const SecuritySection(),
+      needsV2: true, auditor: true),
+  _Section(Icons.radar_outlined, 'المراقبة والإجراءات', 'الأجهزة والحركة الدقيقة والتنبيهات وقفل الدخول', () => const SecurityOpsSection(),
       needsV2: true, auditor: true),
   _Section(Icons.history_rounded, 'سجل التدقيق', 'كل تعديل: من ومتى وماذا', () => const AuditSection(), auditor: true),
   _Section(Icons.cloud_sync_outlined, 'النسخ والمزامنة', 'تصدير الإعدادات واستعادتها والمزامنة مع GitHub', () => const BackupSection(),
@@ -90,7 +93,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
                   if (!app.isDirector)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                      child: InfoBanner(icon: Icons.visibility_outlined, text: 'صلاحيتك اطلاع كامل للقراءة فقط؛ لا يتغير شيء من هنا.'),
+                      child: InfoBanner(icon: Icons.visibility_outlined, text: 'صلاحيتك: اطلاع كامل، وإجراءات أمنية (الجلسات، الإخراج، قفل الدخول، حظر الأجهزة) دون تغيير الأدوار أو الحذف.'),
                     ),
                   for (var i = 0; i < sections.length; i++)
                     Padding(

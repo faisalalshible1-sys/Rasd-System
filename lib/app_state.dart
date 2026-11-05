@@ -547,7 +547,7 @@ class AppState extends ChangeNotifier {
       ]);
       settings = LiveSettings({for (final row in r[0]) row['key'].toString(): row['value']});
       settings.applyGlobals();
-      appearance = Appearance.fromJson(settings.raw['ui.appearance']);
+      appearance = _appearancePreview ?? Appearance.fromJson(settings.raw['ui.appearance']);
       stages = r[1].map(StageDef.fromMap).toList();
       if (stages.isNotEmpty) stageNames = [for (final st in stages) st.name];
       customFields = r[2].map(CustomField.fromMap).toList();
@@ -700,6 +700,7 @@ class AppState extends ChangeNotifier {
     if (old4 != null) client.removeChannel(old4);
     _channel4 = null;
     _heartbeat?.cancel();
+    _appearancePreview = null;
     variations = [];
     extracts = [];
     _varBy = {};
@@ -1420,12 +1421,16 @@ class AppState extends ChangeNotifier {
   }
 
   /// معاينة المظهر قبل حفظه (تُعاد عند الإلغاء).
+  Appearance? _appearancePreview;
+
   void previewAppearance(Appearance a) {
+    _appearancePreview = a;
     appearance = a;
     _notify();
   }
 
   void restoreAppearance() {
+    _appearancePreview = null;
     appearance = Appearance.fromJson(settings.raw['ui.appearance']);
     _notify();
   }

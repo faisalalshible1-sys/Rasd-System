@@ -60,6 +60,15 @@ class _SecuritySectionState extends State<SecuritySection> {
     if (mounted) setState(() => _busy = false);
   }
 
+  /// إجراءات الجلسات: المدير على الجميع عدا نفسه، وCISO على الحسابات عدا المدير وCISO آخر (كما تفرضه قاعدة البيانات).
+  bool _canActOn(AppState app, String? userId) {
+    if (userId == null || userId == app.me?.id) return false;
+    if (app.isDirector) return true;
+    if (!app.isAuditor || !app.v4Ready) return false;
+    final r = app.people[userId]?.role;
+    return r != AppRole.director && r != AppRole.securityAuditor;
+  }
+
   List<(bool, String, String, int)> _checks(AppState app) {
     final o = _overview ?? const {};
     final active = (o['users_active'] as num?)?.toInt() ?? 0;
@@ -103,7 +112,7 @@ class _SecuritySectionState extends State<SecuritySection> {
           icon: Icons.shield_outlined,
           title: 'مركز الأمان',
           subtitle: readOnly
-              ? 'اطلاع كامل على حالة الأمان والجلسات وسجل الدخول. الإجراءات من صلاحية مدير المكتب وحده.'
+              ? 'اطلاع كامل على حالة الأمان والجلسات وسجل الدخول، وإنهاء الجلسات والإخراج من الأجهزة. السياسات من صلاحية مدير المكتب.'
               : 'حماية الحسابات والجلسات وسياسات الوصول. كل إجراء هنا يُسجَّل في سجل التدقيق.',
           actions: [
             if (_busy) const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -265,7 +274,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                           'آخر نشاط ${fmtDate(DateTime.tryParse((s['updated_at'] ?? s['created_at'] ?? '').toString()))}',
                           if (s['aal'] == 'aal2') 'بعد رمز التحقق',
                         ].join(' · '),
-                        trailing: s['current'] == true || readOnly
+                        trailing: s['current'] == true || !_canActOn(app, s['user_id']?.toString())
                             ? null
                             : IconButton(
                                 tooltip: 'إنهاء الجلسة',
@@ -295,7 +304,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                     'آخر دخول ${u['last_sign_in_at'] == null ? '—' : fmtDate(DateTime.tryParse(u['last_sign_in_at'].toString()))}',
                   ].join(' · '),
                   onTap: () => openUserDetails(context, u['id'].toString()),
-                  trailing: u['id'] == app.me?.id || readOnly
+                  trailing: u['id'] == app.me?.id || !_canActOn(app, u['id']?.toString())
                       ? null
                       : PopupMenuButton<String>(
                           tooltip: 'إجراءات',
@@ -316,7 +325,7 @@ class _SecuritySectionState extends State<SecuritySection> {
                           },
                           itemBuilder: (_) => [
                             const PopupMenuItem(value: 'signout', child: Text('إخراج من كل الأجهزة')),
-                            if (u['mfa'] == true) const PopupMenuItem(value: 'mfa', child: Text('إلغاء التحقق بخطوتين')),
+                            if (u['mfa'] == true && app.isDirector) const PopupMenuItem(value: 'mfa', child: Text('إلغاء التحقق بخطوتين')),
                           ],
                         ),
                 ),

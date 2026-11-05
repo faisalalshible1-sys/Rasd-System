@@ -339,6 +339,11 @@ class _DashboardPageState extends State<DashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _spaced(staggered([
+        InfoBanner(
+          icon: Icons.account_balance_outlined,
+          text: 'اللوحة المالية الموسعة: المستخلصات وأوامر التغيير والمدفوع والمتبقي والتأمينات، برسوم وتقارير.',
+          action: TextButton(onPressed: () => app.setTab(7), child: const Text('فتح')),
+        ),
         ResponsiveGrid(minItemWidth: 210, children: [
           _Metric(icon: Icons.request_quote_rounded, label: 'قيمة الأعمال التعاقدية', value: st.contract, kind: 'money', sub: currencyLabel),
           _Metric(icon: Icons.construction_rounded, label: 'قيمة الأعمال المنفذة', value: st.executed, kind: 'money', color: sem.ok, sub: currencyLabel),

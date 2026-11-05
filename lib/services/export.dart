@@ -209,3 +209,126 @@ Future<String?> exportAuditXlsx(AppState app, List<AuditEntry> rows, String Func
   }
   return _save(excel, 'سجل التدقيق');
 }
+
+/// تصدير التقرير المالي: ملخص، والعقود، والمستخلصات، وأوامر التغيير، والتأمينات والضمانات.
+Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
+  final excel = Excel.createExcel();
+  CellValue? m(double? v) => v == null ? TextCellValue('') : DoubleCellValue(v);
+  List<CellValue?> head(List<String> h) => h.map<CellValue?>((x) => TextCellValue(x)).toList();
+  final ids = {for (final p in projects) p.id};
+  final ex = app.extracts.where((x) => ids.contains(x.projectId)).toList();
+  final vars = app.variations.where((v) => ids.contains(v.projectId)).toList();
+  double sum(Iterable<double> xs) => xs.fold(0, (a, b) => a + b);
+
+  // الملخص
+  final summary = _sheet(excel, 'الملخص المالي');
+  final counted = ex.where((x) => x.counted);
+  final rows = <(String, double)>[
+    ('إجمالي القيم التعاقدية', sum(projects.map((p) => p.contractValue ?? 0))),
+    ('صافي أوامر التغيير', sum(projects.map((p) => p.variationsNet))),
+    ('الإجمالي بعد أوامر التغيير', sum(projects.map((p) => p.adjustedValue ?? 0))),
+    ('قيمة الأعمال المنفذة', sum(projects.map((p) => p.executedValue ?? 0))),
+    ('إجمالي المستخلصات المعتمدة', sum(counted.map((x) => x.gross))),
+    ('إجمالي الاستقطاعات', sum(counted.map((x) => x.deductionsTotal))),
+    ('صافي المستخلصات', sum(counted.map((x) => x.net))),
+    ('المدفوع', sum(projects.map((p) => p.paidTotal))),
+    ('مستحق غير مدفوع', sum(projects.map((p) => p.outstanding))),
+    ('المتبقي من الأعمال', sum(projects.map((p) => p.remainingWork ?? 0))),
+    ('المتبقي للدفع', sum(projects.map((p) => p.remainingToPay ?? 0))),
+    ('التأمين المحتجز', sum(projects.map((p) => p.retentionHeld))),
+    ('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', sum(projects.map((p) => p.guaranteeInitial ?? 0))),
+    ('الضمان النهائي ${rateText(guaranteeFinalRate)}', sum(projects.map((p) => p.guaranteeFinal ?? 0))),
+  ];
+  summary.appendRow(head(['البند', 'القيمة ($currencyLabel)']));
+  for (final r in rows) {
+    summary.appendRow(<CellValue?>[TextCellValue(r.$1), DoubleCellValue(r.$2)]);
+  }
+  summary.appendRow(<CellValue?>[TextCellValue('عدد العقود'), IntCellValue(projects.length)]);
+  summary.appendRow(<CellValue?>[TextCellValue('عدد المستخلصات المعتمدة'), IntCellValue(counted.length)]);
+  summary.appendRow(<CellValue?>[TextCellValue('تاريخ التقرير'), TextCellValue(_stamp(DateTime.now()))]);
+
+  // العقود
+  final cs = excel['العقود'];
+  cs.appendRow(head(['ت', 'رقم العقد', 'رقم التكليف', 'اسم المشروع', 'الشركات', 'المالك', 'القيمة التعاقدية', 'مصدرها', 'صافي أوامر التغيير',
+    'القيمة بعد التغيير', 'المنفذ', 'مصدره', 'نسبة التنفيذ %', 'عدد المستخلصات', 'إجمالي المستخلصات', 'صافيها', 'المدفوع', 'نسبة الدفع %',
+    'مستحق غير مدفوع', 'المتبقي من الأعمال', 'المتبقي للدفع', 'التأمين المحتجز', 'الضمان الابتدائي', 'الضمان النهائي', 'الخصومات اليدوية']));
+  var i = 0;
+  for (final p in projects) {
+    i++;
+    final adj = p.adjustedValue;
+    cs.appendRow(<CellValue?>[
+      IntCellValue(i),
+      TextCellValue(p.contractNo),
+      TextCellValue(p.assignNo),
+      TextCellValue(p.name),
+      TextCellValue(app.companiesOf(p).join('، ')),
+      TextCellValue(p.owner),
+      m(p.contractValue),
+      TextCellValue(p.valueFromItems ? 'البنود' : 'يدوي'),
+      DoubleCellValue(p.variationsNet),
+      m(adj),
+      m(p.executedValue),
+      TextCellValue(switch (p.executedSource) { 'extracts' => 'المستخلصات', 'items' => 'البنود', _ => 'يدوي' }),
+      adj == null || adj <= 0 ? TextCellValue('') : DoubleCellValue(((p.executedValue ?? 0) / adj * 1000).round() / 10),
+      IntCellValue(p.extractsCount),
+      DoubleCellValue(p.extractsGross),
+      DoubleCellValue(p.extractsNet),
+      DoubleCellValue(p.paidTotal),
+      adj == null || adj <= 0 ? TextCellValue('') : DoubleCellValue((p.paidTotal / adj * 1000).round() / 10),
+      DoubleCellValue(p.outstanding),
+      m(p.remainingWork),
+      m(p.remainingToPay),
+      DoubleCellValue(p.retentionHeld),
+      m(p.guaranteeInitial),
+      m(p.guaranteeFinal),
+      m(p.deductions),
+    ]);
+  }
+
+  // المستخلصات
+  final xs = excel['المستخلصات'];
+  xs.appendRow(head(['العقد', 'رقم المستخلص', 'النوع', 'الرقم لدى الجهة', 'بداية الفترة', 'نهاية الفترة', 'تاريخ التقديم', 'الحالة', 'تاريخ الاعتماد',
+    'قيمة الأعمال', 'التأمين المحتجز', 'استرداد الدفعة المقدمة', 'الغرامات', 'الضرائب والرسوم', 'استقطاعات أخرى', 'الصافي', 'المدفوع', 'تاريخ الدفع',
+    'غير المدفوع', 'ملاحظات']));
+  for (final x in ex) {
+    xs.appendRow(<CellValue?>[
+      TextCellValue(app.project(x.projectId)?.contractTitle ?? ''),
+      IntCellValue(x.seq),
+      TextCellValue(x.isFinal ? 'ختامي' : 'جاري'),
+      TextCellValue(x.refNo),
+      TextCellValue(x.periodFrom == null ? '' : _day(x.periodFrom!)),
+      TextCellValue(x.periodTo == null ? '' : _day(x.periodTo!)),
+      TextCellValue(x.submittedOn == null ? '' : _day(x.submittedOn!)),
+      TextCellValue(x.statusLabel),
+      TextCellValue(x.approvedOn == null ? '' : _day(x.approvedOn!)),
+      DoubleCellValue(x.gross),
+      DoubleCellValue(x.retention),
+      DoubleCellValue(x.advanceRecovery),
+      DoubleCellValue(x.penalties),
+      DoubleCellValue(x.taxes),
+      DoubleCellValue(x.otherDeductions),
+      DoubleCellValue(x.net),
+      DoubleCellValue(x.paidAmount),
+      TextCellValue(x.paidOn == null ? '' : _day(x.paidOn!)),
+      DoubleCellValue(x.unpaid),
+      TextCellValue(x.notes),
+    ]);
+  }
+
+  // أوامر التغيير
+  final vs = excel['أوامر التغيير'];
+  vs.appendRow(head(['العقد', 'رقم الأمر', 'الوصف', 'النوع', 'القيمة', 'القيمة بالإشارة', 'تاريخ الاعتماد', 'ملاحظات']));
+  for (final v in vars) {
+    vs.appendRow(<CellValue?>[
+      TextCellValue(app.project(v.projectId)?.contractTitle ?? ''),
+      TextCellValue(v.refNo),
+      TextCellValue(v.title),
+      TextCellValue(v.isAdd ? 'زيادة' : 'نقص'),
+      DoubleCellValue(v.amount),
+      DoubleCellValue(v.signed),
+      TextCellValue(v.approvedOn == null ? '' : _day(v.approvedOn!)),
+      TextCellValue(v.notes),
+    ]);
+  }
+  return _save(excel, 'التقرير المالي للعقود');
+}

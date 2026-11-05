@@ -22,12 +22,21 @@ class AccountPage extends StatefulWidget {
 
 class _AccountPageState extends State<AccountPage> {
   List<Factor>? _factors;
+  List<UserDevice> _devices = const [];
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadFactors());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFactors();
+      _loadDevices();
+    });
+  }
+
+  Future<void> _loadDevices() async {
+    final d = await AppScope.read(context).myDevices();
+    if (mounted) setState(() => _devices = d);
   }
 
   Future<void> _loadFactors() async {
@@ -287,6 +296,31 @@ class _AccountPageState extends State<AccountPage> {
                   subtitle: 'إن نسيت جلسة مفتوحة على جهاز آخر',
                   onTap: () => _signOutOthers(app),
                 ),
+                for (final d in _devices)
+                  SettingRow(
+                    icon: d.blocked ? Icons.block_rounded : (d.trusted ? Icons.verified_rounded : Icons.devices_other_outlined),
+                    danger: d.blocked,
+                    title: '${d.display}${d.raw['device_key'] == app.deviceKey ? ' (هذا الجهاز)' : ''}',
+                    subtitle: [
+                      d.blocked ? 'محظور' : (d.trusted ? 'موثوق («تذكرني»)' : 'غير موثوق'),
+                      'آخر نشاط ${fmtDate(d.lastSeen)}',
+                      if (d.ip.isNotEmpty) 'IP ${d.ip}',
+                    ].join(' · '),
+                    trailing: d.trusted && !d.blocked
+                        ? TextButton(
+                            onPressed: () async {
+                              try {
+                                await app.forgetMyDevice(d.id);
+                                await _loadDevices();
+                                if (context.mounted) showToast(context, 'أُلغي توثيق الجهاز');
+                              } catch (e) {
+                                if (context.mounted) showToast(context, friendlyError(e), error: true);
+                              }
+                            },
+                            child: const Text('إلغاء التوثيق'),
+                          )
+                        : null,
+                  ),
                 if (app.idleMinutes > 0)
                   SettingRow(
                     icon: Icons.timer_outlined,

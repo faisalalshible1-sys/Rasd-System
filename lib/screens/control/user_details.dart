@@ -8,6 +8,7 @@ import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import 'control_panel.dart';
 import 'security.dart';
+import 'security_ops.dart' show showLockDialog;
 import 'users.dart';
 
 /// يفتح صفحة البيانات الكاملة لمستخدم (لمدير المكتب وCISO).
@@ -120,6 +121,11 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
     final mfaRequired = p['mfa_required'] == true;
     final isMe = widget.userId == app.me?.id;
     final canManage = app.isDirector && role != AppRole.director && !isMe;
+    // الإجراءات الأمنية (الإخراج والقفل وحظر الأجهزة) كما تحددها قاعدة البيانات: المدير وCISO، لا على المدير
+    final canAct = !isMe && (p['can_act'] == true || (canManage && !app.v4Ready));
+    final locked = p['locked'] == true;
+    final lockedUntil = DateTime.tryParse((p['locked_until'] ?? '').toString());
+    final devices = _list(d['devices']).map(UserDevice.new).toList();
     final statusText = active ? 'مفعّل' : (role == null ? 'بانتظار التفعيل' : 'موقوف');
     final statusColor = active ? sem.ok : (role == null ? sem.wip : sem.danger);
     final roleText = role == null
@@ -164,6 +170,12 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
                         ),
                         ToneBadge('${sessions.length} ${sessions.length == 1 ? 'جهاز متصل' : 'أجهزة متصلة'}',
                             color: sessions.isEmpty ? sem.muted : sem.wip, icon: Icons.devices_rounded),
+                        if (locked)
+                          ToneBadge(
+                            lockedUntil == null || lockedUntil.year >= 9999 ? 'الدخول مقفل حتى يُفك' : 'الدخول مقفل حتى ${fmtDate(lockedUntil)}',
+                            color: sem.danger,
+                            icon: Icons.lock_clock_outlined,
+                          ),
                       ],
                     ),
                   ],
@@ -172,40 +184,75 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
             ],
           ),
         ),
-        if (canManage) ...[
+        if (locked && (p['lock_reason'] ?? '').toString().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          InfoBanner(
+            level: 'critical',
+            icon: Icons.lock_clock_outlined,
+            text: 'سبب القفل: ${p['lock_reason']}${(p['locked_by_name'] ?? '').toString().isNotEmpty ? ' — بواسطة ${p['locked_by_name']}' : ''}',
+          ),
+        ],
+        if (canManage || canAct) ...[
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              FilledButton.icon(
-                onPressed: () => _editAccess(app),
-                icon: const Icon(Icons.manage_accounts_outlined),
-                label: Text(role == null ? 'تفعيل الحساب' : 'تعديل الصلاحيات والبيانات'),
-              ),
-              if (sessions.isNotEmpty)
+              if (canManage)
+                FilledButton.icon(
+                  onPressed: () => _editAccess(app),
+                  icon: const Icon(Icons.manage_accounts_outlined),
+                  label: Text(role == null ? 'تفعيل الحساب' : 'تعديل الصلاحيات والبيانات'),
+                ),
+              if (canAct && sessions.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () => _signOutEverywhere(app, display),
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('إخراج من كل الأجهزة'),
                 ),
-              if (verified.isNotEmpty)
+              if (canAct && app.v4Ready)
+                locked
+                    ? OutlinedButton.icon(
+                        onPressed: () async {
+                          await runAction(context, () => app.unlockUser(widget.userId), success: 'فُك قفل الدخول');
+                          await _load();
+                        },
+                        icon: const Icon(Icons.lock_open_rounded),
+                        label: const Text('فك قفل الدخول'),
+                      )
+                    : OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(foregroundColor: sem.danger),
+                        onPressed: () async {
+                          final done = await showLockDialog(context, app, widget.userId, display);
+                          if (done) await _load();
+                        },
+                        icon: const Icon(Icons.lock_clock_outlined),
+                        label: const Text('قفل الدخول'),
+                      ),
+              if (canManage && verified.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () => _resetMfa(app, display),
                   icon: const Icon(Icons.phonelink_erase_rounded),
                   label: const Text('إلغاء التحقق بخطوتين'),
                 ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: sem.danger, side: BorderSide(color: sem.danger.withAlpha(120))),
-                onPressed: () => _delete(app, email, display),
-                icon: const Icon(Icons.delete_forever_outlined),
-                label: const Text('حذف المستخدم'),
-              ),
+              if (canManage)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: sem.danger, side: BorderSide(color: sem.danger.withAlpha(120))),
+                  onPressed: () => _delete(app, email, display),
+                  icon: const Icon(Icons.delete_forever_outlined),
+                  label: const Text('حذف المستخدم'),
+                ),
             ],
           ),
-        ] else if (!app.isDirector) ...[
+        ],
+        if (!app.isDirector) ...[
           const SizedBox(height: 12),
-          const InfoBanner(icon: Icons.visibility_outlined, text: 'للاطلاع فقط: إدارة الحساب من صلاحية مدير المكتب.'),
+          InfoBanner(
+            icon: Icons.visibility_outlined,
+            text: canAct
+                ? 'صلاحيتك هنا: الإخراج من الأجهزة وقفل الدخول وحظر الأجهزة. تغيير الدور والتحقق والحذف من صلاحية مدير المكتب.'
+                : 'للاطلاع فقط: لا إجراءات أمنية على هذا الحساب.',
+          ),
         ],
         const SizedBox(height: 16),
 
@@ -284,10 +331,63 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
                           'بدأت ${_when(s['created_at'])}',
                           if (s['aal'] == 'aal2') 'بعد رمز التحقق',
                         ].join(' · '),
+                        trailing: !canAct
+                            ? null
+                            : IconButton(
+                                tooltip: 'إنهاء هذه الجلسة',
+                                icon: Icon(Icons.logout_rounded, color: sem.danger),
+                                onPressed: () async {
+                                  await runAction(context, () => app.revokeSession(s['id'].toString()), success: 'أُنهيت الجلسة');
+                                  await _load();
+                                },
+                              ),
                       ),
                   ],
                 ),
         ),
+        if (app.v4Ready) ...[
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'سجل أجهزة الحساب',
+            icon: Icons.devices_other_outlined,
+            subtitle: 'كل جهاز دخل منه: الموثوق بموافقته («تذكرني»)، والجديد، والمحظور.',
+            child: devices.isEmpty
+                ? Text('لم يُسجَّل أي جهاز بعد (يُسجَّل عند الدخول من الإصدار 2.0.7 فما بعد).', style: TextStyle(color: sem.muted))
+                : Column(children: [
+                    for (final dv in devices)
+                      SettingRow(
+                        icon: dv.blocked ? Icons.block_rounded : (dv.trusted ? Icons.verified_rounded : Icons.devices_other_outlined),
+                        danger: dv.blocked,
+                        title: '${dv.display}${dv.blocked ? ' — محظور' : (dv.trusted ? ' — موثوق' : '')}',
+                        subtitle: [
+                          if (dv.ip.isNotEmpty) 'IP ${dv.ip}',
+                          'أول ظهور ${fmtDate(dv.firstSeen)}',
+                          'آخر نشاط ${fmtDate(dv.lastSeen)}',
+                          '${dv.signIns} دخول · ${dv.opens} فتح',
+                          if (dv.appVersion.isNotEmpty) 'الإصدار ${dv.appVersion}',
+                        ].join(' · '),
+                        trailing: !canAct
+                            ? null
+                            : TextButton(
+                                onPressed: () async {
+                                  if (!dv.blocked) {
+                                    final ok = await confirmDialog(context,
+                                        title: 'حظر هذا الجهاز؟',
+                                        message: 'يُخرج $display من كل جلساته الآن، ويُرفض هذا الجهاز عند أي دخول لاحق.',
+                                        confirmLabel: 'حظر',
+                                        danger: true);
+                                    if (!ok || !context.mounted) return;
+                                  }
+                                  await runAction(context, () => app.setDeviceBlocked(dv.id, !dv.blocked),
+                                      success: dv.blocked ? 'رُفع الحظر' : 'حُظر الجهاز');
+                                  await _load();
+                                },
+                                child: Text(dv.blocked ? 'رفع الحظر' : 'حظر', style: TextStyle(color: dv.blocked ? null : sem.danger)),
+                              ),
+                      ),
+                  ]),
+          ),
+        ],
         const SizedBox(height: 16),
         SectionCard(
           title: 'سجل الدخول',
