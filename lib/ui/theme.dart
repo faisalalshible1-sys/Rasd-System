@@ -219,7 +219,11 @@ ThemeData buildTheme(Brightness brightness, {Color? brand}) {
   );
 }
 
+/// تحميل الخط من Google Fonts (يُوقف في اختبارات اللقطات التي تحمّل خطاً محلياً).
+bool themeUseGoogleFonts = true;
+
 TextTheme _arabicText(TextTheme base) {
+  if (!themeUseGoogleFonts) return base;
   try {
     return GoogleFonts.getTextTheme(appFontFamily, base);
   } catch (_) {

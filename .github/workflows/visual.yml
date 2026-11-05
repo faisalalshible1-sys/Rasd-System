@@ -1,0 +1,33 @@
+# لقطات بصرية للصفحات ببيانات تجريبية (للتدقيق على التصميم قبل الإصدار). تُشغَّل يدوياً، وتُرفع الصور ملفاتِ تشغيل.
+name: visual
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shots:
+    name: لقطات الواجهة
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: خطوط عربية
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-core fonts-dejavu-core > /dev/null
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: اللقطات
+        shell: bash
+        run: |
+          export FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          set +e
+          flutter test visual_test --update-goldens > shots.txt 2>&1; code=$?
+          cat shots.txt
+          mkdir -p visual_test/goldens && cp shots.txt visual_test/goldens/log.txt
+          [ $code -ne 0 ] && bash tool/ci_annotate.sh shots.txt "visual"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-shots
+          path: visual_test/goldens

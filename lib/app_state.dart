@@ -587,6 +587,28 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// يعيد بناء فهارس الأعمال والمهندسين والمستخلصات وأوامر التغيير (للاختبارات والمعاينة).
+  void indexData() {
+    _worksBy = {};
+    for (final w in works) {
+      (_worksBy[w.projectId] ??= []).add(w);
+    }
+    _engBy = {};
+    for (final e in engineers) {
+      (_engBy[e.projectId] ??= []).add(e);
+    }
+    _varBy = {};
+    for (final v in variations) {
+      (_varBy[v.projectId] ??= []).add(v);
+    }
+    _extBy = {};
+    for (final x in extracts) {
+      (_extBy[x.projectId] ??= []).add(x);
+    }
+    _progressCache.clear();
+    _notify();
+  }
+
   /// جداول الإصدار الرابع (أوامر التغيير والمستخلصات)؛ يعمل التطبيق بدونها كما كان.
   Future<void> _loadV4() async {
     try {

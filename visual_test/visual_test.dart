@@ -1,0 +1,337 @@
+// لقطات بصرية للصفحات الرئيسية ببيانات تجريبية (للتدقيق على التصميم، لا تُشغَّل مع الاختبارات العادية):
+//   flutter test visual_test --update-goldens
+// تُحفظ الصور في visual_test/goldens/ ويرفعها سير العمل visual.yml.
+import 'dart:io';
+
+import 'package:dc_app/app_state.dart';
+import 'package:dc_app/models.dart';
+import 'package:dc_app/screens/assistant.dart';
+import 'package:dc_app/screens/auth.dart';
+import 'package:dc_app/screens/control/appearance.dart';
+import 'package:dc_app/screens/dashboard.dart';
+import 'package:dc_app/screens/finance.dart';
+import 'package:dc_app/screens/home_shell.dart';
+import 'package:dc_app/screens/project_detail.dart';
+import 'package:dc_app/ui/theme.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+const _desktop = Size(1440, 2600);
+const _mobile = Size(400, 3200);
+
+Future<void> _loadFonts() async {
+  // خط محلي يدعم العربية بدل Google Fonts (لا شبكة في الاختبارات)
+  final candidates = <String, List<String>>{
+    'regular': [
+      '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    ],
+    'bold': [
+      '/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf',
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    ],
+  };
+  for (final family in const ['Roboto', 'Readex Pro', 'MaterialIcons']) {
+    if (family == 'MaterialIcons') continue;
+    final loader = FontLoader(family);
+    for (final list in candidates.values) {
+      for (final path in list) {
+        final f = File(path);
+        if (f.existsSync()) {
+          loader.addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
+          break;
+        }
+      }
+    }
+    await loader.load();
+  }
+  // أيقونات Material من حزمة Flutter نفسها
+  final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+  if (flutterRoot != null) {
+    final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    if (icons.existsSync()) {
+      final loader = FontLoader('MaterialIcons')..addFont(Future.value(ByteData.view(icons.readAsBytesSync().buffer)));
+      await loader.load();
+    }
+  }
+}
+
+DateTime _d(int daysAgo) => DateTime.now().subtract(Duration(days: daysAgo));
+String _iso(int daysAgo) => _d(daysAgo).toIso8601String();
+String _day(int daysAgo) => dbDate(_d(daysAgo));
+
+AppState _sampleState() {
+  final client = SupabaseClient('http://localhost:54321', 'anon-key', authOptions: const AuthClientOptions(autoRefreshToken: false));
+  final app = AppState(client);
+  app.me = Profile.fromMap({'id': 'u-dir', 'full_name': 'م. فيصل الشبلي', 'email': 'director@office.ly', 'role': 'director', 'active': true});
+  app.people = {
+    for (final p in [
+      app.me!,
+      Profile.fromMap({'id': 'u-1', 'full_name': 'سالم المبروك', 'email': 'salem@office.ly', 'role': 'contracts', 'active': true}),
+      Profile.fromMap({'id': 'u-2', 'full_name': 'هدى العبيدي', 'email': 'huda@office.ly', 'role': 'office_staff', 'active': true}),
+      Profile.fromMap({'id': 'u-3', 'full_name': 'أحمد الفيتوري', 'email': 'ahmed@office.ly', 'role': 'dept_head', 'department': 'supervision', 'active': true}),
+    ])
+      p.id: p,
+  };
+  app.departments = [
+    Department.fromMap({'key': 'supervision', 'name': 'الإشراف والتنسيق', 'can_supervise': true, 'sort': 1}),
+    Department.fromMap({'key': 'restoration', 'name': 'الترميم', 'can_supervise': true, 'sort': 2}),
+    Department.fromMap({'key': 'technical', 'name': 'الشؤون الفنية', 'can_supervise': false, 'sort': 3}),
+    Department.fromMap({'key': 'acceptance', 'name': 'المطابقة والاستلام', 'can_supervise': false, 'sort': 4}),
+  ];
+  const forms = [
+    ('f01', 'أمر تعاقد', 0), ('f20', 'المقايسة التقديرية', 0), ('f02', 'أمر عمل', 0), ('f03', 'نموذج عقد أشغال عامة', 0),
+    ('f04', 'تكليف مهندس مشرف', 1), ('f05', 'تكليف مهندس حصر', 1), ('f06', 'تكليف مهندس متابعة', 1), ('f07', 'تكليف مهندس سلامة', 1),
+    ('f08', 'محضر تسليم واستلام موقع', 2), ('f09', 'تصريح عمل', 2),
+    ('f10', 'ورقة قياس مستخلص نموذج أ', 3), ('f12', 'كشف حصر مستخلص', 3), ('f13', 'شهادة دفع مستخلص', 3), ('f14', 'مستند مستخلص جاري', 3),
+    ('f16', 'محضر استلام ابتدائي', 4), ('f17', 'محضر استلام نهائي', 4), ('f18', 'إقفال عقد', 4),
+  ];
+  app.allFormDefs = [
+    for (var i = 0; i < forms.length; i++)
+      FormDef.fromMap({
+        'key': forms[i].$1,
+        'name': forms[i].$2,
+        'stage': forms[i].$3,
+        'sort': i + 1,
+        'sensitive': forms[i].$3 >= 3,
+        'responsible': ['office_staff', 'contracts'],
+        'engineer_field': switch (forms[i].$1) { 'f04' => 'eng_sup', 'f05' => 'eng_qty', 'f06' => 'eng_fol', 'f07' => 'eng_saf', _ => null },
+      }),
+  ];
+  app.formDefs = app.allFormDefs;
+
+  const names = [
+    ('001', 'ع-2026/11', 'صيانة مبنى القنصلية الإيطالية', 'درع ليبيا', 'وزارة الخارجية', 1450000.0),
+    ('002', 'ع-2026/12', 'إزالة المخلفات منطقة A', 'جودة الإعمار', 'صندوق التنمية', 980000.0),
+    ('003', 'ع-2026/13', 'ترميم واجهات شارع عمر المختار', 'أثمار', 'بلدية بنغازي', 2300000.0),
+    ('004', '', 'تنظيف غرف التفتيش للصرف الصحي', 'جودة الإعمار', 'صندوق التنمية', 410000.0),
+    ('005', 'ع-2026/15', 'معالجة مختنقات شبكة المياه', 'جودة الإعمار', 'الشركة العامة للمياه', 760000.0),
+    ('006', 'ع-2026/16', 'هدم المباني الآيلة للسقوط', 'درع ليبيا', 'صندوق التنمية', 1200000.0),
+    ('007', '', 'رصف الطرق الداخلية منطقة E', 'أثمار', 'بلدية بنغازي', null),
+    ('008', 'ع-2026/18', 'إنارة الشوارع الرئيسية', 'النور للمقاولات', 'الشركة العامة للكهرباء', 540000.0),
+  ];
+  final projects = <Project>[];
+  final works = <ContractWork>[];
+  final extracts = <ContractExtract>[];
+  final variations = <ContractVariation>[];
+  final statuses = <String, Map<String, FormStatus>>{};
+  for (var i = 0; i < names.length; i++) {
+    final n = names[i];
+    final id = 'p-${n.$1}';
+    final value = n.$6;
+    // مستخلصات بحالات متنوعة
+    final xs = <ContractExtract>[];
+    if (value != null) {
+      final count = (i % 4) + 1;
+      for (var k = 1; k <= count; k++) {
+        final gross = (value * (0.12 + 0.05 * k)).roundToDouble();
+        final retention = (gross * 0.1).roundToDouble();
+        final taxes = (gross * 0.02).roundToDouble();
+        final net = gross - retention - taxes;
+        final status = k < count ? 'paid' : const ['submitted', 'approved', 'referred', 'paid', 'draft'][i % 5];
+        final paid = status == 'paid' ? net : (status == 'referred' && i.isEven ? (net * 0.4).roundToDouble() : 0.0);
+        xs.add(ContractExtract.fromMap({
+          'id': 'x-$id-$k',
+          'project_id': id,
+          'seq': k,
+          'ref_no': 'م-${n.$1}/$k',
+          'kind': 'interim',
+          'period_from': _day(200 - k * 30),
+          'period_to': _day(170 - k * 30),
+          'submitted_on': _day(165 - k * 30),
+          'gross_amount': gross,
+          'retention': retention,
+          'taxes': taxes,
+          'net_amount': net,
+          'status': status,
+          'approved_on': const ['approved', 'referred', 'paid'].contains(status) ? _day(160 - k * 30) : null,
+          'referred_on': const ['referred', 'paid'].contains(status) ? _day(150 - k * 30) : null,
+          'paid_amount': paid,
+          'paid_on': paid > 0 ? _day(140 - k * 30) : null,
+        }));
+      }
+    }
+    extracts.addAll(xs);
+    final counted = xs.where((x) => x.counted);
+    if (i.isOdd && value != null) {
+      variations.add(ContractVariation.fromMap({
+        'id': 'v-$id',
+        'project_id': id,
+        'ref_no': 'أ.ت-${n.$1}',
+        'title': i % 3 == 0 ? 'إلغاء بند الأرصفة' : 'زيادة كميات الحفر والردم',
+        'kind': i % 3 == 0 ? 'deduct' : 'add',
+        'amount': value * 0.06,
+        'approved_on': _day(60),
+      }));
+    }
+    final varNet = variations.where((v) => v.projectId == id).fold<double>(0, (a, v) => a + v.signed);
+    final gross = counted.fold<double>(0, (a, x) => a + x.gross);
+    projects.add(Project.fromMap({
+      'id': id,
+      'assign_no': n.$1,
+      'contract_no': n.$2,
+      'name': n.$3,
+      'company': n.$4,
+      'owner': n.$5,
+      'department': i.isEven ? 'supervision' : 'restoration',
+      'sort_order': i + 1,
+      'contract_value': value,
+      'executed_value': counted.isEmpty ? (value == null ? null : value * 0.1) : gross,
+      'guarantee_initial': gross * 0.05,
+      'guarantee_final': gross * 0.02,
+      'value_source': i < 3 ? 'items' : 'manual',
+      'executed_source': counted.isEmpty ? 'manual' : 'extracts',
+      'variations_net': varNet,
+      'extracts_count': counted.length,
+      'extracts_gross': gross,
+      'extracts_net': counted.fold<double>(0, (a, x) => a + x.net),
+      'extracts_paid': counted.fold<double>(0, (a, x) => a + x.paidAmount),
+      'retention_held': counted.fold<double>(0, (a, x) => a + x.retention),
+      'advance_amount': i == 2 ? 230000.0 : null,
+      'advance_recovered': i == 2 ? 60000.0 : 0,
+      'updated_at': _iso(i),
+    }));
+    works.add(ContractWork.fromMap({
+      'id': 'w-$id',
+      'project_id': id,
+      'origin_project': id,
+      'title': n.$3,
+      'company': n.$4,
+      'ref_no': n.$1,
+      'sort': 1,
+      'contract_value': i < 3 ? value : null,
+      'executed_value': i < 3 && value != null ? value * 0.4 : null,
+    }));
+    final st = <String, FormStatus>{};
+    final done = (i * 3 + 2) % forms.length;
+    for (var f = 0; f < forms.length; f++) {
+      st[forms[f].$1] = f < done ? FormStatus.done : (f == done ? FormStatus.wip : FormStatus.todo);
+    }
+    statuses[id] = st;
+  }
+  app.projects = projects;
+  app.works = works;
+  app.extracts = extracts;
+  app.variations = variations;
+  app.statuses = statuses;
+  app.engineers = [
+    ContractEngineer.fromMap({'id': 'e1', 'project_id': 'p-001', 'kind': 'sup', 'name': 'م. سراج لطيوش', 'assign_no': 'ت-77', 'sort': 1}),
+    ContractEngineer.fromMap({'id': 'e2', 'project_id': 'p-001', 'kind': 'qty', 'name': 'م. نوري الحصر', 'assign_no': 'ح-1', 'sort': 1}),
+  ];
+  app.notifications = [
+    AppNotification.fromMap({'id': 'n1', 'created_at': _iso(0), 'kind': 'request', 'title': 'طلب اعتماد جديد', 'body': 'شهادة دفع مستخلص — عقد ع-2026/12'}),
+  ];
+  app.v2Ready = true;
+  app.v3Ready = true;
+  app.v4Ready = true;
+  app.loadedOnce = true;
+  app.settings = LiveSettings({'ai.enabled': true, 'ai.model': 'claude-sonnet-5-5', 'finance.currency': 'د.ل'});
+  app.settings.applyGlobals();
+  app.indexData();
+  return app;
+}
+
+Future<void> _shot(WidgetTester tester, String name, AppState app, Widget page,
+    {Size size = _desktop, bool dark = false, String appearanceKey = ''}) async {
+  await tester.binding.setSurfaceSize(size);
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  final key = GlobalKey();
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: key,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('ar'),
+        supportedLocales: const [Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+        builder: (context, child) => AppScope(state: app, child: child!),
+        home: page,
+      ),
+    ),
+  );
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+  await expectLater(find.byKey(key), matchesGoldenFile('goldens/$name.png'));
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump(const Duration(seconds: 2));
+}
+
+Widget _scaffold(Widget body) => Scaffold(body: body);
+
+void main() {
+  setUpAll(() async {
+    themeUseGoogleFonts = false;
+    motionSetting = 'off';
+    await _loadFonts();
+  });
+
+  testWidgets('home', (tester) async {
+    final app = _sampleState();
+    await _shot(tester, '01_home_light_desktop', app, const HomeShell());
+    await _shot(tester, '02_home_dark_desktop', app, const HomeShell(), dark: true);
+    await _shot(tester, '03_home_light_mobile', app, const HomeShell(), size: _mobile);
+  });
+
+  testWidgets('finance', (tester) async {
+    final app = _sampleState();
+    app.tab = 7;
+    await _shot(tester, '10_finance_summary_light', app, const HomeShell());
+    await _shot(tester, '11_finance_summary_dark', app, const HomeShell(), dark: true);
+    await _shot(tester, '12_finance_summary_mobile', app, _scaffold(const FinancePage()), size: _mobile);
+  });
+
+  testWidgets('dashboard views', (tester) async {
+    final app = _sampleState();
+    await _shot(tester, '20_dashboard_page_light', app, _scaffold(const DashboardPage()), size: const Size(1200, 2600));
+  });
+
+  testWidgets('contract', (tester) async {
+    final app = _sampleState();
+    await _shot(tester, '30_contract_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 5200));
+    await _shot(tester, '31_contract_dark_mobile', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(400, 7000), dark: true);
+  });
+
+  testWidgets('login and appearance', (tester) async {
+    final app = _sampleState();
+    await _shot(tester, '40_login_light', app, const LoginScreen(), size: const Size(1440, 900));
+    await _shot(tester, '41_login_dark_mobile', app, const LoginScreen(), size: const Size(400, 860), dark: true);
+    await _shot(tester, '42_appearance_light', app, _scaffold(ListView(padding: const EdgeInsets.all(20), children: const [AppearanceEditor()])),
+        size: const Size(1200, 2400));
+  });
+
+  testWidgets('assistant', (tester) async {
+    final app = _sampleState();
+    app.assistantMessages.addAll([
+      AssistantMessage(role: 'user', text: 'ما المستخلصات المحالة للصرف ولم تُدفع؟'),
+      AssistantMessage(
+        role: 'assistant',
+        text: 'هناك مستخلصان محالان للصرف:\n• عقد ع-2026/13 — المستخلص رقم 3، صافيه 512,400 د.ل.\n• عقد ع-2026/11 — المستخلص رقم 1، صافيه 210,000 د.ل.',
+        model: 'claude-sonnet-5-5',
+        inputTokens: 5200,
+        outputTokens: 320,
+        actions: [
+          AssistantAction(id: 't1', name: 'propose_extract_status', input: {
+            'extract_id': 'x-p-003-4',
+            'status': 'paid',
+            'paid_amount': 512400,
+            'paid_on': _day(0),
+            'summary': 'تسجيل صرف المستخلص رقم 4 لعقد ع-2026/13 كاملاً بتاريخ اليوم',
+          }),
+        ],
+      ),
+    ]);
+    await _shot(tester, '50_assistant_light', app, _scaffold(const AssistantPage()), size: const Size(1200, 1100));
+  });
+}
