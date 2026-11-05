@@ -295,6 +295,7 @@
       "level": "info",
       "text": ""
     },
+    "ui.appearance": {},
     "ui.dashboard": {
       "sections": []
     },
