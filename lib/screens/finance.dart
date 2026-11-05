@@ -927,12 +927,15 @@ class _ExtractsViewState extends State<_ExtractsView> {
               centerTitle: 'إجمالي الاستقطاعات',
               centerValue: compactMoney(st.deductions),
               items: [
-                ('التأمين المحتجز', st.retention),
-                ('استرداد الدفعة المقدمة', st.advance),
-                ('الغرامات', st.penalties),
-                ('الضرائب والرسوم', st.taxes),
-                for (final e in st.custom.entries) (deductionLabel(app, e.key), e.value),
-                ('أخرى', st.otherDed),
+                for (final e in <(String, double)>[
+                  ('التأمين المحتجز', st.retention),
+                  ('استرداد الدفعة المقدمة', st.advance),
+                  ('الغرامات', st.penalties),
+                  ('الضرائب والرسوم', st.taxes),
+                  for (final e in st.custom.entries) (deductionLabel(app, e.key), e.value),
+                  ('أخرى', st.otherDed),
+                ])
+                  if (e.$2 > 0) e,
               ],
             ),
           ),
@@ -941,8 +944,8 @@ class _ExtractsViewState extends State<_ExtractsView> {
             icon: Icons.donut_small_outlined,
             child: BreakdownChart(
               type: 'bar',
-              colors: [for (final s in extractStatuses) extractStatusColor(context, s)],
-              items: [for (final s in extractStatuses) (extractStatusLabels[s]!, byStatus[s] ?? 0)],
+              colors: [for (final s in extractStatuses) if ((byStatus[s] ?? 0) > 0) extractStatusColor(context, s)],
+              items: [for (final s in extractStatuses) if ((byStatus[s] ?? 0) > 0) (extractStatusLabels[s]!, byStatus[s]!)],
             ),
           ),
         ]),
@@ -1291,13 +1294,12 @@ class ExtractPipeline extends StatelessWidget {
     }
     final total = st.extracts.length;
     return LayoutBuilder(builder: (context, c) {
-      final perRow = c.maxWidth >= 760 ? stages.length : (c.maxWidth >= 420 ? 3 : 2);
-      final w = (c.maxWidth - (perRow - 1) * 8) / perRow;
-      return Wrap(spacing: 8, runSpacing: 8, children: [
-        for (final e in stages)
-          SizedBox(
-            width: w,
-            child: Material(
+      // كل المراحل في صف إن اتسع العرض، وإلا صفان متوازنان يملأ كلٌّ منهما العرض
+      final perRow = c.maxWidth >= 120.0 * stages.length ? stages.length : (stages.length / 2).ceil();
+      final rows = <List<(String, int, double, String)>>[
+        for (var i = 0; i < stages.length; i += perRow) stages.sublist(i, math.min(i + perRow, stages.length)),
+      ];
+      Widget tile((String, int, double, String) e) => Material(
               color: selected.contains(e.$1) ? extractStatusColor(context, e.$1).withValues(alpha: 0.16) : sem.surface2,
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
@@ -1334,8 +1336,17 @@ class ExtractPipeline extends StatelessWidget {
                   ]),
                 ),
               ),
-            ),
-          ),
+            );
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var r = 0; r < rows.length; r++) ...[
+          if (r > 0) const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (var i = 0; i < rows[r].length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(child: tile(rows[r][i])),
+            ],
+          ]),
+        ],
       ]);
     });
   }

@@ -49,8 +49,12 @@ class SectionCard extends StatelessWidget {
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
+    // Material شفافة فوق لون البطاقة حتى يظهر أثر الضغط في عناصر القوائم داخلها
     return Container(
       decoration: cardDecoration(context),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Padding(
       padding: padding ?? EdgeInsets.all(appearance.pad + 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -86,6 +90,8 @@ class SectionCard extends StatelessWidget {
           const SizedBox(height: 14),
           child,
         ],
+      ),
+        ),
       ),
     );
   }
@@ -242,7 +248,20 @@ class ResponsiveGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
-      final cols = (c.maxWidth / minItemWidth).floor().clamp(1, 6);
+      var cols = (c.maxWidth / minItemWidth).floor().clamp(1, 6);
+      final n = children.length;
+      if (n >= 2 && n < cols) {
+        // عناصر أقل من الأعمدة: تملأ العرض بدل ترك فراغ
+        cols = n;
+      } else if (n > cols && n % cols != 0) {
+        // صف أخير ناقص: أعمدة أقل قليلاً إن ملأت الصفوف كلها
+        for (var k = cols - 1; k >= (cols * 0.7).ceil() && k >= 2; k--) {
+          if (n % k == 0) {
+            cols = k;
+            break;
+          }
+        }
+      }
       final w = (c.maxWidth - spacing * (cols - 1)) / cols;
       return Wrap(
         spacing: spacing,

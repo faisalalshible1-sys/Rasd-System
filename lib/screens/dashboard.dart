@@ -163,8 +163,8 @@ class _DashboardPageState extends State<DashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _spaced(staggered([
-        // المؤشرات الرئيسية الأربعة
-        ResponsiveGrid(minItemWidth: 230, children: [
+        // المؤشرات الرئيسية الأربعة (عمودان على الهاتف)
+        ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
           _Headline(
             icon: Icons.fact_check_rounded,
             label: 'نسبة إنجاز الدورة المستندية',
@@ -227,7 +227,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
         // الدورة المستندية
-        ResponsiveGrid(minItemWidth: 200, children: [
+        ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
           _Metric(icon: Icons.folder_rounded, label: term('contracts'), value: n.toDouble(), sub: 'ضمن التصفية', onTap: () => app.openProjects()),
           _Metric(
               icon: Icons.autorenew_rounded,
@@ -280,13 +280,6 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         _TwoCol(
           start: [
-            if (fs.extracts.isNotEmpty)
-              SectionCard(
-                title: 'مسار المستخلصات',
-                icon: Icons.route_outlined,
-                trailing: TextButton(onPressed: () => app.openFinance(view: 'extracts'), child: const Text('السجل')),
-                child: ExtractPipeline(st: fs, compact: true, onTap: (s) => app.openFinance(view: 'extracts', status: s)),
-              ),
             if (awaiting.isNotEmpty)
               SectionCard(
                 title: 'بانتظار الصرف',
@@ -307,6 +300,13 @@ class _DashboardPageState extends State<DashboardPage> {
             _attentionCard(context, app, attention.take(5).toList()),
           ],
           end: [
+            if (fs.extracts.isNotEmpty)
+              SectionCard(
+                title: 'مسار المستخلصات',
+                icon: Icons.route_outlined,
+                trailing: TextButton(onPressed: () => app.openFinance(view: 'extracts'), child: const Text('السجل')),
+                child: ExtractPipeline(st: fs, compact: true, onTap: (s) => app.openFinance(view: 'extracts', status: s)),
+              ),
             if (hasTrend)
               SectionCard(
                 title: 'المنفذ والمدفوع شهرياً',
@@ -345,9 +345,9 @@ class _DashboardPageState extends State<DashboardPage> {
         decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
         child: Text(x.isFinal ? 'خ' : '${x.seq}', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
       ),
-      title: Text('${app.project(x.projectId)?.contractTitle ?? ''} · ${x.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(app.project(x.projectId)?.contractTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        [x.statusLabel, if (days != null) 'منذ $days يوماً'].join(' · '),
+        ['مستخلص ${x.isFinal ? 'ختامي' : 'رقم ${x.seq}'}', x.statusLabel, if (days != null) 'منذ $days يوماً'].join(' · '),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(color: days != null && days > 30 ? sem.danger : sem.muted, fontSize: 12),
@@ -1057,23 +1057,34 @@ class _Headline extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(border: BorderDirectional(start: BorderSide(color: color, width: 4))),
           padding: const EdgeInsetsDirectional.fromSTEB(14, 14, 14, 14),
-          child: Column(
+          child: LayoutBuilder(builder: (context, c) {
+            final labelStyle = t.bodyMedium?.copyWith(fontWeight: FontWeight.w600, height: 1.25);
+            final badge = Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: color, size: 19),
+            );
+            final chevron = onTap == null ? const SizedBox.shrink() : Icon(Icons.chevron_left_rounded, size: 18, color: sem.muted);
+            // في البطاقات الضيقة (الهاتف) ينزل العنوان تحت الأيقونة بارتفاع سطرين ثابت لتتساوى البطاقات
+            final narrow = c.maxWidth < 230;
+            final twoLines = MediaQuery.textScalerOf(context).scale((labelStyle?.fontSize ?? 14) * 1.25 * 2) + 2;
+            final head = narrow
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Row(children: [badge, const Spacer(), chevron]),
+                    const SizedBox(height: 8),
+                    SizedBox(height: twoLines, child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: labelStyle)),
+                  ])
+                : Row(children: [
+                    badge,
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: labelStyle)),
+                    chevron,
+                  ]);
+            return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: color.withAlpha(30), borderRadius: BorderRadius.circular(10)),
-                  child: Icon(icon, color: color, size: 19),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(label,
-                      maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w600, height: 1.25)),
-                ),
-                if (onTap != null) Icon(Icons.chevron_left_rounded, size: 18, color: sem.muted),
-              ]),
+              head,
               const SizedBox(height: 10),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -1091,7 +1102,8 @@ class _Headline extends StatelessWidget {
                   ? const SizedBox(height: 6)
                   : AnimatedMeter(value: meter!.clamp(0, 1).toDouble(), color: color, height: 6),
             ],
-          ),
+          );
+          }),
         ),
       ),
     );

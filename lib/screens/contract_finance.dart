@@ -733,15 +733,19 @@ class ExtractsCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.savings_outlined, size: 18, color: sem.muted),
             const SizedBox(width: 8),
-            const Text('الدفعة المقدمة', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(width: 8),
-            if (amount > 0) ToneBadge(p.advancePaidOn == null ? 'لم تُصرف' : 'صُرفت ${dayText(p.advancePaidOn)}', color: p.advancePaidOn == null ? sem.wip : sem.ok),
-            const Spacer(),
+            Expanded(
+              child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                const Text('الدفعة المقدمة', style: TextStyle(fontWeight: FontWeight.w700)),
+                if (amount > 0)
+                  ToneBadge(p.advancePaidOn == null ? 'لم تُصرف' : 'صُرفت ${dayText(p.advancePaidOn)}',
+                      color: p.advancePaidOn == null ? sem.wip : sem.ok),
+              ]),
+            ),
             if (can)
               TextButton.icon(
                 onPressed: () => _editAdvance(context),
                 icon: Icon(amount > 0 ? Icons.edit_outlined : Icons.add_rounded, size: 18),
-                label: Text(amount > 0 ? 'تعديل' : 'تسجيل دفعة مقدمة'),
+                label: Text(amount > 0 ? 'تعديل' : 'تسجيل'),
               ),
           ]),
           if (amount > 0) ...[
@@ -983,7 +987,7 @@ class _ReferralDialogState extends State<ReferralDialog> {
             controller: _no,
             maxLength: 60,
             textDirection: TextDirection.ltr,
-            decoration: fieldDeco('رقم خطاب الإحالة أو أمر الصرف (اختياري)'),
+            decoration: fieldDeco('رقم خطاب الإحالة أو أمر الصرف (اختياري)').copyWith(counterText: ''),
           ),
           if (_error != null) ...[const SizedBox(height: 6), InfoBanner(text: _error!, level: 'critical')],
         ]),
@@ -1079,7 +1083,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
               decoration: fieldDeco('مبلغ الدفعة', helper: full ? 'تُغلق الدفعة المستخلص فيصبح «مدفوع»' : 'دفعة جزئية')
                   .copyWith(suffixText: currencyLabel),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             DayField(label: 'تاريخ الدفع', value: _on, onChanged: (d) => setState(() => _on = d)),
             const SizedBox(height: 10),
             Text('طريقة الدفع', style: TextStyle(color: sem.muted, fontSize: 12.5)),
@@ -1089,7 +1093,13 @@ class _PaymentDialogState extends State<PaymentDialog> {
                 ChoiceChip(label: Text(e.value), selected: _method == e.key, onSelected: (_) => setState(() => _method = e.key)),
             ]),
             const SizedBox(height: 10),
-            TextField(controller: _ref, maxLength: 60, textDirection: TextDirection.ltr, decoration: fieldDeco('رقم الحوالة أو الصك (اختياري)')),
+            TextField(
+              controller: _ref,
+              maxLength: 60,
+              textDirection: TextDirection.ltr,
+              decoration: fieldDeco('رقم الحوالة أو الصك (اختياري)').copyWith(counterText: ''),
+            ),
+            const SizedBox(height: 10),
             TextField(controller: _notes, maxLines: 2, decoration: fieldDeco('ملاحظات (اختياري)')),
             if (_error != null) ...[const SizedBox(height: 10), InfoBanner(text: _error!, level: 'critical')],
           ]),
@@ -1465,15 +1475,19 @@ class _ExtractDialogState extends State<ExtractDialog> {
                     : const SizedBox.shrink(),
               ),
               const SizedBox(height: 16),
-              Row(children: [
-                Text('القيم والاستقطاعات', style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _v('gross') <= 0 ? null : () => setState(_applyDefaults),
-                  icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
-                  label: const Text('تطبيق النسب الافتراضية'),
-                ),
-              ]),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  Text('القيم والاستقطاعات', style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary)),
+                  TextButton.icon(
+                    onPressed: _v('gross') <= 0 ? null : () => setState(_applyDefaults),
+                    icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+                    label: const Text('تطبيق النسب الافتراضية'),
+                  ),
+                ],
+              ),
               if (_auto)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -1581,7 +1595,7 @@ class _ExtractDialogState extends State<ExtractDialog> {
                     controller: _referralNo,
                     maxLength: 60,
                     textDirection: TextDirection.ltr,
-                    decoration: fieldDeco('رقم خطاب الإحالة أو أمر الصرف (اختياري)'),
+                    decoration: fieldDeco('رقم خطاب الإحالة أو أمر الصرف (اختياري)').copyWith(counterText: ''),
                   ),
                 ],
                 const SizedBox(height: 10),
