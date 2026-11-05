@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../ui/audit_text.dart' show settingLabels;
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 
 /// مساعد Claude داخل المنظومة — لمدير المكتب وحده.
-/// يقرأ ملخص المنظومة بصلاحية المدير (عبر خدمة claude-assistant في Supabase) ولا يعدّل أي بيانات.
+/// يقرأ ملخص المنظومة بصلاحية المدير (عبر خدمة claude-assistant في Supabase)، ويقترح تعديلات تظهر بطاقاتٍ
+/// ينفّذها المدير بضغطة عبر العمليات المعتادة (قاعدة البيانات تتحقق من الصلاحيات وتسجّل كل تعديل).
 class AssistantPage extends StatefulWidget {
   const AssistantPage({super.key});
 
@@ -28,6 +30,8 @@ class _AssistantPageState extends State<AssistantPage> {
     (Icons.payments_outlined, 'حلّل القيم التعاقدية والمنفذة والضمانات، وأين الفجوات؟'),
     (Icons.engineering_outlined, 'من المهندسون الأكثر تكليفاً، وهل هناك عقود بلا مهندس مشرف؟'),
     (Icons.fact_check_outlined, 'ما طلبات الاعتماد المعلقة التي تحتاج قراري؟'),
+    (Icons.receipt_long_outlined, 'حلّل المستخلصات والمدفوع والمستحق غير المدفوع، وما العقود الأعلى متبقياً للدفع؟'),
+    (Icons.price_change_outlined, 'راجع قيم البنود والمنفذ، واقترح تصحيح ما يبدو غير متسق'),
     (Icons.lightbulb_outline_rounded, 'اقترح تطويرات عملية للمنظومة بناءً على البيانات والاستخدام'),
   ];
 
@@ -200,7 +204,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'يقرأ Claude ملخص المنظومة بصلاحيتك ولا يعدّل أي بيانات، وكل سؤال يُسجَّل في سجل التدقيق. راجع الأرقام قبل اعتمادها.',
+                  'يقرأ Claude ملخص المنظومة بصلاحيتك، ويقترح التعديلات ولا ينفّذ شيئاً إلا بضغطتك. كل سؤال وتنفيذ يُسجَّل. راجع الأرقام قبل اعتمادها.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: sem.muted, fontSize: 11),
                 ),
@@ -366,6 +370,24 @@ class _Bubble extends StatelessWidget {
                   ]),
                 ),
               SelectableText(message.text, style: TextStyle(color: fg, height: 1.65)),
+              if (message.actions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                for (final a in message.actions) _ActionCard(action: a),
+                if (message.actions.where((a) => a.state == 'pending').length > 1)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final app = AppScope.read(context);
+                        for (final a in message.actions.where((a) => a.state == 'pending').toList()) {
+                          await app.executeAssistantAction(a);
+                        }
+                      },
+                      icon: const Icon(Icons.done_all_rounded, size: 18),
+                      label: const Text('تنفيذ كل الاقتراحات'),
+                    ),
+                  ),
+              ],
               if (!user && !message.error) ...[
                 const SizedBox(height: 6),
                 Row(
@@ -404,6 +426,134 @@ class _Bubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// بطاقة اقتراح تعديل من المساعد: ما سيتغير، وزر التنفيذ أو التجاهل.
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({required this.action});
+
+  final AssistantAction action;
+
+  static const Map<String, String> _labels = {
+    'project_id': 'العقد',
+    'work_id': 'البند',
+    'extract_id': 'المستخلص',
+    'form_key': 'النموذج',
+    'contract_value': 'القيمة التعاقدية',
+    'executed_value': 'المنفذ',
+    'kind': 'النوع',
+    'amount': 'القيمة',
+    'title': 'العنوان',
+    'ref_no': 'الرقم',
+    'approved_on': 'تاريخ الاعتماد',
+    'period_from': 'بداية الفترة',
+    'period_to': 'نهاية الفترة',
+    'submitted_on': 'تاريخ التقديم',
+    'gross': 'قيمة الأعمال',
+    'retention': 'التأمين المحتجز',
+    'advance': 'استرداد الدفعة المقدمة',
+    'penalties': 'الغرامات',
+    'taxes': 'الضرائب والرسوم',
+    'other': 'استقطاعات أخرى',
+    'status': 'الحالة',
+    'paid_amount': 'المدفوع',
+    'paid_on': 'تاريخ الدفع',
+    'contract_no': 'رقم العقد',
+    'key': 'الإعداد',
+    'value': 'القيمة الجديدة',
+    'body': 'التفاصيل',
+    'category': 'التصنيف',
+    'priority': 'الأولوية',
+  };
+
+  String _value(AppState app, String k, Object? v) {
+    final s = v?.toString() ?? '';
+    switch (k) {
+      case 'project_id':
+        return app.project(s)?.contractTitle ?? 'عقد غير موجود';
+      case 'work_id':
+        final w = app.work(s);
+        return w == null ? 'بند غير موجود' : (w.title.isEmpty ? w.company : w.title);
+      case 'extract_id':
+        for (final x in app.extracts) {
+          if (x.id == s) return '${app.project(x.projectId)?.contractTitle ?? ''} · ${x.title}';
+        }
+        return 'مستخلص غير موجود';
+      case 'form_key':
+        return app.formDef(s)?.name ?? s;
+      case 'kind':
+        return switch (s) { 'add' => 'زيادة', 'deduct' => 'نقص', 'final' => 'ختامي', 'interim' => 'جاري', _ => s };
+      case 'status':
+        return extractStatusLabels[s] ?? parseStatus(s).label;
+      case 'key':
+        return settingLabels[s] ?? s;
+    }
+    if (v is num) return '${fmtMoney(v.toDouble())}${k == 'value' ? '' : ' $currencyLabel'}';
+    if (v is Map || v is List) return v.toString();
+    return s;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final sem = Sem.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final a = action;
+    final entries = a.input.entries.where((e) => e.key != 'summary' && e.value != null && e.value.toString().isNotEmpty).toList();
+    final (color, badge) = switch (a.state) {
+      'done' => (sem.ok, 'نُفّذ'),
+      'failed' => (sem.danger, 'تعذّر التنفيذ'),
+      'dismissed' => (sem.muted, 'تُجوهل'),
+      'running' => (sem.wip, 'جارٍ التنفيذ'),
+      _ => (cs.primary, 'بانتظار قرارك'),
+    };
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      decoration: BoxDecoration(
+        color: sem.surface2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(Icons.edit_note_rounded, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text('اقتراح: ${a.title}', style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+          const Spacer(),
+          ToneBadge(badge, color: color),
+        ]),
+        if (a.summary.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(a.summary, style: const TextStyle(height: 1.5)),
+        ],
+        const SizedBox(height: 6),
+        Wrap(spacing: 12, runSpacing: 2, children: [
+          for (final e in entries)
+            Text('${_labels[e.key] ?? e.key}: ${_value(app, e.key, e.value)}',
+                style: TextStyle(color: sem.muted, fontSize: 12, fontFeatures: const [FontFeature.tabularFigures()])),
+        ]),
+        if (a.result != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(a.result!, style: TextStyle(color: a.state == 'failed' ? sem.danger : sem.ok, fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ),
+        if (a.state == 'pending' || a.state == 'failed' || a.state == 'running')
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            if (a.state != 'running')
+              TextButton(onPressed: () => app.dismissAssistantAction(a), child: const Text('تجاهل')),
+            const SizedBox(width: 6),
+            FilledButton.icon(
+              onPressed: a.state == 'running' ? null : () => app.executeAssistantAction(a),
+              icon: a.state == 'running'
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: Text(a.state == 'failed' ? 'إعادة المحاولة' : 'تنفيذ'),
+            ),
+          ]),
+      ]),
     );
   }
 }

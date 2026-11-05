@@ -162,6 +162,8 @@ select public.save_extract((select id from contract_extracts where ref_no = 'م-
 select pg_temp.check((select paid_on = '2026-11-05' from contract_extracts where ref_no = 'م-1'), 'المدير يصحّح المستخلص المدفوع');
 select pg_temp.check((select (c -> 'contracts') @? '$[*] ? (exists(@.extract_list) && exists(@.works[*].id))' from public.ai_context() c)
                      and (select c ? 'security' from public.ai_context() c), 'ملخص Claude يشمل المستخلصات ومعرّفات البنود والأمان');
+select public.ai_action_log('propose_variation', 'أمر تغيير مقترح');
+select pg_temp.check(exists (select 1 from audit_log where action = 'ai.action' and detail ->> 'name' = 'propose_variation'), 'تنفيذ اقتراح المساعد مسجّل');
 
 -- ---------------------------------------------------------------- إعداد المظهر
 select public.set_setting('ui.appearance', '{"density": "compact", "radius": 12, "charts": {"trend": "area", "curved": true}}');

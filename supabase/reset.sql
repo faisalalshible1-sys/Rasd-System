@@ -41,7 +41,7 @@ begin
         'recalc_contract_finance', 'finance_children_after', 'materialize_finance', 'can_edit_finance', 'set_work_values',
         'save_variation', 'delete_variation', 'save_extract', 'delete_extract', 'finance_history', 'security_target_ok',
         'lock_user', 'unlock_user', 'my_lock', 'request_header', 'register_device', 'my_devices', 'forget_my_device',
-        'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts')
+        'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts', 'ai_action_log')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

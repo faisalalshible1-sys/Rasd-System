@@ -1582,6 +1582,20 @@ begin
 end;
 $$;
 
+-- تنفيذ المدير اقتراحاً من المساعد يُسجَّل (التعديل نفسه يُسجَّل بعمليته المعتادة)
+create or replace function public.ai_action_log(p_name text, p_summary text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_director() then
+    raise exception 'مساعد Claude لمدير المكتب وحده' using errcode = '42501';
+  end if;
+  perform public.write_audit('ai.action', null, null,
+    jsonb_build_object('name', left(coalesce(p_name, ''), 60), 'summary', left(coalesce(p_summary, ''), 500)), 'مساعد Claude');
+end;
+$$;
+
 -- ---------------------------------------------------------------------
 -- 12. الحساب الأول للمجاميع (العقود الحالية)
 -- ---------------------------------------------------------------------
@@ -1642,7 +1656,7 @@ revoke execute on function
   public.my_devices(), public.forget_my_device(uuid),
   public.security_overview(), public.security_users(), public.security_devices(),
   public.security_timeline(uuid, integer, integer), public.security_alerts(), public.user_details(uuid),
-  public.set_setting(text, jsonb), public.public_settings(), public.ai_context()
+  public.set_setting(text, jsonb), public.public_settings(), public.ai_context(), public.ai_action_log(text, text)
 from public, anon;
 grant execute on function
   public.set_contract_finance(uuid, numeric, numeric, numeric, numeric, numeric, numeric),
@@ -1658,7 +1672,7 @@ grant execute on function
   public.my_devices(), public.forget_my_device(uuid),
   public.security_overview(), public.security_users(), public.security_devices(),
   public.security_timeline(uuid, integer, integer), public.security_alerts(), public.user_details(uuid),
-  public.set_setting(text, jsonb), public.ai_context()
+  public.set_setting(text, jsonb), public.ai_context(), public.ai_action_log(text, text)
 to authenticated;
 grant execute on function public.public_settings() to anon, authenticated;
 

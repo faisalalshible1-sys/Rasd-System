@@ -2,7 +2,8 @@
 //
 // • يقرأ ملخص المنظومة عبر الدالة ai_context بصلاحية المستخدم نفسه؛ قاعدة البيانات ترفض كل من ليس مدير المكتب.
 // • مفتاح Anthropic سرّ في Supabase باسم ANTHROPIC_API_KEY (Edge Functions ← Secrets) ولا يصل إلى التطبيق.
-// • لا يعدّل أي بيانات، ويُسجَّل كل سؤال في سجل التدقيق عبر ai_log.
+// • لا يعدّل أي بيانات بنفسه: يقترح التعديلات بأدوات (tools) تعود إلى التطبيق بطاقاتٍ ينفّذها المدير بضغطة،
+//   وقاعدة البيانات تتحقق من الصلاحيات عند التنفيذ. يُسجَّل كل سؤال في سجل التدقيق عبر ai_log.
 //
 // الهوية: بوابة الخدمة («Verify JWT with legacy secret» مفعّل) يرضيها مفتاح الربط العام في Authorization،
 // ورمز جلسة المستخدم يصل في x-user-token وتتحقق منه قاعدة البيانات نفسها (ai_context ترفض كل من ليس مدير المكتب).
@@ -27,6 +28,130 @@ const MODEL_RE = /^[a-z0-9][a-z0-9.\-]{2,60}$/;
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 
 type Turn = { role: "user" | "assistant"; content: string };
+
+// أدوات الاقتراح: لا تُنفَّذ هنا؛ تعود إلى التطبيق ليعتمدها المدير
+const money = { type: "number", minimum: 0 };
+const day = { type: "string", description: "تاريخ بصيغة YYYY-MM-DD" };
+const summary = { type: "string", description: "وصف عربي موجز للتعديل كما يراه المدير قبل اعتماده" };
+const TOOLS = [
+  {
+    name: "propose_work_values",
+    description: "اقتراح القيمة التعاقدية والمنفذ لبند (عمل) في عقد. استخدم معرّف البند من works[].id.",
+    input_schema: {
+      type: "object",
+      properties: { work_id: { type: "string" }, contract_value: money, executed_value: money, summary },
+      required: ["work_id", "summary"],
+    },
+  },
+  {
+    name: "propose_variation",
+    description: "اقتراح أمر تغيير جديد (زيادة أو نقص) على عقد. معرّف العقد من contracts[].id.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string" },
+        kind: { type: "string", enum: ["add", "deduct"] },
+        amount: { type: "number", exclusiveMinimum: 0 },
+        title: { type: "string" },
+        ref_no: { type: "string" },
+        approved_on: day,
+        work_id: { type: "string" },
+        summary,
+      },
+      required: ["project_id", "kind", "amount", "title", "summary"],
+    },
+  },
+  {
+    name: "propose_extract",
+    description: "اقتراح تسجيل مستخلص جديد لعقد بقيمته واستقطاعاته وحالته.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string" },
+        kind: { type: "string", enum: ["interim", "final"] },
+        ref_no: { type: "string" },
+        period_from: day,
+        period_to: day,
+        submitted_on: day,
+        gross: money,
+        retention: money,
+        advance: money,
+        penalties: money,
+        taxes: money,
+        other: money,
+        status: { type: "string", enum: ["draft", "submitted", "approved", "paid", "rejected"] },
+        approved_on: day,
+        paid_amount: money,
+        paid_on: day,
+        summary,
+      },
+      required: ["project_id", "gross", "status", "summary"],
+    },
+  },
+  {
+    name: "propose_extract_status",
+    description: "اقتراح تغيير حالة مستخلص قائم أو تسجيل دفعه. معرّف المستخلص من extract_list[].id.",
+    input_schema: {
+      type: "object",
+      properties: {
+        extract_id: { type: "string" },
+        status: { type: "string", enum: ["draft", "submitted", "approved", "paid", "rejected"] },
+        paid_amount: money,
+        paid_on: day,
+        approved_on: day,
+        summary,
+      },
+      required: ["extract_id", "status", "summary"],
+    },
+  },
+  {
+    name: "propose_contract_no",
+    description: "اقتراح رقم العقد لعقد.",
+    input_schema: {
+      type: "object",
+      properties: { project_id: { type: "string" }, contract_no: { type: "string" }, summary },
+      required: ["project_id", "contract_no", "summary"],
+    },
+  },
+  {
+    name: "propose_form_status",
+    description: "اقتراح تغيير حالة نموذج في الدورة المستندية لعقد. مفتاح النموذج من forms[].key.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string" },
+        form_key: { type: "string" },
+        status: { type: "string", enum: ["done", "wip", "todo", "na"] },
+        summary,
+      },
+      required: ["project_id", "form_key", "status", "summary"],
+    },
+  },
+  {
+    name: "propose_setting",
+    description: "اقتراح تعديل إعداد حي (مثل نسب الضمان finance.guarantee_initial_rate أو الإعلان ui.announcement أو المظهر ui.appearance).",
+    input_schema: {
+      type: "object",
+      properties: { key: { type: "string" }, value: {}, summary },
+      required: ["key", "value", "summary"],
+    },
+  },
+  {
+    name: "propose_idea",
+    description: "حفظ اقتراح تطوير «فكرة تطوير» في قائمة الأفكار.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        body: { type: "string" },
+        category: { type: "string", enum: ["feature", "design", "data", "security", "bug", "other"] },
+        priority: { type: "string", enum: ["low", "normal", "high", "urgent"] },
+        summary,
+      },
+      required: ["title", "body", "summary"],
+    },
+  },
+];
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -94,8 +219,10 @@ Deno.serve(async (req: Request) => {
     "المفاهيم: العقد (contract) قد يضم أعمال عدة شركات (works) برقم عقد واحد. لكل عقد مهندسون من أربعة أنواع: sup مشرف، qty حصر، fol متابعة، saf سلامة، ومن كل نوع أكثر من مهندس، لكلٍّ رقم تكليفه (assign_no).",
     "contract_value هي قيمة الأعمال التعاقدية، وexecuted_value قيمة الأعمال المنفذة. الضمان الابتدائي والنهائي يُحسبان من قيمة الأعمال المنفذة بالنسب في guarantee_rates.",
     "الدورة المستندية مراحل ونماذج (forms)؛ progress_pct نسبة الإنجاز، وnext_form المستند التالي المطلوب، وpending_requests طلبات تنتظر اعتماد المدير.",
-    "لا تستطيع تعديل أي بيانات. عند الحاجة اشرح للمدير أين يعدّلها داخل المنظومة: صفحة العقد (الأعمال، المهندسون، المالية، النماذج)، أو لوحة التحكم، أو «التخصيص والتطوير».",
-    "عند طلب تطوير أو ميزة: قدّم اقتراحاً محدداً قابلاً للتنفيذ، عنوانه في السطر الأول، ثم الفائدة وخطوات التنفيذ، ليحفظه المدير «فكرة تطوير».",
+    "المالية: لكل بند works[] قيمته التعاقدية والمنفذ منه؛ إن وُجدت قيم البنود فالقيمة التعاقدية مجموعها (value_source=items). أوامر التغيير variations تزيد أو تنقص القيمة، وadjusted_value القيمة بعد التغيير. المستخلصات extract_list: قيمة الأعمال (gross) والتأمين المحتجز (retention) والاستقطاعات الأخرى والصافي (net) والمدفوع (paid)؛ المعتمد والمدفوع منها يحدد المنفذ (executed_source=extracts). المتبقي من الأعمال = adjusted_value − executed_value، والمتبقي للدفع = adjusted_value − المدفوع.",
+    "لا تنفّذ أي تعديل بنفسك. إذا طلب المدير تعديلاً أو رأيت تصحيحاً واضحاً، فاقترحه بأداة الاقتراح المناسبة (propose_*) بالمعرّفات الصحيحة من الملخص، مع summary عربي واضح؛ يظهر للمدير بطاقةً ينفّذها بضغطة، وتتحقق قاعدة البيانات من الصلاحيات. اقترح فقط ما تدعمه البيانات، ولا تخترع معرّفات. واذكر في نصك ما اقترحته ولماذا.",
+    "لما لا توجد له أداة، اشرح للمدير أين يعدّله داخل المنظومة: صفحة العقد (الأعمال، المهندسون، المالية، المستخلصات، أوامر التغيير، النماذج)، أو صفحة «المالية»، أو لوحة التحكم، أو «التخصيص والتطوير».",
+    "عند طلب تطوير أو ميزة: قدّم اقتراحاً محدداً قابلاً للتنفيذ (الفائدة وخطوات التنفيذ)، واقترح حفظه بأداة propose_idea.",
     "اذكر رقم العقد (أو رقم التكليف إن لم يوجد) عند الحديث عن أي عقد.",
     extra ? `تعليمات دائمة من مدير المكتب:\n${extra}` : "",
     `ملخص المنظومة الآن (JSON):\n${snapshot}`,
@@ -103,7 +230,9 @@ Deno.serve(async (req: Request) => {
 
   const payload = JSON.stringify({
     model,
-    max_tokens: 2048,
+    max_tokens: 4096,
+    tools: TOOLS,
+    tool_choice: { type: "auto" },
     // الملخص ثابت أثناء المحادثة: تخزينه مؤقتاً يخفض التكلفة والزمن
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: turns,
@@ -149,15 +278,21 @@ Deno.serve(async (req: Request) => {
     return reply(502, { code: "anthropic", error: out?.error?.message ?? `HTTP ${res.status}` });
   }
 
-  const text = Array.isArray(out?.content)
-    ? out.content
-      // deno-lint-ignore no-explicit-any
-      .filter((b: any) => b?.type === "text" && typeof b.text === "string")
-      // deno-lint-ignore no-explicit-any
-      .map((b: any) => b.text)
-      .join("\n")
-      .trim()
-    : "";
+  const blocks = Array.isArray(out?.content) ? out.content : [];
+  const text = blocks
+    // deno-lint-ignore no-explicit-any
+    .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+    // deno-lint-ignore no-explicit-any
+    .map((b: any) => b.text)
+    .join("\n")
+    .trim();
+  // اقتراحات التعديل: تعود إلى التطبيق كما هي، ولا يُنفَّذ منها شيء هنا
+  const actions = blocks
+    // deno-lint-ignore no-explicit-any
+    .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string" && b.name.startsWith("propose_"))
+    // deno-lint-ignore no-explicit-any
+    .map((b: any) => ({ id: String(b.id ?? ""), name: b.name, input: b.input ?? {} }))
+    .slice(0, 20);
   const usage = {
     input_tokens: (out?.usage?.input_tokens ?? 0) + (out?.usage?.cache_read_input_tokens ?? 0) +
       (out?.usage?.cache_creation_input_tokens ?? 0),
@@ -173,7 +308,8 @@ Deno.serve(async (req: Request) => {
   });
 
   return reply(200, {
-    text: text || "لم يصل رد من Claude. أعد صياغة السؤال.",
+    text: text || (actions.length ? `اقترحتُ ${actions.length} ${actions.length === 1 ? "تعديلاً" : "تعديلات"}؛ راجعها ثم نفّذ ما تعتمده.` : "لم يصل رد من Claude. أعد صياغة السؤال."),
+    actions,
     model: used,
     usage,
     stop_reason: out?.stop_reason ?? null,

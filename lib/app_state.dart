@@ -1102,12 +1102,16 @@ class AppState extends ChangeNotifier {
       final data = res.data;
       if (data is Map && data['text'] is String) {
         final usage = data['usage'] is Map ? data['usage'] as Map : const {};
+        final acts = data['actions'] is List
+            ? (data['actions'] as List).whereType<Map>().map((e) => AssistantAction.fromMap(Map<String, dynamic>.from(e))).toList()
+            : <AssistantAction>[];
         reply = AssistantMessage(
           role: 'assistant',
           text: (data['text'] as String).trim(),
           model: (data['model'] ?? '').toString(),
           inputTokens: (usage['input_tokens'] as num?)?.toInt() ?? 0,
           outputTokens: (usage['output_tokens'] as num?)?.toInt() ?? 0,
+          actions: acts,
         );
       } else {
         reply = AssistantMessage(role: 'assistant', text: _assistantError(data), error: true);
@@ -1122,6 +1126,125 @@ class AppState extends ChangeNotifier {
 
   void clearAssistant() {
     assistantMessages.clear();
+    _notify();
+  }
+
+  void dismissAssistantAction(AssistantAction a) {
+    a.state = 'dismissed';
+    _notify();
+  }
+
+  /// ينفّذ اقتراحاً من المساعد بعد ضغطة المدير، عبر العمليات المعتادة (قاعدة البيانات تتحقق من الصلاحيات).
+  Future<void> executeAssistantAction(AssistantAction a) async {
+    if (a.state == 'running' || a.state == 'done') return;
+    a.state = 'running';
+    a.result = null;
+    _notify();
+    final i = a.input;
+    double? numOf(String k) => i[k] is num ? (i[k] as num).toDouble() : double.tryParse('${i[k] ?? ''}');
+    DateTime? day(String k) => i[k] == null ? null : DateTime.tryParse(i[k].toString());
+    String str(String k) => (i[k] ?? '').toString();
+    try {
+      switch (a.name) {
+        case 'propose_work_values':
+          final w = work(str('work_id'));
+          if (w == null) throw StateError('البند غير موجود في البيانات الحالية');
+          await setWorkValues(
+            w.id,
+            contractValue: i.containsKey('contract_value') ? numOf('contract_value') : w.contractValue,
+            executedValue: i.containsKey('executed_value') ? numOf('executed_value') : w.executedValue,
+          );
+          a.result = 'حُفظت قيم البند';
+        case 'propose_variation':
+          await saveVariation(
+            projectId: str('project_id'),
+            workId: str('work_id').isEmpty ? null : str('work_id'),
+            refNo: str('ref_no'),
+            title: str('title'),
+            kind: str('kind') == 'deduct' ? 'deduct' : 'add',
+            amount: numOf('amount') ?? 0,
+            approvedOn: day('approved_on'),
+            notes: 'اقتراح من مساعد Claude',
+          );
+          a.result = 'سُجّل أمر التغيير';
+        case 'propose_extract':
+          await saveExtract(
+            projectId: str('project_id'),
+            refNo: str('ref_no'),
+            kind: str('kind') == 'final' ? 'final' : 'interim',
+            periodFrom: day('period_from'),
+            periodTo: day('period_to'),
+            submittedOn: day('submitted_on'),
+            gross: numOf('gross') ?? 0,
+            retention: numOf('retention') ?? 0,
+            advance: numOf('advance') ?? 0,
+            penalties: numOf('penalties') ?? 0,
+            taxes: numOf('taxes') ?? 0,
+            other: numOf('other') ?? 0,
+            status: extractStatuses.contains(str('status')) ? str('status') : 'submitted',
+            approvedOn: day('approved_on'),
+            paidAmount: numOf('paid_amount') ?? 0,
+            paidOn: day('paid_on'),
+            notes: 'اقتراح من مساعد Claude',
+          );
+          a.result = 'سُجّل المستخلص';
+        case 'propose_extract_status':
+          ContractExtract? x;
+          for (final e in extracts) {
+            if (e.id == str('extract_id')) x = e;
+          }
+          if (x == null) throw StateError('المستخلص غير موجود في البيانات الحالية');
+          final st = extractStatuses.contains(str('status')) ? str('status') : x.status;
+          await saveExtract(
+            id: x.id,
+            projectId: x.projectId,
+            workId: x.workId,
+            refNo: x.refNo,
+            kind: x.kind,
+            periodFrom: x.periodFrom,
+            periodTo: x.periodTo,
+            submittedOn: x.submittedOn,
+            gross: x.gross,
+            retention: x.retention,
+            advance: x.advanceRecovery,
+            penalties: x.penalties,
+            taxes: x.taxes,
+            other: x.otherDeductions,
+            status: st,
+            approvedOn: day('approved_on') ?? x.approvedOn,
+            paidAmount: i.containsKey('paid_amount') ? (numOf('paid_amount') ?? 0) : (st == 'approved' || st == 'paid' ? x.paidAmount : 0),
+            paidOn: day('paid_on') ?? x.paidOn,
+            notes: x.notes,
+          );
+          a.result = 'حُدّث المستخلص';
+        case 'propose_contract_no':
+          await setContractNo(str('project_id'), str('contract_no'));
+          a.result = 'حُفظ رقم العقد';
+        case 'propose_form_status':
+          final r = await setFormStatus(str('project_id'), str('form_key'), parseStatus(str('status')));
+          a.result = r == 'unchanged' ? 'لم يتغير شيء' : 'حُدّثت حالة النموذج';
+        case 'propose_setting':
+          await setSetting(str('key'), i['value']);
+          a.result = 'حُفظ الإعداد';
+        case 'propose_idea':
+          await submitIdea(
+            title: str('title'),
+            body: '${str('body')}\n\n— من مساعد Claude',
+            category: const ['feature', 'design', 'data', 'security', 'bug', 'other'].contains(str('category')) ? str('category') : 'feature',
+            priority: const ['low', 'normal', 'high', 'urgent'].contains(str('priority')) ? str('priority') : 'normal',
+          );
+          a.result = 'حُفظت الفكرة';
+        default:
+          throw StateError('اقتراح غير معروف: ${a.name}');
+      }
+      a.state = 'done';
+      try {
+        await client.rpc('ai_action_log', params: {'p_name': a.name, 'p_summary': a.summary});
+      } catch (_) {}
+    } catch (e) {
+      a.state = 'failed';
+      a.result = e is StateError ? e.message : friendlyError(e);
+    }
     _notify();
   }
 

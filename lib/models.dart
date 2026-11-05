@@ -711,6 +711,7 @@ class AssistantMessage {
     this.inputTokens = 0,
     this.outputTokens = 0,
     this.error = false,
+    this.actions = const [],
     DateTime? at,
   }) : at = at ?? DateTime.now();
 
@@ -720,9 +721,42 @@ class AssistantMessage {
   final int inputTokens;
   final int outputTokens;
   final bool error;
+  final List<AssistantAction> actions; // تعديلات يقترحها Claude وينفّذها المدير بضغطة
   final DateTime at;
 
   bool get isUser => role == 'user';
+}
+
+/// تعديل يقترحه مساعد Claude (أداة propose_*). لا يُنفَّذ إلا بضغطة المدير، وقاعدة البيانات تتحقق من الصلاحيات.
+class AssistantAction {
+  AssistantAction({required this.id, required this.name, required this.input});
+
+  final String id;
+  final String name;
+  final Map<String, dynamic> input;
+  String state = 'pending'; // pending | running | done | dismissed | failed
+  String? result;
+
+  String get summary => (input['summary'] ?? '').toString();
+
+  static const Map<String, String> titles = {
+    'propose_work_values': 'قيم بند',
+    'propose_variation': 'أمر تغيير',
+    'propose_extract': 'مستخلص جديد',
+    'propose_extract_status': 'حالة مستخلص',
+    'propose_contract_no': 'رقم عقد',
+    'propose_form_status': 'حالة نموذج',
+    'propose_setting': 'إعداد',
+    'propose_idea': 'فكرة تطوير',
+  };
+
+  String get title => titles[name] ?? name;
+
+  factory AssistantAction.fromMap(Map<String, dynamic> m) => AssistantAction(
+        id: _str(m['id']),
+        name: _str(m['name']),
+        input: m['input'] is Map ? Map<String, dynamic>.from(m['input'] as Map) : <String, dynamic>{},
+      );
 }
 
 /// تاريخ بصيغة قاعدة البيانات (yyyy-mm-dd).
