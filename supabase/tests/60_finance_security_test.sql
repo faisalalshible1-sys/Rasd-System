@@ -275,7 +275,7 @@ select pg_temp.check(exists (select 1 from audit_log where action = 'security.de
 select public.set_device_blocked((select id from user_devices where device_key = 'dev-staff-0001'), false);
 select pg_temp.check((select blocked_at is null from user_devices where device_key = 'dev-staff-0001')
                      and exists (select 1 from audit_log where action = 'security.device_unblock'), 'رفع الحظر');
-select pg_temp.expect_error($$select public.set_device_blocked((select id from user_devices d join profiles p on p.id = d.user_id
+select pg_temp.expect_error($$select public.set_device_blocked((select d.id from user_devices d join profiles p on p.id = d.user_id
                                                                   where p.role = 'director' limit 1), true)$$, 'CISO يحظر جهاز المدير (أو لا جهاز له)');
 reset role;
 
