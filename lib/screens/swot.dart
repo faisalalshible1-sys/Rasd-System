@@ -241,7 +241,7 @@ class SwotDashboardPage extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: InfoBanner(text: 'حان موعد المراجعة الشاملة للتحليل (${_day(meta.nextReview)}).', level: 'warning'),
           ),
-        ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
+        ResponsiveGrid(minItemWidth: MediaQuery.sizeOf(context).width < 700 ? 160 : 230, spacing: 10, children: [
           StatCard(
             label: 'العوامل',
             value: '${a.factors.length}',

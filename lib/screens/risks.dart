@@ -248,7 +248,7 @@ class RiskDashboardPage extends StatelessWidget {
               action: TextButton(onPressed: () => app.setTab(21), child: const Text('فتح السجل')),
             ),
           ),
-        ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
+        ResponsiveGrid(minItemWidth: MediaQuery.sizeOf(context).width < 700 ? 160 : 230, spacing: 10, children: [
           StatCard(label: 'إجمالي المخاطر', value: '${st.total}', icon: Icons.list_alt_rounded, color: accent, onTap: () => app.setTab(21)),
           StatCard(label: 'مرتفعة قبل المعالجة', value: '${st.highBefore}', icon: Icons.priority_high_rounded, color: sem.danger),
           StatCard(
@@ -1149,7 +1149,8 @@ class _RiskMatrixPageState extends State<RiskMatrixPage> {
           SectionCard(
             title: 'مصفوفة الاحتمالية والتأثير',
             icon: Icons.grid_4x4_rounded,
-            trailing: SegmentedButton<String>(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Align(alignment: AlignmentDirectional.centerEnd, child: SegmentedButton<String>(
               showSelectedIcon: false,
               segments: const [
                 ButtonSegment(value: 'scores', label: Text('الدرجات')),
@@ -1158,8 +1159,9 @@ class _RiskMatrixPageState extends State<RiskMatrixPage> {
               ],
               selected: {_view},
               onSelectionChanged: (s) => setState(() => _view = s.first),
-            ),
-            child: RiskHeatMap(
+            )),
+              const SizedBox(height: 12),
+              RiskHeatMap(
               cfg: cfg,
               counts: switch (_view) { 'before' => st.heat, 'after' => st.heatAfter, _ => null },
               onTap: _view == 'scores'
@@ -1173,6 +1175,7 @@ class _RiskMatrixPageState extends State<RiskMatrixPage> {
                           .toList(),
                       '$p × $i = ${p * i}'),
             ),
+            ]),
           ),
           SectionCard(
             title: 'معايير التصنيف',

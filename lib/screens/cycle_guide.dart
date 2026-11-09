@@ -311,16 +311,21 @@ class _DiagramCardState extends State<_DiagramCard> {
       icon: Icons.schema_outlined,
       subtitle: 'الرقم: موضع الخطوة · الصفوف: جهة التنفيذ والمتابعة · الإطار المتقطع: جهة مقترحة · '
           'المثلث الأحمر: بند نُقل عن موضعه في الملف · الخط المتقطع: يتكرر مع كل مستخلص جاري. اضغط أي بند لتفاصيله.',
-      trailing: SegmentedButton<bool>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(value: true, icon: Icon(Icons.fit_screen_outlined, size: 18), label: Text('ملاءمة')),
-          ButtonSegment(value: false, icon: Icon(Icons.zoom_in_rounded, size: 18), label: Text('الحجم الكامل')),
-        ],
-        selected: {fitMode},
-        onSelectionChanged: (s) => setState(() => _choice = s.first),
-      ),
-      child: LayoutBuilder(builder: (context, c) {
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: true, icon: Icon(Icons.fit_screen_outlined, size: 18), label: Text('ملاءمة')),
+              ButtonSegment(value: false, icon: Icon(Icons.zoom_in_rounded, size: 18), label: Text('الحجم الكامل')),
+            ],
+            selected: {fitMode},
+            onSelectionChanged: (s) => setState(() => _choice = s.first),
+          ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (context, c) {
         const d = CycleDiagram();
         final w = CycleDiagram.width, h = CycleDiagram.height;
         if (fitMode) {
@@ -344,6 +349,7 @@ class _DiagramCardState extends State<_DiagramCard> {
           ),
         );
       }),
+      ]),
     );
   }
 }
