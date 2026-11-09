@@ -7,13 +7,9 @@
         "office_staff"
       ],
       "key": "c1",
-      "kind": "select",
-      "label": "حقل تجريبي",
-      "options": [
-        "1.",
-        "2.",
-        "3."
-      ],
+      "kind": "longtext",
+      "label": "تكليف لجنة استلام ابتدائي",
+      "options": [],
       "section": "بيانات إضافية",
       "sort": 1
     }
