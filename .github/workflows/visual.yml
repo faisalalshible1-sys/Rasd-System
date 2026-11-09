@@ -32,6 +32,7 @@ jobs:
           [ $code -ne 0 ] && bash tool/ci_annotate.sh shots.txt "visual"
           exit 0
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: visual-shots
           path: visual_test/goldens

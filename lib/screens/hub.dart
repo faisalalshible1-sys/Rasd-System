@@ -168,10 +168,12 @@ class _SectionCard extends StatelessWidget {
                           if (i > 0) const SizedBox(width: 8),
                           Expanded(
                             child: Container(
-                              height: 58,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              constraints: const BoxConstraints(minHeight: 58),
+                              alignment: AlignmentDirectional.centerStart,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                               decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(12)),
                               child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
