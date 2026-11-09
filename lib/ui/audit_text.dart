@@ -1,5 +1,6 @@
 import '../app_state.dart';
 import '../models.dart';
+import '../registers.dart';
 
 /// وصف سطر من سجل التدقيق بلغة مفهومة.
 String auditDescription(AppState app, AuditEntry e) {
@@ -163,11 +164,91 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'رفع حظر جهاز ${e.projectLabel} (${text(d['label'])})';
     case 'security.device_blocked_attempt':
       return 'محاولة دخول من جهاز محظور لـ ${e.projectLabel}${text(d['ip']).isNotEmpty ? ' (${text(d['ip'])})' : ''}';
+    case 'risk.create':
+      return 'سجّل الخطر ${text(d['code'])}: ${text(d['description'])} (الدرجة ${text(d['score'])})';
+    case 'risk.update':
+      return 'عدّل الخطر ${text(d['code'])}${_changed(d['changes'])}';
+    case 'risk.delete':
+      return 'حذف الخطر ${text(d['code'])}: ${text(d['description'])}';
+    case 'swot.factor':
+      return text(d['op']) == 'create'
+          ? 'أضاف عامل SWOT ${text(d['code'])}: ${text(d['factor'])}'
+          : 'عدّل عامل SWOT ${text(d['code'])}${_changed(d['changes'])}';
+    case 'swot.strategy':
+      return text(d['op']) == 'create'
+          ? 'أضاف الاستراتيجية ${text(d['code'])}: ${text(d['strategy'])}'
+          : 'عدّل الاستراتيجية ${text(d['code'])}${_changed(d['changes'])}';
+    case 'swot.action':
+      return text(d['op']) == 'create'
+          ? 'أضاف الإجراء ${text(d['code'])}: ${text(d['action'])}'
+          : 'عدّل الإجراء ${text(d['code'])}${_changed(d['changes'])}';
+    case 'swot.progress':
+      final ch = d['changes'] is Map ? d['changes'] as Map : const {};
+      final pr = ch['progress'] is Map ? (ch['progress'] as Map)['to'] : null;
+      final stt = ch['status'] is Map ? actionStatusLabels[text((ch['status'] as Map)['to'])] : null;
+      return 'حدّث إنجاز الإجراء ${text(d['code'])}${pr is num ? ': ${(pr * 100).round()}%' : ''}${stt != null ? ' · $stt' : ''}';
+    case 'swot.delete':
+      final item = switch (text(d['item'])) { 'factor' => 'العامل', 'strategy' => 'الاستراتيجية', _ => 'الإجراء' };
+      return 'حذف $item ${text(d['code'])}: ${text(d['text'])}';
     case 'ai.action':
       return 'نفّذ اقتراح مساعد Claude: ${text(d['summary'])}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
+}
+
+/// أسماء الحقول المعدلة في سجل المخاطر وتحليل SWOT.
+const Map<String, String> _registerFields = {
+  'code': 'الرمز',
+  'description': 'الوصف',
+  'cause': 'السبب',
+  'effect': 'الأثر',
+  'probability': 'الاحتمالية',
+  'impact': 'التأثير',
+  'residual_probability': 'الاحتمالية بعد المعالجة',
+  'residual_impact': 'التأثير بعد المعالجة',
+  'mitigation': 'الإجراء الوقائي',
+  'response': 'الاستجابة',
+  'owner': 'المسؤول',
+  'status': 'الحالة',
+  'next_review': 'موعد المراجعة',
+  'target_date': 'الموعد المستهدف',
+  'closed_on': 'تاريخ الإغلاق',
+  'phase': 'المرحلة',
+  'category': 'التصنيف',
+  'project_group': 'المشروع',
+  'project_id': 'العقد المرتبط',
+  'early_warning': 'مؤشر الإنذار',
+  'notes': 'الملاحظات',
+  'kind': 'التصنيف',
+  'factor': 'العامل',
+  'importance': 'الأهمية',
+  'urgency': 'الاستعجال',
+  'rating': 'التقييم',
+  'department': 'القسم',
+  'evidence': 'مصدر التحقق',
+  'strategy': 'الاستراتيجية',
+  'internal_factors': 'العوامل الداخلية',
+  'external_factors': 'العوامل الخارجية',
+  'priority': 'الأولوية',
+  'lead_department': 'القسم القائد',
+  'action': 'الإجراء',
+  'strategy_code': 'الاستراتيجية',
+  'factors': 'العوامل',
+  'output': 'المخرج',
+  'kpi': 'المؤشر',
+  'start_date': 'تاريخ البدء',
+  'duration_months': 'المدة',
+  'progress': 'الإنجاز',
+  'verification': 'مصدر التحقق',
+  'review_cycle': 'دورية المراجعة',
+  'source': 'المصدر',
+};
+
+String _changed(Object? changes) {
+  if (changes is! Map || changes.isEmpty) return '';
+  final names = [for (final k in changes.keys) _registerFields[k.toString()] ?? k.toString()];
+  return ': ${names.toSet().join('، ')}';
 }
 
 String _m(Object? v) => v is num ? '${fmtMoney(v.toDouble())} $currencyLabel' : '—';
@@ -201,4 +282,6 @@ const Map<String, String> settingLabels = {
   'security.idle_minutes': 'القفل التلقائي',
   'security.freeze': 'تجميد المنظومة',
   'security.signups_open': 'التسجيل الجديد',
+  'risk.config': 'معايير سجل المخاطر وقوائمه',
+  'swot.meta': 'بيانات وثيقة تحليل SWOT',
 };

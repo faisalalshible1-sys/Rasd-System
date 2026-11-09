@@ -964,6 +964,14 @@ class AuditEntry {
 }
 
 const Map<String, String> auditActionLabels = {
+  'risk.create': 'سجّل خطراً',
+  'risk.update': 'عدّل خطراً',
+  'risk.delete': 'حذف خطراً',
+  'swot.factor': 'عامل SWOT',
+  'swot.strategy': 'استراتيجية SWOT',
+  'swot.action': 'إجراء تنفيذي',
+  'swot.progress': 'تحديث إنجاز إجراء',
+  'swot.delete': 'حذف من تحليل SWOT',
   'project.create': 'أنشأ المشروع',
   'project.update': 'عدّل بيانات المشروع',
   'project.delete': 'حذف المشروع',

@@ -15,12 +15,16 @@ import 'account.dart';
 import 'analysis.dart';
 import 'assistant.dart';
 import 'control/control_panel.dart';
+import 'cycle_guide.dart';
 import 'dashboard.dart';
 import 'finance.dart';
+import 'hub.dart';
 import 'ideas.dart';
 import 'project_detail.dart';
 import 'projects.dart';
 import 'requests.dart';
+import 'risks.dart';
+import 'swot.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
 class Tabs {
@@ -32,6 +36,21 @@ class Tabs {
   static const control = 5;
   static const assistant = 6;
   static const finance = 7;
+  static const guide = 8;
+
+  // سجل المخاطر
+  static const riskDashboard = 20;
+  static const riskRegister = 21;
+  static const riskMatrix = 22;
+
+  // تحليل SWOT
+  static const swotDashboard = 30;
+  static const swotMatrix = 31;
+  static const swotFactors = 32;
+  static const swotWeighted = 33;
+  static const swotTows = 34;
+  static const swotPlan = 35;
+  static const swotMethod = 36;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -44,6 +63,7 @@ const Map<int, String> tabKeys = {
   Tabs.control: 'control',
   Tabs.assistant: 'assistant',
   Tabs.finance: 'finance',
+  Tabs.guide: 'guide',
 };
 
 /// صفحات القائمة التي يرتّبها المدير ويسمّيها ويخفيها عن الموظفين (لوحة التحكم والمساعد ثابتان للإدارة).
@@ -54,6 +74,7 @@ const List<(String, String, IconData)> navCatalog = [
   ('requests', 'الاعتمادات / طلباتي', Icons.fact_check_outlined),
   ('analysis', 'التحليل', Icons.insights_outlined),
   ('ideas', 'الأفكار والتطوير', Icons.lightbulb_outline_rounded),
+  ('guide', 'الدليل المرجعي', Icons.schema_outlined),
 ];
 
 class _Dest {
@@ -69,7 +90,43 @@ class _Dest {
   _Dest withLabel(String? l) => l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin);
 }
 
+/// صفحات الإدارة الثابتة في كل الأقسام (المساعد ولوحة التحكم أو التدقيق).
+/// لكل قسم أرقامه لها (28/29 للمخاطر، 38/39 لـ SWOT) حتى يبقى المستخدم في قسمه.
+List<_Dest> _adminDests(AppState app, [int base = 0]) {
+  final assistant = base == 0 ? Tabs.assistant : base + 8;
+  final control = base == 0 ? Tabs.control : base + 9;
+  return [
+    if (app.canUseAssistant) _Dest(assistant, 'مساعد Claude', Icons.auto_awesome_outlined, Icons.auto_awesome, admin: true),
+    if (app.isDirector)
+      _Dest(control, 'لوحة التحكم', Icons.tune_outlined, Icons.tune_rounded, admin: true)
+    else if (app.isAuditor)
+      _Dest(control, 'التدقيق الأمني', Icons.policy_outlined, Icons.policy_rounded, admin: true),
+  ];
+}
+
 List<_Dest> _destinations(AppState app) {
+  if (app.section == 'risks') {
+    final overdue = app.risks.where((r) => r.followUp(app.riskConfig.alertDays) == 'overdue').length;
+    return [
+      const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
+      _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
+      const _Dest(Tabs.riskMatrix, 'مصفوفة التقييم', Icons.grid_on_outlined, Icons.grid_on_rounded),
+      ..._adminDests(app, 20),
+    ];
+  }
+  if (app.section == 'swot') {
+    final alerts = app.v6Ready ? app.swot.alerts.length : 0;
+    return [
+      const _Dest(Tabs.swotDashboard, 'لوحة المتابعة', Icons.insights_outlined, Icons.insights_rounded),
+      const _Dest(Tabs.swotMatrix, 'مصفوفة SWOT', Icons.grid_view_outlined, Icons.grid_view_rounded),
+      const _Dest(Tabs.swotFactors, 'سجل العوامل', Icons.format_list_numbered_outlined, Icons.format_list_numbered_rounded),
+      const _Dest(Tabs.swotWeighted, 'التقييم المرجح', Icons.balance_outlined, Icons.balance_rounded),
+      const _Dest(Tabs.swotTows, 'استراتيجيات TOWS', Icons.alt_route_outlined, Icons.alt_route_rounded),
+      _Dest(Tabs.swotPlan, 'خطة التنفيذ', Icons.event_note_outlined, Icons.event_note_rounded, badge: alerts),
+      const _Dest(Tabs.swotMethod, 'المنهجية والحوكمة', Icons.menu_book_outlined, Icons.menu_book_rounded),
+      ..._adminDests(app, 30),
+    ];
+  }
   final requestsBadge = app.isDirector ? app.pendingRequests.length : app.myRequests.where((r) => r.isPending).length;
   final newIdeas = app.isDirector ? app.ideas.where((i) => i.status == 'new').length : 0;
   final all = <_Dest>[
@@ -82,12 +139,8 @@ List<_Dest> _destinations(AppState app) {
     if (app.canAudit || app.settings.feature('analysis'))
       const _Dest(Tabs.analysis, 'التحليل', Icons.insights_outlined, Icons.insights_rounded),
     if (app.v2Ready) _Dest(Tabs.ideas, 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded, badge: newIdeas),
-    if (app.canUseAssistant)
-      const _Dest(Tabs.assistant, 'مساعد Claude', Icons.auto_awesome_outlined, Icons.auto_awesome, admin: true),
-    if (app.isDirector)
-      const _Dest(Tabs.control, 'لوحة التحكم', Icons.tune_outlined, Icons.tune_rounded, admin: true)
-    else if (app.isAuditor)
-      const _Dest(Tabs.control, 'التدقيق الأمني', Icons.policy_outlined, Icons.policy_rounded, admin: true),
+    const _Dest(Tabs.guide, 'الدليل المرجعي', Icons.schema_outlined, Icons.schema_rounded),
+    ..._adminDests(app),
   ];
 
   // تخصيص المدير: الإخفاء عن الموظفين (المدير يرى كل شيء) والأسماء والترتيب
@@ -114,9 +167,20 @@ Widget _page(int id) => switch (id) {
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
-      Tabs.control => const ControlPanelPage(),
-      Tabs.assistant => const AssistantPage(),
+      Tabs.control || 29 || 39 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 => const AssistantPage(),
       Tabs.finance => const FinancePage(),
+      Tabs.guide => const CycleGuidePage(),
+      Tabs.riskDashboard => const RiskDashboardPage(),
+      Tabs.riskRegister => const RiskRegisterPage(),
+      Tabs.riskMatrix => const RiskMatrixPage(),
+      Tabs.swotDashboard => const SwotDashboardPage(),
+      Tabs.swotMatrix => const SwotMatrixPage(),
+      Tabs.swotFactors => const SwotFactorsPage(),
+      Tabs.swotWeighted => const SwotWeightedPage(),
+      Tabs.swotTows => const SwotTowsPage(),
+      Tabs.swotPlan => const SwotPlanPage(),
+      Tabs.swotMethod => const SwotMethodPage(),
       _ => const DashboardPage(),
     };
 
@@ -174,6 +238,25 @@ class _HomeShellState extends State<HomeShell> {
     final release = app.latestRelease;
     if (release != null && app.updateMandatory) {
       return UpdateRequiredScreen(release: release);
+    }
+
+    if (app.showHub) {
+      return Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _resetIdle(),
+        onPointerSignal: (_) => _resetIdle(),
+        child: Scaffold(
+          body: SafeArea(
+            bottom: false,
+            child: Column(children: [
+              const _TopBar(title: 'الأقسام الرئيسية', compact: true, hub: true),
+              if (release != null && !app.updateDismissed) UpdateBanner(app: app, release: release),
+              _Banners(app: app),
+              const Expanded(child: SectionHub()),
+            ]),
+          ),
+        ),
+      );
     }
 
     final content = Column(
@@ -296,6 +379,15 @@ class _HomeShellState extends State<HomeShell> {
                   },
                 ),
               ListTile(
+                leading: const Icon(Icons.apps_rounded),
+                title: const Text('الأقسام الرئيسية', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('أنت في: ${sectionName(app.section)}'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  app.openHub();
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.account_circle_outlined),
                 title: const Text('حسابي والأمان', style: TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
@@ -347,6 +439,10 @@ class _Sidebar extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: SectionSwitcher(app: app),
           ),
           Divider(height: 1, color: sem.rule),
           Expanded(
@@ -508,10 +604,11 @@ class _AccountButton extends StatelessWidget {
 
 /// الشريط العلوي لمنطقة المحتوى.
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.title, required this.compact});
+  const _TopBar({required this.title, required this.compact, this.hub = false});
 
   final String title;
   final bool compact;
+  final bool hub;
 
   @override
   Widget build(BuildContext context) {
@@ -548,8 +645,10 @@ class _TopBar extends StatelessWidget {
                           child: Text(title,
                               key: ValueKey(title), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                         ),
-                        if (compact)
-                          Text(app.orgName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: sem.muted)),
+                        Text(hub ? app.orgName : sectionName(app.section),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11.5, color: hub ? sem.muted : sectionColor(context, app.section))),
                       ],
                     ),
                   ),
@@ -558,6 +657,21 @@ class _TopBar extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: sem.muted)),
                     ),
+                  if (!hub)
+                    compact
+                        ? IconButton(
+                            tooltip: 'الأقسام الرئيسية',
+                            onPressed: app.openHub,
+                            icon: Icon(sectionIcon(app.section), color: sectionColor(context, app.section)),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: TextButton.icon(
+                              onPressed: app.openHub,
+                              icon: Icon(Icons.apps_rounded, color: sectionColor(context, app.section)),
+                              label: Text('الأقسام', style: TextStyle(color: sectionColor(context, app.section))),
+                            ),
+                          ),
                   IconButton(tooltip: 'تحديث البيانات', onPressed: app.loadAll, icon: const Icon(Icons.refresh_rounded)),
                   IconButton(
                     tooltip: 'الإشعارات',

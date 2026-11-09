@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'models.dart';
+import 'registers.dart';
 import 'ui/appearance.dart';
 
 /// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
@@ -52,6 +53,13 @@ class AppState extends ChangeNotifier {
   // الإصدار الخامس: سجل دفعات المستخلصات والإحالة للصرف والدفعة المقدمة
   List<ExtractPayment> payments = [];
   bool v5Ready = false;
+
+  // القسمان الرئيسيان: سجل المخاطر وتحليل SWOT (الإصدار السادس)
+  List<Risk> risks = [];
+  List<SwotFactor> swotFactors = [];
+  List<SwotStrategy> swotStrategies = [];
+  List<SwotAction> swotActions = [];
+  bool v6Ready = false;
   Map<String, List<ExtractPayment>> _payBy = {};
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
@@ -190,6 +198,9 @@ class AppState extends ChangeNotifier {
 
   // التنقل والتصفية المشتركة بين الشاشات
   int tab = 0;
+
+  /// شاشة الأقسام الرئيسية الثلاثة تظهر عند الدخول، ثم يعمل كل قسم بقائمته.
+  bool showHub = true;
   String ownerFilter = '';
   String companyFilter = '';
   String search = '';
@@ -209,6 +220,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel3;
   RealtimeChannel? _channel4;
   RealtimeChannel? _channel5;
+  RealtimeChannel? _channel6;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -532,6 +544,7 @@ class AppState extends ChangeNotifier {
       await _loadV2();
       await _loadV3();
       await _loadV4();
+      await _loadV6();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -670,6 +683,29 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// سجل المخاطر وتحليل SWOT (الإصدار السادس)؛ يعمل التطبيق بدونهما كما كان.
+  Future<void> _loadV6() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('risks').select().order('code'),
+        client.from('swot_factors').select().order('sort'),
+        client.from('swot_strategies').select().order('sort'),
+        client.from('swot_actions').select().order('sort'),
+      ]);
+      risks = r[0].map(Risk.fromMap).toList();
+      swotFactors = r[1].map(SwotFactor.fromMap).toList();
+      swotStrategies = r[2].map(SwotStrategy.fromMap).toList();
+      swotActions = r[3].map(SwotAction.fromMap).toList();
+      v6Ready = true;
+    } catch (_) {
+      risks = [];
+      swotFactors = [];
+      swotStrategies = [];
+      swotActions = [];
+      v6Ready = false;
+    }
+  }
+
   /// إعدادات الهوية قبل تسجيل الدخول.
   Future<void> loadPublicSettings() async {
     try {
@@ -739,6 +775,16 @@ class AppState extends ChangeNotifier {
     ch5.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'extract_payments', callback: (_) => scheduleReload());
     ch5.subscribe();
     _channel5 = ch5;
+
+    // قناة الإصدار السادس: سجل المخاطر وتحليل SWOT
+    final old6 = _channel6;
+    if (old6 != null) client.removeChannel(old6);
+    final ch6 = client.channel('dc-v6');
+    for (final t in const ['risks', 'swot_factors', 'swot_strategies', 'swot_actions']) {
+      ch6.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch6.subscribe();
+    _channel6 = ch6;
   }
 
   void scheduleReload() {
@@ -767,6 +813,19 @@ class AppState extends ChangeNotifier {
     payments = [];
     _payBy = {};
     v5Ready = false;
+    final old6 = _channel6;
+    if (old6 != null) client.removeChannel(old6);
+    _channel6 = null;
+    risks = [];
+    swotFactors = [];
+    swotStrategies = [];
+    swotActions = [];
+    v6Ready = false;
+    showHub = true;
+    _lastTab
+      ..['cycle'] = 0
+      ..['risks'] = 20
+      ..['swot'] = 30;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -821,6 +880,8 @@ class AppState extends ChangeNotifier {
     if (old4 != null) client.removeChannel(old4);
     final old5 = _channel5;
     if (old5 != null) client.removeChannel(old5);
+    final old6 = _channel6;
+    if (old6 != null) client.removeChannel(old6);
     _heartbeat?.cancel();
     super.dispose();
   }
@@ -830,6 +891,25 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------
   void setTab(int i) {
     tab = i;
+    showHub = false;
+    _lastTab[sectionOf(i)] = i;
+    _notify();
+  }
+
+  /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر (20–29)، SWOT (30–39).
+  static String sectionOf(int t) => t >= 30 ? 'swot' : (t >= 20 ? 'risks' : 'cycle');
+  String get section => sectionOf(tab);
+  final Map<String, int> _lastTab = {'cycle': 0, 'risks': 20, 'swot': 30};
+
+  /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
+  void openSection(String s) {
+    tab = _lastTab[s] ?? 0;
+    showHub = false;
+    _notify();
+  }
+
+  void openHub() {
+    showHub = true;
     _notify();
   }
 
@@ -845,8 +925,7 @@ class AppState extends ChangeNotifier {
 
   void openFinance({String view = 'summary', String? status}) {
     financeRequest = (view: view, status: status, seq: ++_financeSeq);
-    tab = 7;
-    _notify();
+    setTab(7);
   }
 
   void openProjects({CycleState? cycle, int? stage, String? form, bool nextOnly = false}) {
@@ -855,8 +934,7 @@ class AppState extends ChangeNotifier {
     stageFilter = stage;
     formFilter = form;
     formFilterNextOnly = nextOnly;
-    tab = 1;
-    _notify();
+    setTab(1);
   }
 
   void setProjectFilters({String? search, CycleState? cycle, bool clearCycle = false, int? stage, bool clearStage = false, String? sort, bool clearForm = false}) {
@@ -1166,6 +1244,94 @@ class AppState extends ChangeNotifier {
       'p_notes': notes.trim(),
     });
     await loadAll();
+  }
+
+  // ---------------------------------------------------------------
+  // سجل المخاطر وتحليل SWOT
+  // ---------------------------------------------------------------
+  RiskConfig get riskConfig => RiskConfig.fromJson(settings.raw['risk.config']);
+  SwotMeta get swotMeta => SwotMeta(settings.map('swot.meta'));
+  SwotAnalysis get swot => SwotAnalysis(swotFactors, swotStrategies, swotActions);
+
+  /// كل عضو عدا CISO يحرر سجل المخاطر؛ الحذف للمدير.
+  bool get canEditRisks => v6Ready && role != null && role != AppRole.securityAuditor && !frozenForMe;
+
+  /// تحليل SWOT يحرره المدير وفريق مكتبه.
+  bool get canEditSwot => v6Ready && (role == AppRole.director || role == AppRole.officeStaff) && !frozenForMe;
+
+  /// تحديث تقدم إجراء: محررو SWOT ورئيس القسم المسؤول.
+  bool canUpdateSwotAction(String department) {
+    if (canEditSwot) return true;
+    if (!v6Ready || role != AppRole.deptHead || frozenForMe) return false;
+    final dn = departmentName(me?.department);
+    return department == 'جميع الأقسام' || department == 'قسم $dn' || department == dn;
+  }
+
+  Risk? riskById(String id) {
+    for (final r in risks) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  Future<void> _afterV6() async {
+    await _loadV6();
+    _notify();
+  }
+
+  Future<String?> saveRisk(String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_risk', params: {'p_id': id, 'p_data': data});
+    await _afterV6();
+    return res?.toString();
+  }
+
+  Future<void> deleteRisk(String id) async {
+    await client.rpc('delete_risk', params: {'p_id': id});
+    await _afterV6();
+  }
+
+  Future<void> saveSwotFactor(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_swot_factor', params: {'p_id': id, 'p_data': data});
+    await _afterV6();
+  }
+
+  Future<void> deleteSwotFactor(String id) async {
+    await client.rpc('delete_swot_factor', params: {'p_id': id});
+    await _afterV6();
+  }
+
+  Future<void> saveSwotStrategy(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_swot_strategy', params: {'p_id': id, 'p_data': data});
+    await _afterV6();
+  }
+
+  Future<void> deleteSwotStrategy(String id) async {
+    await client.rpc('delete_swot_strategy', params: {'p_id': id});
+    await _afterV6();
+  }
+
+  Future<void> saveSwotAction(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_swot_action', params: {'p_id': id, 'p_data': data});
+    await _afterV6();
+  }
+
+  Future<void> deleteSwotAction(String id) async {
+    await client.rpc('delete_swot_action', params: {'p_id': id});
+    await _afterV6();
+  }
+
+  /// المتابعة الدورية للإجراء: البدء والمدة والحالة والإنجاز والملاحظات.
+  Future<void> updateSwotAction(String id,
+      {DateTime? start, int? months, required String status, double? progress, String notes = ''}) async {
+    await client.rpc('update_swot_action', params: {
+      'p_id': id,
+      'p_start': start == null ? null : isoDay(start),
+      'p_duration': months,
+      'p_status': status,
+      'p_progress': progress,
+      'p_notes': notes,
+    });
+    await _afterV6();
   }
 
   Future<void> deleteExtractPayment(String id) async {

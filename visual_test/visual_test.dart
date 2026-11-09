@@ -5,15 +5,19 @@ import 'dart:io';
 
 import 'package:dc_app/app_state.dart';
 import 'package:dc_app/models.dart';
+import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/auth.dart';
 import 'package:dc_app/screens/contract_finance.dart';
+import 'package:dc_app/screens/cycle_guide.dart';
 import 'package:dc_app/screens/control/appearance.dart';
 import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
 import 'package:dc_app/screens/project_detail.dart';
+import 'package:dc_app/screens/risks.dart';
+import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -264,7 +268,10 @@ AppState _sampleState() {
   app.v3Ready = true;
   app.v4Ready = true;
   app.v5Ready = true;
+  app.v6Ready = true;
+  app.showHub = false;
   app.loadedOnce = true;
+  _registers(app);
   app.settings = LiveSettings({
     'ai.enabled': true,
     'ai.model': 'claude-sonnet-5-5',
@@ -280,6 +287,114 @@ AppState _sampleState() {
   app.settings.applyGlobals();
   app.indexData();
   return app;
+}
+
+/// بيانات تجريبية لسجل المخاطر وتحليل SWOT.
+void _registers(AppState app) {
+  const risks = [
+    ('R01', 'تأخر اعتماد المخططات التنفيذية من الاستشاري', 'فني', 'التصميم', 4, 4, 2, 3, 'in_progress', -3, 'مدير المشروع'),
+    ('R02', 'تجاوز الكميات المنفذة للمقايسة دون أمر تغيير معتمد', 'تعاقدي', 'التنفيذ', 4, 5, 2, 4, 'open', 4, 'العقود'),
+    ('R03', 'ضعف تنسيق الخدمات تحت الأرض مع شركات المرافق', 'تنسيق', 'التنفيذ', 3, 4, 2, 2, 'open', 20, 'PMO'),
+    ('R04', 'تأخر صرف المستخلصات الجارية', 'مالي', 'المتابعة', 4, 3, null, null, 'open', 10, 'المالية'),
+    ('R05', 'حوادث في المواقع المأهولة بوسط البلاد', 'سلامة', 'التنفيذ', 2, 5, 1, 4, 'in_progress', 30, 'السلامة'),
+    ('R06', 'نقص توريد الحديد والإسمنت', 'توريد', 'التنفيذ', 3, 3, 2, 2, 'on_hold', 60, 'المشتريات'),
+    ('R07', 'عدم مطابقة عينات الخرسانة', 'جودة', 'التنفيذ', 2, 4, 1, 3, 'closed', null, 'الجودة'),
+    ('R08', 'اكتشاف آثار أثناء الحفر', 'موقعي', 'التنفيذ', 2, 3, null, null, 'open', null, 'الاستشاري'),
+  ];
+  app.risks = [
+    for (final r in risks)
+      Risk.fromMap({
+        'id': 'risk-${r.$1}',
+        'code': r.$1,
+        'description': r.$2,
+        'category': r.$3,
+        'phase': r.$4,
+        'probability': r.$5,
+        'impact': r.$6,
+        'residual_probability': r.$7,
+        'residual_impact': r.$8,
+        'status': r.$9,
+        'next_review': r.$10 == null ? null : _day(-r.$10!),
+        'closed_on': r.$9 == 'closed' ? _day(5) : null,
+        'registered_on': _day(40),
+        'owner': r.$11,
+        'project_group': 'الطرق والجسور',
+        'mitigation': 'متابعة أسبوعية مع الجهة المعنية وتوثيق المراسلات',
+        'response': 'mitigate',
+      }),
+  ];
+  const factors = [
+    ('S01', 'S', 'خبرة فنية متراكمة في مشاريع الإعمار', 5, 4, 4),
+    ('S02', 'S', 'منظومة رقمية لمتابعة الدورة المستندية', 4, 3, 4),
+    ('S03', 'S', 'دعم الإدارة العليا للمكتب', 4, 2, 3),
+    ('W01', 'W', 'نقص المهندسين المتخصصين في الحصر', 5, 5, 1),
+    ('W02', 'W', 'ضعف أرشفة الوثائق الورقية', 4, 4, 2),
+    ('W03', 'W', 'تداخل الصلاحيات بين الأقسام', 3, 3, 2),
+    ('O01', 'O', 'تمويل مستقر لمشروع إعادة الإعمار', 5, 4, 3),
+    ('O02', 'O', 'توفر شركات مقاولات محلية مؤهلة', 4, 3, 3),
+    ('T01', 'T', 'تقلب أسعار مواد البناء', 4, 5, 2),
+    ('T02', 'T', 'تأخر قرارات الجهات الخارجية', 4, 4, 2),
+  ];
+  app.swotFactors = [
+    for (var i = 0; i < factors.length; i++)
+      SwotFactor.fromMap({
+        'id': 'f-${factors[i].$1}',
+        'code': factors[i].$1,
+        'kind': factors[i].$2,
+        'factor': factors[i].$3,
+        'importance': factors[i].$4,
+        'urgency': factors[i].$5,
+        'rating': factors[i].$6,
+        'department': 'قسم الإشراف والتنسيق',
+        'source': 'الملف الأصلي',
+        'sort': i + 1,
+      }),
+  ];
+  const strategies = [
+    ('SO1', 'SO', 'توظيف المنظومة الرقمية لتسريع دورة المستخلصات', ['S02'], ['O01'], 'high'),
+    ('WO1', 'WO', 'التعاقد مع مهندسي حصر من الشركات المحلية', ['W01'], ['O02'], 'high'),
+    ('ST1', 'ST', 'تثبيت أسعار المواد الرئيسية في العقود', ['S01'], ['T01'], 'medium'),
+    ('WT1', 'WT', 'توحيد مصفوفة الصلاحيات وتقليل الاعتماد على قرارات خارجية', ['W03'], ['T02'], 'medium'),
+  ];
+  app.swotStrategies = [
+    for (var i = 0; i < strategies.length; i++)
+      SwotStrategy.fromMap({
+        'id': 'st-${strategies[i].$1}',
+        'code': strategies[i].$1,
+        'kind': strategies[i].$2,
+        'strategy': strategies[i].$3,
+        'internal_factors': strategies[i].$4,
+        'external_factors': strategies[i].$5,
+        'priority': strategies[i].$6,
+        'lead_department': 'إدارة المكتب',
+        'sort': i + 1,
+      }),
+  ];
+  const actions = [
+    ('A01', 'SO1', 'ربط المستخلصات بالدفعات إلكترونياً', 'in_progress', 0.6, 120, 6),
+    ('A02', 'WO1', 'إعلان احتياج مهندسي حصر', 'in_progress', 0.2, 150, 4),
+    ('A03', 'ST1', 'إضافة بند تعديل الأسعار للعقود الجديدة', 'not_started', null, 60, 3),
+    ('A04', 'WT1', 'إصدار دليل الصلاحيات', 'completed', 1.0, 200, 3),
+    ('A05', 'WO1', 'برنامج تدريب على الحصر بالمنظومة', 'stalled', 0.1, 90, 2),
+  ];
+  app.swotActions = [
+    for (var i = 0; i < actions.length; i++)
+      SwotAction.fromMap({
+        'id': 'a-${actions[i].$1}',
+        'code': actions[i].$1,
+        'strategy_code': actions[i].$2,
+        'factors': app.swotStrategies.firstWhere((s) => s.code == actions[i].$2).factors,
+        'action': actions[i].$3,
+        'status': actions[i].$4,
+        'progress': actions[i].$5,
+        'start_date': _day(actions[i].$6),
+        'duration_months': actions[i].$7,
+        'department': i.isEven ? 'قسم الإشراف والتنسيق' : 'قسم الشؤون الفنية',
+        'owner': 'رئيس القسم',
+        'priority': 'high',
+        'sort': i + 1,
+      }),
+  ];
 }
 
 Future<void> _shot(WidgetTester tester, String name, AppState app, Widget page,
@@ -405,5 +520,29 @@ void main() {
       ),
     ]);
     await _shot(tester, '50_assistant_light', app, _scaffold(const AssistantPage()), size: const Size(1200, 1100));
+  });
+
+  testWidgets('sections', (tester) async {
+    final app = _sampleState();
+    app.showHub = true;
+    await _shot(tester, '60_hub_light_desktop', app, const HomeShell(), size: const Size(1440, 1000));
+    await _shot(tester, '61_hub_dark_mobile', app, const HomeShell(), size: const Size(400, 1400), dark: true);
+    app.showHub = false;
+    app.tab = 8;
+    await _shot(tester, '62_guide_light_desktop', app, const HomeShell(), size: const Size(1440, 1700));
+    await _shot(tester, '63_guide_mobile', app, _scaffold(const CycleGuidePage()), size: const Size(400, 1800));
+    app.tab = 20;
+    await _shot(tester, '64_risk_dashboard_light', app, const HomeShell(), size: const Size(1440, 2600));
+    await _shot(tester, '65_risk_dashboard_dark_mobile', app, _scaffold(const RiskDashboardPage()), size: const Size(400, 4200), dark: true);
+    await _shot(tester, '66_risk_register_light', app, _scaffold(const RiskRegisterPage()), size: const Size(1200, 1800));
+    await _shot(tester, '67_risk_matrix_light', app, _scaffold(const RiskMatrixPage()), size: const Size(1200, 1900));
+    app.tab = 30;
+    await _shot(tester, '70_swot_dashboard_light', app, const HomeShell(), size: const Size(1440, 2400));
+    await _shot(tester, '71_swot_matrix_dark', app, _scaffold(const SwotMatrixPage()), size: const Size(1200, 1500), dark: true);
+    await _shot(tester, '72_swot_factors_light', app, _scaffold(const SwotFactorsPage()), size: const Size(1200, 2200));
+    await _shot(tester, '73_swot_weighted_light', app, _scaffold(const SwotWeightedPage()), size: const Size(1200, 2000));
+    await _shot(tester, '74_swot_tows_mobile', app, _scaffold(const SwotTowsPage()), size: const Size(400, 2600));
+    await _shot(tester, '75_swot_plan_light', app, _scaffold(const SwotPlanPage()), size: const Size(1200, 1900));
+    await _shot(tester, '76_swot_method_light', app, _scaffold(const SwotMethodPage()), size: const Size(1200, 2600));
   });
 }
