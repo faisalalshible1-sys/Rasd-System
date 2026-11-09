@@ -30,6 +30,8 @@ $P -d dctest -f "$DIR/migrations/20261105000013_rls_initplan.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261105000013_rls_initplan.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261105000014_fk_indexes.sql" >/dev/null
 $P -d dctest -f "$DIR/migrations/20261105000014_fk_indexes.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261109000015_risks_swot.sql" >/dev/null
+$P -d dctest -f "$DIR/migrations/20261109000015_risks_swot.sql" >/dev/null
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/10_rules_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/20_platform_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/30_users_admin_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
@@ -37,3 +39,4 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/50_contracts_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/60_finance_security_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/70_finance_v5_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/80_risks_swot_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

@@ -6,6 +6,7 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
+drop table if exists public.swot_actions, public.swot_strategies, public.swot_factors, public.risks cascade;
 drop table if exists public.extract_payments, public.user_devices, public.contract_extracts, public.contract_variations cascade;
 drop table if exists public.contract_engineers, public.contract_works cascade;
 drop table if exists public.app_releases, public.app_settings, public.ideas, public.custom_fields cascade;
@@ -38,6 +39,9 @@ begin
         'sync_engineer_names', 'contract_engineers_after', 'projects_first_work', 'set_contract_no', 'save_work',
         'delete_work', 'engineer_form', 'can_assign_engineer', 'save_engineer', 'delete_engineer', 'merge_contracts',
         'unmerge_contract', 'merged_sources', 'ai_context', 'ai_log',
+        'jsonb_changes', 'jtext', 'jscore', 'jdate', 'jcodes', 'valid_text_list', 'can_edit_risks', 'can_edit_swot',
+        'can_update_swot_action', 'save_risk', 'delete_risk', 'save_swot_factor', 'delete_swot_factor', 'save_swot_strategy',
+        'delete_swot_strategy', 'save_swot_action', 'delete_swot_action', 'update_swot_action', 'ai_context_core',
         'recalc_contract_finance', 'finance_children_after', 'materialize_finance', 'can_edit_finance', 'set_work_values',
         'save_variation', 'delete_variation', 'save_extract', 'delete_extract', 'finance_history', 'security_target_ok',
         'lock_user', 'unlock_user', 'my_lock', 'request_header', 'register_device', 'my_devices', 'forget_my_device',
