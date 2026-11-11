@@ -9,6 +9,7 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_finance.dart';
+import 'pm_projects.dart' show ProjectTrackCard;
 import 'projects.dart';
 
 /// صفحة العقد: رقمه وأعماله المدمجة ومهندسوه بأرقام تكليفهم وقيمه المالية ونماذج دورته المستندية.
@@ -481,6 +482,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       if (app.v4Ready)
         VariationsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
       _cycleCard(context, app, p, pr),
+      if (app.v7Ready) ProjectTrackCard(project: p),
       if (app.activeFields.isNotEmpty) _extraCard(context, app, p),
       _notesCard(context, app, p),
       if (app.isDirector || app.settings.feature('quality_notes')) _qualityCard(context, app, p),

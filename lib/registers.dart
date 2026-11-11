@@ -61,13 +61,16 @@ const Map<String, String> followUpActions = {
 };
 
 class RiskLevel {
-  const RiskLevel(this.name, this.min, this.action);
+  const RiskLevel(this.name, this.min, this.action, [this.reviewDays]);
 
   final String name;
   final int min;
   final String action;
 
-  Map<String, dynamic> toJson() => {'name': name, 'min': min, 'action': action};
+  /// دورية المراجعة بالأيام (الإصدار 2.0): تحدد موعد المراجعة القادمة لكل خطر حسب مستواه الحالي.
+  final int? reviewDays;
+
+  Map<String, dynamic> toJson() => {'name': name, 'min': min, 'action': action, if (reviewDays != null) 'review_days': reviewDays};
 }
 
 /// معايير التصنيف والقوائم المرجعية لسجل المخاطر (إعداد risk.config).
@@ -79,6 +82,7 @@ class RiskConfig {
     this.categories = const [],
     this.projects = const [],
     this.owners = const [],
+    this.executors = const [],
   });
 
   final List<RiskLevel> levels;
@@ -88,16 +92,27 @@ class RiskConfig {
   final List<String> projects;
   final List<String> owners;
 
+  /// منفذو الإجراءات (الإصدار 2.0).
+  final List<String> executors;
+
   static const RiskConfig defaults = RiskConfig(
     levels: [
-      RiskLevel('منخفض جداً', 1, 'مراقبة'),
-      RiskLevel('منخفض', 5, 'متابعة'),
-      RiskLevel('متوسط', 9, 'خطة معالجة'),
-      RiskLevel('مرتفع', 13, 'تصعيد إلى PMO'),
-      RiskLevel('مرتفع جداً', 20, 'تصعيد عاجل'),
+      RiskLevel('منخفض جداً', 1, 'مراقبة – رئيس القسم المختص', 90),
+      RiskLevel('منخفض', 5, 'متابعة دورية – رئيس القسم المختص', 60),
+      RiskLevel('متوسط', 9, 'خطة معالجة – رئيس القسم المختص', 30),
+      RiskLevel('مرتفع', 13, 'تصعيد إلى مدير المكتب', 14),
+      RiskLevel('مرتفع جداً', 20, 'تصعيد عاجل إلى مدير المكتب ورفعه للجنة', 7),
     ],
-    phases: ['التخطيط', 'التصميم', 'التعاقد', 'التنفيذ', 'الاستلام', 'المتابعة'],
-    categories: ['فني', 'تعاقدي', 'موقعي', 'مالي', 'سلامة', 'توريد', 'جودة', 'تنسيق', 'زمني', 'بيئي', 'قانوني', 'حوكمة'],
+    phases: ['التخطيط', 'التصميم', 'التعاقد', 'التنفيذ', 'الاستلام', 'فترة الضمان', 'المتابعة'],
+    categories: [
+      'فني', 'تعاقدي', 'موقعي', 'مالي', 'سلامة', 'توريد', 'جودة', 'تنسيق', 'زمني', 'بيئي', 'قانوني', 'حوكمة', //
+      'مخلفات الحرب والأمن', 'تراثي وترميم',
+    ],
+    owners: ['الإشراف والتنسيق', 'الشؤون الفنية', 'الترميم', 'المطابقة والاستلام', 'مكتب المدير'],
+    executors: [
+      'المقاول', 'الاستشاري', 'الإشراف والتنسيق', 'الشؤون الفنية', 'الترميم', 'المطابقة والاستلام', 'مكتب المدير', //
+      'الشؤون المالية', 'العقود والمشتريات', 'الشؤون القانونية', 'السلامة المهنية', 'الجهات المختصة', 'اللجنة',
+    ],
   );
 
   static RiskConfig fromJson(dynamic v) {
@@ -108,7 +123,7 @@ class RiskConfig {
     if (raw is List) {
       for (final e in raw) {
         if (e is Map && e['name'] != null && _int(e['min']) != null) {
-          lv.add(RiskLevel(e['name'].toString(), _int(e['min'])!, _str(e['action'])));
+          lv.add(RiskLevel(e['name'].toString(), _int(e['min'])!, _str(e['action']), _int(e['review_days'])));
         }
       }
     }
@@ -120,6 +135,7 @@ class RiskConfig {
       categories: v.containsKey('categories') ? list(v['categories']) : defaults.categories,
       projects: list(v['projects']),
       owners: list(v['owners']),
+      executors: v.containsKey('executors') ? list(v['executors']) : defaults.executors,
     );
   }
 
@@ -130,6 +146,7 @@ class RiskConfig {
         'categories': categories,
         'projects': projects,
         'owners': owners,
+        'executors': executors,
       };
 
   RiskConfig copyWith({
@@ -139,6 +156,7 @@ class RiskConfig {
     List<String>? categories,
     List<String>? projects,
     List<String>? owners,
+    List<String>? executors,
   }) =>
       RiskConfig(
         levels: levels ?? this.levels,
@@ -147,6 +165,7 @@ class RiskConfig {
         categories: categories ?? this.categories,
         projects: projects ?? this.projects,
         owners: owners ?? this.owners,
+        executors: executors ?? this.executors,
       );
 
   /// رقم المستوى (0 = الأدنى) لدرجة من 1 إلى 25.
@@ -167,6 +186,16 @@ class RiskConfig {
   int get highMin => levels[levels.length - 2].min;
 
   bool isHigh(int? score) => score != null && score >= highMin;
+
+  /// دورية المراجعة لمستوى الدرجة (الافتراضي حسب موضع المستوى من الأعلى: 7، 14، 30، 60، 90 يوماً).
+  int reviewDaysFor(int score) {
+    final i = levelIndex(score);
+    final d = levels[i].reviewDays;
+    if (d != null && d > 0) return d;
+    const ladder = [7, 14, 30, 60, 90, 120, 180];
+    final fromTop = levels.length - 1 - i;
+    return ladder[fromTop.clamp(0, ladder.length - 1)];
+  }
 }
 
 class Risk {
@@ -195,6 +224,11 @@ class Risk {
     this.earlyWarning = '',
     this.notes = '',
     this.updatedAt,
+    this.department = '',
+    this.timeImpactDays,
+    this.costImpact,
+    this.contingency = '',
+    this.executor = '',
   });
 
   final String id;
@@ -222,6 +256,13 @@ class Risk {
   final String notes;
   final DateTime? updatedAt;
 
+  // الإصدار 2.0
+  final String department; // القسم المختص
+  final int? timeImpactDays; // الأثر الزمني المقدر (يوم)
+  final double? costImpact; // الأثر المالي المقدر
+  final String contingency; // الإجراء الاحتياطي عند وقوع الخطر
+  final String executor; // منفذ الإجراء
+
   factory Risk.fromMap(Map<String, dynamic> m) => Risk(
         id: m['id'].toString(),
         code: _str(m['code']),
@@ -247,6 +288,11 @@ class Risk {
         earlyWarning: _str(m['early_warning']),
         notes: _str(m['notes']),
         updatedAt: DateTime.tryParse(_str(m['updated_at'])),
+        department: _str(m['department']),
+        timeImpactDays: _int(m['time_impact_days']),
+        costImpact: _num(m['cost_impact']),
+        contingency: _str(m['contingency']),
+        executor: _str(m['executor']),
       );
 
   int get score => probability * impact;
@@ -292,6 +338,11 @@ class Risk {
         'closed_on': isoDay(closedOn),
         'early_warning': earlyWarning,
         'notes': notes,
+        'department': department,
+        'time_impact_days': timeImpactDays,
+        'cost_impact': costImpact,
+        'contingency': contingency,
+        'executor': executor,
       };
 }
 

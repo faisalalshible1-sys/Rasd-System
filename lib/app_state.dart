@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'models.dart';
+import 'pm.dart';
 import 'registers.dart';
 import 'ui/appearance.dart';
 
@@ -61,6 +62,18 @@ class AppState extends ChangeNotifier {
   List<SwotAction> swotActions = [];
   bool v6Ready = false;
   Map<String, List<ExtractPayment>> _payBy = {};
+
+  // الإصدار السابع: «المخاطر ومتابعة المشاريع» (البرنامج الزمني والتقدم والمراجعات والسجلات)
+  Map<String, PmSchedule> schedules = {};
+  List<PmProgress> measurements = [];
+  List<RiskReview> riskReviews = [];
+  List<PmIssue> pmIssues = [];
+  List<PmDelay> pmDelays = [];
+  List<PmChange> pmChanges = [];
+  List<PmLesson> pmLessons = [];
+  List<PmEvaluation> pmEvaluations = [];
+  bool v7Ready = false;
+  PmAnalysis? _pm;
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -221,6 +234,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel4;
   RealtimeChannel? _channel5;
   RealtimeChannel? _channel6;
+  RealtimeChannel? _channel7;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -545,6 +559,7 @@ class AppState extends ChangeNotifier {
       await _loadV3();
       await _loadV4();
       await _loadV6();
+      await _loadV7();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -706,6 +721,47 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// متابعة المشاريع (الإصدار السابع)؛ يعمل التطبيق بدونها كما كان.
+  Future<void> _loadV7() async {
+    _pm = null;
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('pm_projects').select(),
+        client.from('pm_progress').select().order('measured_on'),
+        client.from('risk_reviews').select().order('reviewed_on'),
+        client.from('pm_issues').select().order('code'),
+        client.from('pm_delays').select().order('code'),
+        client.from('pm_changes').select().order('code'),
+        client.from('pm_lessons').select().order('code'),
+        client.from('pm_evaluations').select().order('evaluated_on'),
+      ]);
+      schedules = {for (final s in r[0].map(PmSchedule.fromMap)) s.projectId: s};
+      measurements = r[1].map(PmProgress.fromMap).toList();
+      riskReviews = r[2].map(RiskReview.fromMap).toList();
+      pmIssues = r[3].map(PmIssue.fromMap).toList();
+      pmDelays = r[4].map(PmDelay.fromMap).toList();
+      pmChanges = r[5].map(PmChange.fromMap).toList();
+      pmLessons = r[6].map(PmLesson.fromMap).toList();
+      pmEvaluations = r[7].map(PmEvaluation.fromMap).toList();
+      v7Ready = true;
+    } catch (_) {
+      _clearV7();
+    }
+  }
+
+  void _clearV7() {
+    schedules = {};
+    measurements = [];
+    riskReviews = [];
+    pmIssues = [];
+    pmDelays = [];
+    pmChanges = [];
+    pmLessons = [];
+    pmEvaluations = [];
+    v7Ready = false;
+    _pm = null;
+  }
+
   /// إعدادات الهوية قبل تسجيل الدخول.
   Future<void> loadPublicSettings() async {
     try {
@@ -785,6 +841,16 @@ class AppState extends ChangeNotifier {
     }
     ch6.subscribe();
     _channel6 = ch6;
+
+    // قناة الإصدار السابع: متابعة المشاريع
+    final old7 = _channel7;
+    if (old7 != null) client.removeChannel(old7);
+    final ch7 = client.channel('dc-v7');
+    for (final t in const ['pm_projects', 'pm_progress', 'risk_reviews', 'pm_issues', 'pm_delays', 'pm_changes', 'pm_lessons', 'pm_evaluations']) {
+      ch7.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch7.subscribe();
+    _channel7 = ch7;
   }
 
   void scheduleReload() {
@@ -816,6 +882,10 @@ class AppState extends ChangeNotifier {
     final old6 = _channel6;
     if (old6 != null) client.removeChannel(old6);
     _channel6 = null;
+    final old7 = _channel7;
+    if (old7 != null) client.removeChannel(old7);
+    _channel7 = null;
+    _clearV7();
     risks = [];
     swotFactors = [];
     swotStrategies = [];
@@ -862,6 +932,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _notify() {
+    _pm = null;
     if (!_disposed) notifyListeners();
   }
 
@@ -882,6 +953,8 @@ class AppState extends ChangeNotifier {
     if (old5 != null) client.removeChannel(old5);
     final old6 = _channel6;
     if (old6 != null) client.removeChannel(old6);
+    final old7 = _channel7;
+    if (old7 != null) client.removeChannel(old7);
     _heartbeat?.cancel();
     super.dispose();
   }
@@ -896,8 +969,8 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
-  /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر (20–29)، SWOT (30–39).
-  static String sectionOf(int t) => t >= 30 ? 'swot' : (t >= 20 ? 'risks' : 'cycle');
+  /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39).
+  static String sectionOf(int t) => t >= 40 && t < 60 ? 'risks' : (t >= 30 ? 'swot' : (t >= 20 ? 'risks' : 'cycle'));
   String get section => sectionOf(tab);
   final Map<String, int> _lastTab = {'cycle': 0, 'risks': 20, 'swot': 30};
 
@@ -1332,6 +1405,109 @@ class AppState extends ChangeNotifier {
       'p_notes': notes,
     });
     await _afterV6();
+  }
+
+  // ---------------------------------------------------------------
+  // المخاطر ومتابعة المشاريع (الإصدار السابع)
+  // ---------------------------------------------------------------
+  PmConfig get pmConfig => PmConfig.fromJson(settings.raw['pm.config']);
+
+  /// التحليل الشامل (سجل المشاريع، الوضع الحالي للمخاطر، مؤشرات الشركات، التنبيهات)؛ يُعاد بناؤه عند تغيّر البيانات.
+  PmAnalysis get pm => _pm ??= PmAnalysis(
+        projects: projects,
+        schedules: schedules,
+        progress: measurements,
+        risks: risks,
+        reviews: riskReviews,
+        issues: pmIssues,
+        delays: pmDelays,
+        changes: pmChanges,
+        lessons: pmLessons,
+        evaluations: pmEvaluations,
+        riskCfg: riskConfig,
+        cfg: pmConfig,
+      );
+
+  RiskState riskState(Risk r) => pm.riskStates[r.id] ?? RiskState.of(r, const [], riskConfig, pmConfig.refDay, riskConfig.alertDays);
+
+  /// سجلات المتابعة (التقدم، المشاكل، التأخيرات، التغييرات، الدروس، التقييمات): كل عضو عدا CISO.
+  bool get canEditPm => v7Ready && role != null && role != AppRole.securityAuditor && !frozenForMe;
+
+  /// البرنامج الزمني: المدير وموظفو مكتبه ومكتب العقود ورئيس القسم المشرف على العقد.
+  bool canEditSchedule(Project p) {
+    if (!v7Ready || frozenForMe) return false;
+    final r = role;
+    if (r == AppRole.director || r == AppRole.officeStaff || r == AppRole.contracts) return true;
+    return r == AppRole.deptHead && me?.department != null && me?.department == p.department;
+  }
+
+  /// البت في طلبات التغيير: من يختص بمالية العقد والمدير.
+  bool canDecideChange(Project? p) => v7Ready && (isDirector || (p != null && canEditFinance(p) && !frozenForMe));
+
+  /// اعتماد الدروس المستفادة: المدير وموظفو مكتبه.
+  bool get canApproveLessons => v7Ready && (role == AppRole.director || role == AppRole.officeStaff) && !frozenForMe;
+
+  /// طلب التغيير الذي أنشأ أمر التغيير هذا في المالية (إن وُجد).
+  PmChange? changeOfVariation(String variationId) {
+    for (final c in pmChanges) {
+      if (c.variationId == variationId) return c;
+    }
+    return null;
+  }
+
+  List<RiskReview> reviewsOf(String riskId) => riskReviews.where((v) => v.riskId == riskId).toList();
+
+  Future<void> _afterV7({bool finance = false}) async {
+    if (finance) {
+      await loadAll();
+      return;
+    }
+    await _loadV6();
+    await _loadV7();
+    _notify();
+  }
+
+  Future<void> saveSchedule(String projectId, Map<String, dynamic> data) async {
+    await client.rpc('save_project_schedule', params: {'p_project': projectId, 'p_data': data});
+    await _afterV7();
+  }
+
+  Future<void> saveProgress(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_pm_progress', params: {'p_id': id, 'p_data': data});
+    await _afterV7();
+  }
+
+  Future<void> deleteProgress(String id) async {
+    await client.rpc('delete_pm_progress', params: {'p_id': id});
+    await _afterV7();
+  }
+
+  Future<void> saveRiskReview(String? id, String riskId, Map<String, dynamic> data) async {
+    await client.rpc('save_risk_review', params: {'p_id': id, 'p_risk': riskId, 'p_data': data});
+    await _afterV7();
+  }
+
+  Future<void> deleteRiskReview(String id) async {
+    await client.rpc('delete_risk_review', params: {'p_id': id});
+    await _afterV7();
+  }
+
+  /// حفظ سجل متابعة: issue | delay | change | lesson | evaluation.
+  Future<void> savePmRecord(String kind, String? id, Map<String, dynamic> data) async {
+    final fn = switch (kind) {
+      'issue' => 'save_pm_issue',
+      'delay' => 'save_pm_delay',
+      'change' => 'save_pm_change',
+      'lesson' => 'save_pm_lesson',
+      _ => 'save_pm_evaluation',
+    };
+    await client.rpc(fn, params: {'p_id': id, 'p_data': data});
+    await _afterV7(finance: kind == 'change');
+  }
+
+  Future<void> deletePmRecord(String kind, String id) async {
+    await client.rpc('delete_pm_record', params: {'p_kind': kind, 'p_id': id});
+    await _afterV7(finance: kind == 'change');
   }
 
   Future<void> deleteExtractPayment(String id) async {

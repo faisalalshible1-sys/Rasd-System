@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:dc_app/app_state.dart';
 import 'package:dc_app/models.dart';
+import 'package:dc_app/pm.dart';
 import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/auth.dart';
@@ -16,6 +17,12 @@ import 'package:dc_app/screens/dashboard.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
 import 'package:dc_app/screens/project_detail.dart';
+import 'package:dc_app/screens/pm_contractors.dart';
+import 'package:dc_app/screens/pm_dashboard.dart';
+import 'package:dc_app/screens/pm_projects.dart';
+import 'package:dc_app/screens/pm_registers.dart';
+import 'package:dc_app/screens/pm_report.dart';
+import 'package:dc_app/screens/pm_settings.dart';
 import 'package:dc_app/screens/risks.dart';
 import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/ui/theme.dart';
@@ -272,6 +279,7 @@ AppState _sampleState() {
   app.showHub = false;
   app.loadedOnce = true;
   _registers(app);
+  _tracking(app);
   app.settings = LiveSettings({
     'ai.enabled': true,
     'ai.model': 'claude-sonnet-5-5',
@@ -287,6 +295,94 @@ AppState _sampleState() {
   app.settings.applyGlobals();
   app.indexData();
   return app;
+}
+
+/// بيانات تجريبية لمتابعة المشاريع (الإصدار السابع).
+void _tracking(AppState app) {
+  final ps = app.projects;
+  final types = ['طرق', 'ترميم مبانٍ تراثية', 'مرافق وشبكات', 'مدارس', 'جسور', 'إسكان'];
+  app.schedules = {
+    for (var i = 0; i < ps.length && i < 6; i++)
+      ps[i].id: PmSchedule.fromMap({
+        'project_id': ps[i].id,
+        'project_type': types[i],
+        'location': 'القطاع (${i + 1})',
+        'consultant': 'المكتب الاستشاري (${i % 3 + 1})',
+        'op_status': i == 5 ? 'not_started' : 'running',
+        'start_date': _day(300 - i * 20),
+        'end_date': _day(-200 - i * 30),
+      }),
+  };
+  final ms = <PmProgress>[];
+  for (var i = 0; i < ps.length && i < 5; i++) {
+    for (var k = 0; k < 8; k++) {
+      final planned = (0.08 + k * 0.09).clamp(0, 1).toDouble();
+      final factor = [0.92, 0.8, 0.97, 1.06, 0.88][i];
+      ms.add(PmProgress.fromMap({
+        'id': 'pg-$i-$k',
+        'project_id': ps[i].id,
+        'measured_on': _day(8 * 30 - k * 30 - i),
+        'planned': planned,
+        'actual': (planned * factor).clamp(0, 1).toDouble(),
+        'obstacles': k == 7 && i == 1 ? 'نقص العمالة الفنية المتخصصة' : '',
+        'prepared_by': 'الإشراف والتنسيق',
+      }));
+    }
+  }
+  app.measurements = ms;
+  app.riskReviews = [
+    for (final r in app.risks.take(5))
+      RiskReview.fromMap({
+        'id': 'rv-${r.code}',
+        'risk_id': r.id,
+        'reviewed_on': _day(20),
+        'probability': r.probability > 1 ? r.probability - 1 : 1,
+        'impact': r.impact,
+        'actions_done': 'متابعة الإجراء الوقائي',
+        'progress': 0.5,
+        'reviewer': 'الإشراف والتنسيق',
+      }),
+  ];
+  app.pmIssues = [
+    PmIssue.fromMap({'id': 'i1', 'code': 'I01', 'project_id': ps[0].id, 'detected_on': _day(40), 'description': 'تأخر اعتماد عينات الخلطة الإسفلتية',
+      'category': 'جودة', 'priority': 'medium', 'party': 'consultant', 'department': 'المطابقة والاستلام', 'target_date': _day(20), 'status': 'open'}),
+    PmIssue.fromMap({'id': 'i2', 'code': 'I02', 'project_id': ps[1].id, 'detected_on': _day(25), 'description': 'نقص العمالة الفنية المتخصصة في أعمال الترميم',
+      'category': 'زمني', 'priority': 'high', 'party': 'contractor', 'department': 'الترميم', 'target_date': _day(-5), 'status': 'in_progress'}),
+    PmIssue.fromMap({'id': 'i3', 'code': 'I03', 'project_id': ps[2].id, 'detected_on': _day(60), 'description': 'اكتشاف خط مياه رئيسي غير موثق',
+      'category': 'موقعي', 'priority': 'high', 'party': 'utilities', 'target_date': _day(30), 'status': 'closed', 'closed_on': _day(28)}),
+  ];
+  app.pmDelays = [
+    PmDelay.fromMap({'id': 'd1', 'code': 'D01', 'project_id': ps[0].id, 'description': 'تأخر تسليم جزء من الموقع بسبب عوائق قائمة',
+      'cause': 'الموقع وتسليمه', 'party': 'owner', 'delay_class': 'excusable_comp', 'critical': true, 'start_date': _day(200), 'end_date': _day(160),
+      'eot_requested': 40, 'eot_approved': 30}),
+    PmDelay.fromMap({'id': 'd2', 'code': 'D02', 'project_id': ps[1].id, 'description': 'نقص العمالة المتخصصة في الترميم',
+      'cause': 'المقاول – الموارد والإدارة', 'party': 'contractor', 'delay_class': 'non_excusable', 'critical': true, 'start_date': _day(45)}),
+    PmDelay.fromMap({'id': 'd3', 'code': 'D03', 'project_id': ps[2].id, 'description': 'اكتشاف مرافق مدفونة غير موثقة',
+      'cause': 'المرافق والجهات الخدمية', 'party': 'utilities', 'delay_class': 'excusable', 'critical': true, 'start_date': _day(110), 'end_date': _day(58),
+      'eot_requested': 52}),
+  ];
+  app.pmChanges = [
+    PmChange.fromMap({'id': 'c1', 'code': 'C01', 'project_id': ps[0].id, 'submitted_on': _day(250), 'description': 'إضافة طبقة أساس في مقطع ضعيف التربة',
+      'change_type': 'أعمال إضافية', 'source': 'consultant', 'reason': 'ظروف موقع غير متوقعة', 'cost_estimate': 420000, 'cost_approved': 385000,
+      'time_requested': 20, 'time_approved': 15, 'status': 'approved', 'decided_on': _day(225), 'approval_ref': 'ق.ت/2026/014'}),
+    PmChange.fromMap({'id': 'c2', 'code': 'C02', 'project_id': ps[1].id, 'submitted_on': _day(40), 'description': 'أعمال تدعيم إنشائي للجدار الحامل',
+      'change_type': 'أعمال إضافية', 'source': 'site', 'reason': 'متطلبات الحفاظ التراثي', 'cost_estimate': 650000, 'time_requested': 45,
+      'status': 'under_study'}),
+  ];
+  app.pmLessons = [
+    PmLesson.fromMap({'id': 'l1', 'code': 'L01', 'project_id': ps[2].id, 'documented_on': _day(50), 'phase': 'التنفيذ', 'domain': 'موقعي',
+      'lesson_type': 'negative', 'situation': 'اكتشاف مرافق مدفونة غير موثقة بعد بدء الحفر',
+      'lesson': 'إلزام المقاول بكشف تجريبي قبل الحفر في كل مقطع وتحديث خرائط المرافق قبل الطرح', 'apply_mechanism': 'تعديل إجراء', 'status': 'approved'}),
+    PmLesson.fromMap({'id': 'l2', 'code': 'L02', 'documented_on': _day(10), 'phase': 'المتابعة', 'domain': 'حوكمة', 'lesson_type': 'positive',
+      'situation': 'التحقق الميداني من نسب الإنجاز قبل اعتماد المستخلص كشف فروقات', 'lesson': 'اعتماد التحقق الميداني الشهري شرطاً لاعتماد أي مستخلص',
+      'status': 'proposed'}),
+  ];
+  app.pmEvaluations = [
+    for (var i = 0; i < ps.length && i < 4; i++)
+      PmEvaluation.fromMap({'id': 'ev$i', 'project_id': ps[i].id, 'company': ps[i].company, 'evaluated_on': _day(45), 'quality': 4 - i % 2,
+        'safety': 4, 'schedule': 3 - i % 2, 'resources': 4, 'cooperation': 3 + i % 2, 'documentation': 3, 'evaluator': 'الإشراف والتنسيق'}),
+  ];
+  app.v7Ready = true;
 }
 
 /// بيانات تجريبية لسجل المخاطر وتحليل SWOT.
@@ -536,6 +632,19 @@ void main() {
     await _shot(tester, '65_risk_dashboard_dark_mobile', app, _scaffold(const RiskDashboardPage()), size: const Size(400, 4200), dark: true);
     await _shot(tester, '66_risk_register_light', app, _scaffold(const RiskRegisterPage()), size: const Size(1200, 1800));
     await _shot(tester, '67_risk_matrix_light', app, _scaffold(const RiskMatrixPage()), size: const Size(1200, 1900));
+    app.tab = 40;
+    await _shot(tester, '80_pm_dashboard_light', app, const HomeShell(), size: const Size(1440, 3200));
+    await _shot(tester, '81_pm_dashboard_dark_mobile', app, _scaffold(const PmDashboardPage()), size: const Size(400, 6000), dark: true);
+    await _shot(tester, '82_pm_projects_light', app, _scaffold(const PmProjectsPage()), size: const Size(1200, 1800));
+    await _shot(tester, '83_pm_progress_light', app, _scaffold(const PmProgressPage()), size: const Size(1200, 1800));
+    await _shot(tester, '84_pm_issues_light', app, _scaffold(const PmIssuesPage()), size: const Size(1200, 1200));
+    await _shot(tester, '85_pm_delays_light', app, _scaffold(const PmDelaysPage()), size: const Size(1200, 1200));
+    await _shot(tester, '86_pm_changes_light', app, _scaffold(const PmChangesPage()), size: const Size(1200, 1300));
+    await _shot(tester, '87_pm_lessons_mobile', app, _scaffold(const PmLessonsPage()), size: const Size(400, 1600));
+    await _shot(tester, '88_pm_contractors_light', app, _scaffold(const PmContractorsPage()), size: const Size(1300, 2000));
+    await _shot(tester, '89_pm_report_light', app, _scaffold(const PmReportPage()), size: const Size(1200, 2600));
+    await _shot(tester, '90_pm_settings_light', app, _scaffold(const PmSettingsPage()), size: const Size(1200, 2200));
+    await _shot(tester, '91_pm_guide_mobile', app, _scaffold(const PmGuidePage()), size: const Size(400, 5200));
     app.tab = 30;
     await _shot(tester, '70_swot_dashboard_light', app, const HomeShell(), size: const Size(1440, 2400));
     await _shot(tester, '71_swot_matrix_dark', app, _scaffold(const SwotMatrixPage()), size: const Size(1200, 1500), dark: true);

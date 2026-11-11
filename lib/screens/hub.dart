@@ -12,7 +12,8 @@ import 'finance.dart' show FinanceStats;
 const List<(String, String, String, IconData)> appSections = [
   ('cycle', 'الدورة المستندية', 'متابعة نماذج العقود ومراحلها الخمس، والمالية والمستخلصات، مع الدليل المرجعي للدورة.',
       Icons.account_tree_rounded),
-  ('risks', 'سجل المخاطر', 'تعريف المخاطر وتقييمها قبل المعالجة وبعدها، وخطط الاستجابة، ومتابعة مواعيد المراجعة.',
+  ('risks', 'المخاطر ومتابعة المشاريع',
+      'البرنامج الزمني والتقدم الدوري ومؤشر SPI، والمخاطر ومراجعاتها، والمشاكل والتأخيرات والتغييرات، والدروس المستفادة وتقييم الشركات.',
       Icons.warning_amber_rounded),
   ('swot', 'تحليل SWOT', 'عوامل القوة والضعف والفرص والتهديدات، والتقييم المرجح، واستراتيجيات TOWS وخطة التنفيذ.',
       Icons.grid_view_rounded),
@@ -82,6 +83,16 @@ class _SectionCard extends StatelessWidget {
     switch (section.$1) {
       case 'risks':
         if (!app.v6Ready) return const [];
+        if (app.v7Ready) {
+          final pm = app.pm;
+          final late = pm.tracks.values.where((t) => t.isLate).length;
+          final alerts = pm.alerts.where((a) => a.count > 0).length;
+          return [
+            ('$late', 'مشروع متأخر', late > 0 ? sem.danger : null),
+            ('${pm.highRisksNow}', 'خطر مرتفع حالياً', pm.highRisksNow > 0 ? sem.danger : null),
+            ('$alerts', 'تنبيه متابعة', alerts > 0 ? sem.wip : null),
+          ];
+        }
         final st = RiskStats(app.risks, app.riskConfig);
         final overdue = st.byFollowUp['overdue'] ?? 0;
         return [

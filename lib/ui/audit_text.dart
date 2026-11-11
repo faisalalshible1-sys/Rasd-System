@@ -192,6 +192,57 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'حذف $item ${text(d['code'])}: ${text(d['text'])}';
     case 'ai.action':
       return 'نفّذ اقتراح مساعد Claude: ${text(d['summary'])}';
+    case 'risk.review':
+      return 'سجّل مراجعة للخطر ${text(d['code'])} بتاريخ ${text(d['reviewed_on']).replaceAll('-', '/')} (الدرجة الحالية ${text(d['score'])}'
+          '${d['progress'] is num ? ' · التنفيذ ${((d['progress'] as num) * 100).round()}%' : ''})';
+    case 'risk.review_update':
+      return 'صحّح مراجعة الخطر ${text(d['code'])} بتاريخ ${text(d['reviewed_on']).replaceAll('-', '/')}${_changed(d['changes'])}';
+    case 'risk.review_delete':
+      return 'حذف مراجعة الخطر ${text(d['code'])} بتاريخ ${text(d['reviewed_on']).replaceAll('-', '/')}';
+    case 'pm.schedule':
+      return 'حدّث البرنامج الزمني للعقد${_changed(d['changes'])}';
+    case 'pm.progress_add':
+      return 'سجّل قياس تقدم بتاريخ ${text(d['measured_on']).replaceAll('-', '/')}: المخطط ${_p(d['planned'])} والفعلي ${_p(d['actual'])}';
+    case 'pm.progress_update':
+      return 'صحّح قياس التقدم بتاريخ ${text(d['measured_on']).replaceAll('-', '/')}${_changed(d['changes'])}';
+    case 'pm.progress_delete':
+      return 'حذف قياس التقدم بتاريخ ${text(d['measured_on']).replaceAll('-', '/')}';
+    case 'pm.issue_create':
+      return 'سجّل المشكلة ${text(d['code'])}: ${text(d['description'])}';
+    case 'pm.delay_create':
+      return 'سجّل حدث التأخير ${text(d['code'])}: ${text(d['description'])}';
+    case 'pm.change_create':
+      return 'سجّل طلب التغيير ${text(d['code'])}: ${text(d['description'])}';
+    case 'pm.lesson_create':
+      return 'وثّق الدرس ${text(d['code'])}: ${text(d['lesson'])}';
+    case 'pm.issue_update':
+    case 'pm.delay_update':
+    case 'pm.change_update':
+    case 'pm.lesson_update':
+      final what = switch (e.action) {
+        'pm.issue_update' => 'المشكلة',
+        'pm.delay_update' => 'حدث التأخير',
+        'pm.change_update' => 'طلب التغيير',
+        _ => 'الدرس',
+      };
+      return 'عدّل $what ${text(d['code'])}${_changed(d['changes'])}';
+    case 'pm.evaluation_add':
+      return 'سجّل تقييماً ميدانياً لـ ${text(d['company'])} بتاريخ ${text(d['evaluated_on']).replaceAll('-', '/')}';
+    case 'pm.evaluation_update':
+      return 'عدّل التقييم الميداني لـ ${text(d['company'])}${_changed(d['changes'])}';
+    case 'pm.issue_delete':
+    case 'pm.delay_delete':
+    case 'pm.change_delete':
+    case 'pm.lesson_delete':
+    case 'pm.evaluation_delete':
+      final what = switch (e.action) {
+        'pm.issue_delete' => 'المشكلة',
+        'pm.delay_delete' => 'حدث التأخير',
+        'pm.change_delete' => 'طلب التغيير',
+        'pm.lesson_delete' => 'الدرس',
+        _ => 'التقييم الميداني',
+      };
+      return 'حذف $what ${text(d['code'] ?? d['company'])}${text(d['description']).isNotEmpty ? ': ${text(d['description'])}' : ''}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
@@ -205,8 +256,8 @@ const Map<String, String> _registerFields = {
   'effect': 'الأثر',
   'probability': 'الاحتمالية',
   'impact': 'التأثير',
-  'residual_probability': 'الاحتمالية بعد المعالجة',
-  'residual_impact': 'التأثير بعد المعالجة',
+  'residual_probability': 'الاحتمالية المستهدفة',
+  'residual_impact': 'التأثير المستهدف',
   'mitigation': 'الإجراء الوقائي',
   'response': 'الاستجابة',
   'owner': 'المسؤول',
@@ -243,6 +294,60 @@ const Map<String, String> _registerFields = {
   'verification': 'مصدر التحقق',
   'review_cycle': 'دورية المراجعة',
   'source': 'المصدر',
+  'time_impact_days': 'الأثر الزمني',
+  'cost_impact': 'الأثر المالي',
+  'contingency': 'الإجراء الاحتياطي',
+  'executor': 'منفذ الإجراء',
+  'reviewed_on': 'تاريخ المراجعة',
+  'actions_done': 'الإجراءات المنفذة',
+  'reviewer': 'المراجِع',
+  'project_type': 'نوع المشروع',
+  'location': 'الموقع',
+  'consultant': 'الاستشاري',
+  'op_status': 'الوضع التشغيلي',
+  'end_date': 'تاريخ النهاية',
+  'measured_on': 'تاريخ القياس',
+  'planned': 'المخطط',
+  'actual': 'الفعلي',
+  'works': 'الأعمال المنفذة',
+  'obstacles': 'المعوقات',
+  'prepared_by': 'أعدّه',
+  'detected_on': 'تاريخ الرصد',
+  'risk_id': 'الخطر المرتبط',
+  'party': 'الجهة المسؤولة',
+  'sub_cause': 'السبب الفرعي',
+  'delay_class': 'التصنيف التعاقدي',
+  'critical': 'المسار الحرج',
+  'eot_requested': 'التمديد المطلوب',
+  'eot_approved': 'التمديد المعتمد',
+  'refs': 'المرجع',
+  'submitted_on': 'تاريخ التقديم',
+  'change_type': 'نوع التغيير',
+  'reason': 'السبب',
+  'cost_estimate': 'الأثر المالي المقدر',
+  'cost_approved': 'الأثر المالي المعتمد',
+  'time_requested': 'الأثر الزمني المطلوب',
+  'time_approved': 'الأثر الزمني المعتمد',
+  'decided_on': 'تاريخ البت',
+  'approval_ref': 'مرجع الاعتماد',
+  'documented_on': 'تاريخ التوثيق',
+  'domain': 'المجال',
+  'lesson_type': 'نوع الدرس',
+  'situation': 'الموقف',
+  'root_cause': 'السبب الجذري',
+  'lesson': 'الدرس',
+  'apply_mechanism': 'آلية التعميم',
+  'apply_party': 'جهة التطبيق',
+  'applied_on': 'تاريخ التطبيق',
+  'company': 'الشركة',
+  'evaluated_on': 'تاريخ التقييم',
+  'quality': 'جودة الأعمال',
+  'safety': 'السلامة',
+  'schedule': 'الالتزام بالبرنامج',
+  'resources': 'الجهاز الفني والمعدات',
+  'cooperation': 'الاستجابة والتعاون',
+  'documentation': 'التوثيق',
+  'evaluator': 'المُقيِّم',
 };
 
 String _changed(Object? changes) {
@@ -252,6 +357,8 @@ String _changed(Object? changes) {
 }
 
 String _m(Object? v) => v is num ? '${fmtMoney(v.toDouble())} $currencyLabel' : '—';
+
+String _p(Object? v) => v is num ? '${(v * 100).toStringAsFixed(1)}%' : '—';
 
 /// أسماء الإعدادات كما تُعرض في السجل.
 const Map<String, String> settingLabels = {
@@ -283,5 +390,6 @@ const Map<String, String> settingLabels = {
   'security.freeze': 'تجميد المنظومة',
   'security.signups_open': 'التسجيل الجديد',
   'risk.config': 'معايير سجل المخاطر وقوائمه',
+  'pm.config': 'قوائم متابعة المشاريع وإعداداتها',
   'swot.meta': 'بيانات وثيقة تحليل SWOT',
 };

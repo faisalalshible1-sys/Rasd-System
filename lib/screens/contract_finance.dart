@@ -257,7 +257,7 @@ class VariationsCard extends StatelessWidget {
     return SectionCard(
       title: 'أوامر التغيير',
       icon: Icons.swap_vert_rounded,
-      subtitle: 'الزيادة والنقص المعتمدان على قيمة العقد، برقم الأمر وتاريخ اعتماده.',
+      subtitle: 'الزيادة والنقص المعتمدان على قيمة العقد، برقم الأمر وتاريخ اعتماده. التغييرات المعتمدة في «سجل التغييرات» تظهر هنا تلقائياً.',
       trailing: can
           ? IconButton.filledTonal(tooltip: 'أمر تغيير جديد', onPressed: () => _edit(context, null), icon: const Icon(Icons.add_rounded))
           : null,
@@ -276,7 +276,7 @@ class VariationsCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: can ? () => _edit(context, v) : null,
+                      onTap: can && app.changeOfVariation(v.id) == null ? () => _edit(context, v) : null,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
                         child: Row(children: [
@@ -297,6 +297,7 @@ class VariationsCard extends StatelessWidget {
                                   if (v.approvedOn != null) 'اعتُمد ${dayText(v.approvedOn)}',
                                   if (app.work(v.workId) != null) 'البند: ${app.work(v.workId)!.title}',
                                   if (v.merged) 'مدمج من ${originLabel?.call(v.originProject) ?? 'عقد آخر'}',
+                                  if (app.changeOfVariation(v.id) != null) 'من سجل التغييرات ${app.changeOfVariation(v.id)!.code} (يُعدَّل من هناك)',
                                 ].join(' · '),
                                 style: TextStyle(color: sem.muted, fontSize: 12),
                               ),
@@ -304,7 +305,7 @@ class VariationsCard extends StatelessWidget {
                           ),
                           Text('${v.isAdd ? '+' : '−'}${fmtMoney(v.amount)}',
                               style: _tabular.copyWith(fontWeight: FontWeight.w800, color: v.isAdd ? sem.ok : sem.danger)),
-                          if (can && !v.merged)
+                          if (can && !v.merged && app.changeOfVariation(v.id) == null)
                             IconButton(tooltip: 'حذف', icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => _delete(context, v))
                           else
                             const SizedBox(width: 10),

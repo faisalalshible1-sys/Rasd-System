@@ -23,6 +23,12 @@ import 'ideas.dart';
 import 'project_detail.dart';
 import 'projects.dart';
 import 'requests.dart';
+import 'pm_contractors.dart';
+import 'pm_dashboard.dart';
+import 'pm_projects.dart';
+import 'pm_registers.dart';
+import 'pm_report.dart';
+import 'pm_settings.dart';
 import 'risks.dart';
 import 'swot.dart';
 
@@ -38,10 +44,21 @@ class Tabs {
   static const finance = 7;
   static const guide = 8;
 
-  // سجل المخاطر
+  // المخاطر ومتابعة المشاريع
   static const riskDashboard = 20;
   static const riskRegister = 21;
   static const riskMatrix = 22;
+  static const pmDashboard = 40;
+  static const pmProjects = 41;
+  static const pmProgress = 42;
+  static const pmIssues = 43;
+  static const pmDelays = 44;
+  static const pmChanges = 45;
+  static const pmLessons = 46;
+  static const pmContractors = 47;
+  static const pmReport = 48;
+  static const pmSettings = 49;
+  static const pmGuide = 50;
 
   // تحليل SWOT
   static const swotDashboard = 30;
@@ -106,11 +123,34 @@ List<_Dest> _adminDests(AppState app, [int base = 0]) {
 
 List<_Dest> _destinations(AppState app) {
   if (app.section == 'risks') {
-    final overdue = app.risks.where((r) => r.followUp(app.riskConfig.alertDays) == 'overdue').length;
+    final pm = app.pm;
+    final overdue = pm.overdueReviews;
+    if (!app.v7Ready) {
+      return [
+        const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
+        _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
+        const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
+        ..._adminDests(app, 20),
+      ];
+    }
     return [
+      _Dest(Tabs.pmDashboard, 'لوحة القيادة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
+          badge: pm.alerts.where((a) => a.count > 0).length),
+      _Dest(Tabs.pmProjects, 'سجل المشاريع', Icons.view_timeline_outlined, Icons.view_timeline_rounded,
+          badge: pm.tracks.values.where((t) => t.perf == 'critical').length),
+      _Dest(Tabs.pmProgress, 'التقدم الدوري', Icons.show_chart_outlined, Icons.show_chart_rounded, badge: pm.staleProjects),
       const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
       _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
-      const _Dest(Tabs.riskMatrix, 'مصفوفة التقييم', Icons.grid_on_outlined, Icons.grid_on_rounded),
+      const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
+      _Dest(Tabs.pmIssues, 'سجل المشاكل', Icons.report_problem_outlined, Icons.report_problem_rounded, badge: pm.overdueIssues),
+      _Dest(Tabs.pmDelays, 'التأخيرات وأسبابها', Icons.hourglass_bottom_outlined, Icons.hourglass_bottom_rounded,
+          badge: pm.pendingEot),
+      _Dest(Tabs.pmChanges, 'سجل التغييرات', Icons.change_circle_outlined, Icons.change_circle_rounded, badge: pm.lateDecisions),
+      _Dest(Tabs.pmLessons, 'الدروس المستفادة', Icons.school_outlined, Icons.school_rounded, badge: pm.proposedLessons),
+      const _Dest(Tabs.pmContractors, 'تقييم الشركات', Icons.engineering_outlined, Icons.engineering_rounded),
+      const _Dest(Tabs.pmReport, 'التقرير الدوري', Icons.summarize_outlined, Icons.summarize_rounded),
+      const _Dest(Tabs.pmSettings, 'القوائم والإعدادات', Icons.tune_outlined, Icons.tune_rounded),
+      const _Dest(Tabs.pmGuide, 'الدليل والحوكمة', Icons.menu_book_outlined, Icons.menu_book_rounded),
       ..._adminDests(app, 20),
     ];
   }
@@ -174,6 +214,17 @@ Widget _page(int id) => switch (id) {
       Tabs.riskDashboard => const RiskDashboardPage(),
       Tabs.riskRegister => const RiskRegisterPage(),
       Tabs.riskMatrix => const RiskMatrixPage(),
+      Tabs.pmDashboard => const PmDashboardPage(),
+      Tabs.pmProjects => const PmProjectsPage(),
+      Tabs.pmProgress => const PmProgressPage(),
+      Tabs.pmIssues => const PmIssuesPage(),
+      Tabs.pmDelays => const PmDelaysPage(),
+      Tabs.pmChanges => const PmChangesPage(),
+      Tabs.pmLessons => const PmLessonsPage(),
+      Tabs.pmContractors => const PmContractorsPage(),
+      Tabs.pmReport => const PmReportPage(),
+      Tabs.pmSettings => const PmSettingsPage(),
+      Tabs.pmGuide => const PmGuidePage(),
       Tabs.swotDashboard => const SwotDashboardPage(),
       Tabs.swotMatrix => const SwotMatrixPage(),
       Tabs.swotFactors => const SwotFactorsPage(),
@@ -282,7 +333,8 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     final Widget scaffold;
-    if (layout == 2) {
+    // الشريط الجانبي الكامل يتمرّر؛ يُستخدم أيضاً على الشاشات المتوسطة حين تكثر صفحات القسم.
+    if (layout == 2 || (layout == 1 && dests.length > 9)) {
       scaffold = Scaffold(
         floatingActionButton: fab,
         body: Row(
@@ -362,11 +414,13 @@ class _HomeShellState extends State<HomeShell> {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.8),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             children: [
               for (final d in more)
                 ListTile(
@@ -815,3 +869,4 @@ class _NotificationsSheet extends StatelessWidget {
 
 /// معلومات الإصدار في أسفل صفحة الحساب.
 String get appVersionText => 'الإصدار ${AppConfig.appVersion}';
+
