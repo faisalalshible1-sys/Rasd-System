@@ -296,7 +296,7 @@
     "brand.app_title": "منظومة متابعة الدورة المستندية",
     "brand.org_name": "مكتب الشؤون الهندسية",
     "brand.org_parent": "لجنة إعادة إعمار منطقة الصابري ووسط البلاد",
-    "brand.primary_color": "#963037",
+    "brand.primary_color": "#1F4E79",
     "finance.advance_recovery_rate": 0,
     "finance.currency": "د.ل",
     "finance.deduction_types": [],
@@ -304,11 +304,98 @@
     "finance.guarantee_initial_rate": 0.05,
     "finance.retention_rate": 0.0,
     "finance.tax_rate": 0,
+    "risk.config": {
+      "alert_days": 7,
+      "categories": [
+        "فني",
+        "تعاقدي",
+        "موقعي",
+        "مالي",
+        "سلامة",
+        "توريد",
+        "جودة",
+        "تنسيق",
+        "زمني",
+        "بيئي",
+        "قانوني",
+        "حوكمة"
+      ],
+      "levels": [
+        {
+          "action": "مراقبة",
+          "min": 1,
+          "name": "منخفض جداً"
+        },
+        {
+          "action": "متابعة",
+          "min": 5,
+          "name": "منخفض"
+        },
+        {
+          "action": "خطة معالجة",
+          "min": 9,
+          "name": "متوسط"
+        },
+        {
+          "action": "تصعيد إلى PMO",
+          "min": 13,
+          "name": "مرتفع"
+        },
+        {
+          "action": "تصعيد عاجل",
+          "min": 20,
+          "name": "مرتفع جداً"
+        }
+      ],
+      "owners": [
+        "مدير المشروع",
+        "PMO",
+        "الاستشاري",
+        "المقاول",
+        "العقود",
+        "المالية",
+        "المشتريات",
+        "السلامة",
+        "الجودة",
+        "القانونية"
+      ],
+      "phases": [
+        "التخطيط",
+        "التصميم",
+        "التعاقد",
+        "التنفيذ",
+        "الاستلام",
+        "المتابعة"
+      ],
+      "projects": [
+        "الطرق والجسور",
+        "المباني العامة",
+        "المرافق",
+        "المدارس",
+        "الجسور",
+        "الإسكان",
+        "الطرق",
+        "المباني",
+        "الأحياء",
+        "متعدد المشاريع"
+      ]
+    },
     "security.freeze": false,
     "security.idle_minutes": 30,
     "security.require_mfa_all": false,
     "security.require_mfa_director": true,
     "security.signups_open": true,
+    "swot.meta": {
+      "approved_by": "م. فيصل خليفة الشبلي — مدير المكتب الهندسي المكلف",
+      "issue_date": "2026-11-08",
+      "prepared_by": "فريق مكتب المدير",
+      "review_cycle_months": 6,
+      "reviewed_by": "رؤساء الأقسام الأربعة",
+      "status": "مسودة للمراجعة والاعتماد",
+      "subtitle": "مشروع إعادة إعمار منطقة الصابري ووسط البلاد – بنغازي",
+      "title": "تحليل SWOT الاستراتيجي وخطة التنفيذ والمتابعة",
+      "version": "2.0"
+    },
     "ui.announcement": {
       "level": "info",
       "text": ""
