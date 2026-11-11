@@ -6,6 +6,8 @@
 -- =====================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 drop view if exists public.v_project_progress;
+drop table if exists public.pm_evaluations, public.pm_lessons, public.pm_changes, public.pm_delays, public.pm_issues,
+  public.risk_reviews, public.pm_progress, public.pm_projects cascade;
 drop table if exists public.swot_actions, public.swot_strategies, public.swot_factors, public.risks cascade;
 drop table if exists public.extract_payments, public.user_devices, public.contract_extracts, public.contract_variations cascade;
 drop table if exists public.contract_engineers, public.contract_works cascade;
@@ -47,7 +49,12 @@ begin
         'lock_user', 'unlock_user', 'my_lock', 'request_header', 'register_device', 'my_devices', 'forget_my_device',
         'set_device_blocked', 'security_devices', 'security_timeline', 'security_alerts', 'ai_action_log',
         'sync_extract_paid', 'extract_payments_after', 'contract_extracts_move_payments', 'add_extract_payment',
-        'delete_extract_payment', 'set_contract_advance')
+        'delete_extract_payment', 'set_contract_advance',
+        'jint', 'jnum', 'jpick', 'jbool', 'jproject', 'pm_next_code', 'pm_code', 'pm_num_ok', 'can_edit_pm', 'can_edit_schedule',
+        'can_decide_change', 'can_approve_lessons', 'save_project_schedule', 'save_pm_progress', 'delete_pm_progress',
+        'save_risk_review', 'delete_risk_review', 'save_pm_issue', 'save_pm_delay', 'save_pm_change', 'save_pm_lesson',
+        'save_pm_evaluation', 'delete_pm_record', 'pm_sync_change_variation', 'contract_variations_pm_guard', 'pm_follow_merge',
+        'set_setting_v15', 'ai_context_v15')
   loop
     execute 'drop function if exists ' || r.sig || ' cascade';
   end loop;

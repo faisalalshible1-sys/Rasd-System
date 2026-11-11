@@ -40,3 +40,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/60_finance_security_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/70_finance_v5_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/80_risks_swot_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# الإصدار السابع يُطبَّق على القاعدة بعد اختبارات الإصدار السادس (كما على قاعدة فعلية فيها تعديلات المستخدمين)
+$P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql"
+$P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/90_project_tracking_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
