@@ -52,6 +52,14 @@ class _PmDashboardPageState extends State<PmDashboardPage> {
     final withCurve = pm.tracks.values.where((t) => t.measurements.length >= 2).toList()
       ..sort((a, b) => a.project.sortOrder.compareTo(b.project.sortOrder));
     final curve = withCurve.where((t) => t.project.id == _curve).firstOrNull ?? withCurve.firstOrNull;
+    final curvePicker = curve == null
+        ? const SizedBox.shrink()
+        : SelectField(
+            label: 'المشروع',
+            value: curve.project.id,
+            items: [for (final t in withCurve) (t.project.id, pmProjectName(app, t.project.id))],
+            onChanged: (v) => setState(() => _curve = v),
+          );
     final summary = pm.tracks.values.where((t) => t.measurements.isNotEmpty || t.start != null).toList()
       ..sort((a, b) => a.project.sortOrder.compareTo(b.project.sortOrder));
     final best = pm.bestContractor, worst = pm.worstContractor;
@@ -292,16 +300,15 @@ class _PmDashboardPageState extends State<PmDashboardPage> {
             title: 'منحنى تقدم مشروع',
             icon: Icons.stacked_line_chart_rounded,
             subtitle: 'SPI ${spiText(curve.spi)} · ${perfLabels[curve.perf]} · الإنجاز المتوقع ${curve.forecastEnd == null ? 'غير محدد' : pmDay(curve.forecastEnd)}',
-            trailing: SizedBox(
-              width: 260,
-              child: SelectField(
-                label: 'المشروع',
-                value: curve.project.id,
-                items: [for (final t in withCurve) (t.project.id, pmProjectName(app, t.project.id))],
-                onChanged: (v) => setState(() => _curve = v),
-              ),
-            ),
-            child: ProgressCurve(track: curve),
+            // على الشاشات الضيقة يُنقل اختيار المشروع تحت العنوان حتى لا يضيق العنوان
+            trailing: narrow ? null : SizedBox(width: 260, child: curvePicker),
+            child: narrow
+                ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    curvePicker,
+                    const SizedBox(height: 12),
+                    ProgressCurve(track: curve),
+                  ])
+                : ProgressCurve(track: curve),
           ),
         ],
       ], stepMs: 35),
