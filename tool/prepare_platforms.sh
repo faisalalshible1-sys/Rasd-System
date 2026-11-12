@@ -30,6 +30,18 @@ if [ -f "$M" ]; then
     perl -0pi -e 's#</manifest>#    <queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW" />\n            <data android:scheme="https" />\n        </intent>\n    </queries>\n</manifest>#' "$M"
 fi
 
+# أندرويد: فحص lint لنسخة الإصدار يتعطل داخل إضافة url_launcher_android منذ 2026-11-12
+# (خلل في أداة lint نفسها: List.removeLast)، فلا يُشغَّل عند بناء الإصدار. لا يمس شيفرة التطبيق.
+for G in android/app/build.gradle.kts android/app/build.gradle; do
+  [ -f "$G" ] || continue
+  grep -q 'checkReleaseBuilds' "$G" && continue
+  if [[ "$G" == *.kts ]]; then
+    printf '\nandroid {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }\n}\n' >> "$G"
+  else
+    printf '\nandroid {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }\n}\n' >> "$G"
+  fi
+done
+
 # آيفون: اسم التطبيق على الشاشة
 P=ios/Runner/Info.plist
 if [ -f "$P" ]; then
