@@ -97,12 +97,16 @@ AppState _sampleState() {
     Department.fromMap({'key': 'technical', 'name': 'الشؤون الفنية', 'can_supervise': false, 'sort': 3}),
     Department.fromMap({'key': 'acceptance', 'name': 'المطابقة والاستلام', 'can_supervise': false, 'sort': 4}),
   ];
+  // الدورة المستندية للعقود – الإصدار 2 المعتمد (الترحيل 19)
   const forms = [
-    ('f01', 'أمر تعاقد', 0), ('f20', 'المقايسة التقديرية', 0), ('f02', 'أمر عمل', 0), ('f03', 'نموذج عقد أشغال عامة', 0),
-    ('f04', 'تكليف مهندس مشرف', 1), ('f05', 'تكليف مهندس حصر', 1), ('f06', 'تكليف مهندس متابعة', 1), ('f07', 'تكليف مهندس سلامة', 1),
-    ('f08', 'محضر تسليم واستلام موقع', 2), ('f09', 'تصريح عمل', 2),
-    ('f10', 'ورقة قياس مستخلص نموذج أ', 3), ('f12', 'كشف حصر مستخلص', 3), ('f13', 'شهادة دفع مستخلص', 3), ('f14', 'مستند مستخلص جاري', 3),
-    ('f16', 'محضر استلام ابتدائي', 4), ('f17', 'محضر استلام نهائي', 4), ('f18', 'إقفال عقد', 4),
+    ('f01', 'أمر بالتعاقد', 0), ('f20', 'نطاق وطريقة عمل', 0), ('f19', 'مقايسة تقديرية', 0), ('f21', 'ملحق فني', 0),
+    ('f03', 'نموذج عقد أشغال عامة', 0),
+    ('f02', 'أمر عمل', 1), ('f04', 'تكليف مهندس إشراف', 1), ('f05', 'تكليف مهندس حصر', 1), ('f06', 'تكليف مهندس متابعة', 1),
+    ('f07', 'تكليف مهندس سلامة', 1), ('f08', 'محضر تسليم موقع عمل', 1), ('f09', 'تصريح عمل', 1),
+    ('f10', 'ورقة قياس نموذج أ', 2), ('f11', 'ورقة قياس نموذج ب', 2), ('f22', 'محضر حصر كميات', 2), ('f12', 'كشف حصر مستخلص', 2),
+    ('f14', 'مستخلص جاري', 2), ('f13', 'شهادة دفع مستخلص', 2), ('f23', 'مراجعة مستخلص', 2), ('f24', 'اعتماد مستخلص', 2),
+    ('f25', 'تكليف لجنة استلام ابتدائي', 3), ('f16', 'محضر استلام ابتدائي', 3), ('f15', 'مستخلص ختامي', 3),
+    ('f26', 'تكليف لجنة استلام نهائي', 4), ('f17', 'محضر استلام نهائي', 4), ('f18', 'إقفال عقد', 4),
   ];
   app.allFormDefs = [
     for (var i = 0; i < forms.length; i++)
@@ -111,7 +115,7 @@ AppState _sampleState() {
         'name': forms[i].$2,
         'stage': forms[i].$3,
         'sort': i + 1,
-        'sensitive': forms[i].$3 >= 3,
+        'sensitive': forms[i].$1 == 'f01',
         'responsible': ['office_staff', 'contracts'],
         'engineer_field': switch (forms[i].$1) { 'f04' => 'eng_sup', 'f05' => 'eng_qty', 'f06' => 'eng_fol', 'f07' => 'eng_saf', _ => null },
       }),
@@ -200,7 +204,8 @@ AppState _sampleState() {
       'sort_order': i + 1,
       'contract_value': value,
       'executed_value': counted.isEmpty ? (value == null ? null : value * 0.1) : gross,
-      'guarantee_initial': gross * 0.05,
+      'guarantee_initial': i == 5 ? null : gross * 0.05,
+      'guarantee_initial_na': i == 5,
       'guarantee_final': gross * 0.02,
       'value_source': i < 3 ? 'items' : 'manual',
       'executed_source': counted.isEmpty ? 'manual' : 'extracts',
@@ -231,6 +236,8 @@ AppState _sampleState() {
     for (var f = 0; f < forms.length; f++) {
       st[forms[f].$1] = f < done ? FormStatus.done : (f == done ? FormStatus.wip : FormStatus.todo);
     }
+    // مهندس السلامة «لا ينطبق» في العقود التي ليس فيها مهندس سلامة
+    if (i != 0) st['f07'] = FormStatus.na;
     statuses[id] = st;
   }
   app.projects = projects;
@@ -269,6 +276,9 @@ AppState _sampleState() {
   app.engineers = [
     ContractEngineer.fromMap({'id': 'e1', 'project_id': 'p-001', 'kind': 'sup', 'name': 'م. سراج لطيوش', 'assign_no': 'ت-77', 'sort': 1}),
     ContractEngineer.fromMap({'id': 'e2', 'project_id': 'p-001', 'kind': 'qty', 'name': 'م. نوري الحصر', 'assign_no': 'ح-1', 'sort': 1}),
+    ContractEngineer.fromMap({'id': 'e3', 'project_id': 'p-001', 'kind': 'saf', 'name': 'م. خالد السلامة', 'assign_no': 'س-4', 'sort': 1}),
+    ContractEngineer.fromMap({'id': 'e4', 'project_id': 'p-003', 'kind': 'sup', 'name': 'م. أحمد الفيتوري', 'assign_no': 'ت-81', 'sort': 1}),
+    ContractEngineer.fromMap({'id': 'e5', 'project_id': 'p-003', 'kind': 'fol', 'name': 'م. عبدالله القزيري', 'assign_no': 'م-12', 'sort': 1}),
   ];
   app.notifications = [
     AppNotification.fromMap({'id': 'n1', 'created_at': _iso(0), 'kind': 'request', 'title': 'طلب اعتماد جديد', 'body': 'شهادة دفع مستخلص — عقد ع-2026/12'}),
@@ -278,6 +288,7 @@ AppState _sampleState() {
   app.v4Ready = true;
   app.v5Ready = true;
   app.v6Ready = true;
+  app.naReady = true;
   app.showHub = false;
   app.loadedOnce = true;
   _registers(app);
