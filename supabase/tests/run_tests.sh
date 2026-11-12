@@ -44,3 +44,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql"
 $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261111000016_project_tracking.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/90_project_tracking_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# الإصدار 2.3 / 2.1 (الترحيل 17) فوق قاعدة فيها بيانات الإصدار السابع
+$P -d dctest -f "$DIR/migrations/20261112000017_registers_v23.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000017_registers_v23.sql"
+$P -d dctest -f "$DIR/migrations/20261112000017_registers_v23.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000017_registers_v23.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/91_registers_v23_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

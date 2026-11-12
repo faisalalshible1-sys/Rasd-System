@@ -172,13 +172,13 @@ class _PmDashboardPageState extends State<PmDashboardPage> {
           StatCard(
               label: 'الشركة الأعلى أداءً',
               value: best?.name ?? '—',
-              sub: best?.composite == null ? null : 'الدرجة ${best!.composite!.toStringAsFixed(0)} من 100',
+              sub: best?.composite == null ? 'لا توجد درجات بعد' : 'الدرجة ${best!.composite!.toStringAsFixed(0)} من 100',
               icon: Icons.emoji_events_outlined,
               color: sem.ok),
           StatCard(
               label: 'الشركة الأدنى أداءً',
               value: worst?.name ?? '—',
-              sub: worst?.composite == null ? null : 'الدرجة ${worst!.composite!.toStringAsFixed(0)} من 100',
+              sub: worst?.composite == null ? 'لا توجد درجات بعد' : 'الدرجة ${worst!.composite!.toStringAsFixed(0)} من 100',
               icon: Icons.trending_down_rounded,
               color: worst == null ? null : sem.danger),
           StatCard(

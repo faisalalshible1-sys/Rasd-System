@@ -197,7 +197,7 @@ class _PmContractorsPageState extends State<PmContractorsPage> {
                     '${k.rejectedChanges}',
                     k.avgField == null ? '—' : '${k.avgField!.toStringAsFixed(2)} (${k.evaluations})',
                     k.composite?.toStringAsFixed(0) ?? '—',
-                    k.grade?.name ?? '—',
+                    k.gradeName,
                     k.rank == 0 ? '—' : '${k.rank}',
                     '${k.completeness} من 4',
                   ],
@@ -217,6 +217,8 @@ class _PmContractorsPageState extends State<PmContractorsPage> {
               'درجة سرعة الحل = 100 × ${cfg.issueDays} يوماً ÷ متوسط عمر المشاكل المسندة للشركة، بحد أقصى 100.',
               'الدرجة المركّبة = المتوسط الموزون للدرجات المتاحة بأوزان: الالتزام ${pctText(cfg.weight('schedule'))}، التأخير ${pctText(cfg.weight('delay'))}، '
                   'الميداني ${pctText(cfg.weight('field'))}، سرعة الحل ${pctText(cfg.weight('response'))}؛ وعند غياب مكوّن يُعاد توزيع وزنه.',
+              'لا تصدر الدرجة إلا بتوفر ${cfg.kpiMinComponents} مكونات على الأقل من أربعة، ومعها التقييم الميداني أو قياسات التقدم؛ '
+                  'وإلا يظهر «${ContractorKpi.insufficientLabel}».',
               'تكتمل موثوقية التقييم بتوفر المكونات الأربعة لعدة مشاريع وفترات؛ تعامل بحذر مع الشركة ذات المشروع الواحد.',
             ])
               Padding(
@@ -286,7 +288,7 @@ class _KpiCard extends StatelessWidget {
                   [
                     if (k.rank > 0) 'الترتيب ${k.rank}',
                     '${k.projects} مشروع',
-                    if (k.grade != null) k.grade!.name,
+                    k.gradeName,
                   ].join(' · '),
                   style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w700)),
             ]),
@@ -297,10 +299,8 @@ class _KpiCard extends StatelessWidget {
         meter('التأخير المنسوب', k.delayScore),
         meter('التقييم الميداني', k.fieldScore),
         meter('سرعة حل المشاكل', k.responseScore),
-        if (k.grade != null) ...[
-          const SizedBox(height: 8),
-          Text('التوصية: ${k.grade!.rec}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-        ],
+        const SizedBox(height: 8),
+        Text('التوصية: ${k.gradeRec}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
         if (k.completeness < 4)
           Padding(
             padding: const EdgeInsets.only(top: 4),

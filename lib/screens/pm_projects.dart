@@ -27,6 +27,7 @@ Future<void> showScheduleEditor(BuildContext context, Project p) async {
         PmField('op_status', 'الوضع التشغيلي', PmKind.select, options: pmLabels(opStatuses, opStatusLabels), required: true),
         const PmField('location', 'الموقع / القطاع', PmKind.text, max: 120),
         const PmField('consultant', 'الاستشاري / جهة الإشراف', PmKind.text, max: 120),
+        const PmField('display_name', 'الاسم المختصر للعرض (اختياري)', PmKind.text, max: 80, full: true),
       ]),
       const PmSection('البرنامج الزمني', [
         PmField('start_date', 'تاريخ البداية', PmKind.date),
@@ -42,6 +43,7 @@ Future<void> showScheduleEditor(BuildContext context, Project p) async {
       'start_date': s?.startDate,
       'end_date': s?.endDate,
       'notes': s?.notes ?? '',
+      'display_name': s?.displayName ?? '',
     },
     onSave: (d) => app.saveSchedule(p.id, d),
   );

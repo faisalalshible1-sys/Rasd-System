@@ -91,7 +91,7 @@ class _PmReportPageState extends State<PmReportPage> {
           child: ResponsiveGrid(minItemWidth: narrow ? 260 : 330, spacing: 0, children: [
             // هامش بين الأعمدة حتى لا تلتصق قيمة عمود بعنوان العمود المجاور
             for (final kv in <Widget>[
-              PmKv('المشاريع الجارية', '${r.runningProjects}'),
+              PmKv('المشاريع الجارية خلال الفترة', '${r.runningProjects}'),
               PmKv('مشاريع متأخرة في نهاية الفترة (بسيط + حرج)', '${r.lateAtEnd}', color: r.lateAtEnd > 0 ? sem.danger : null),
               PmKv('متوسط الإنجاز المخطط للجارية (موزون)', pctOrDash(r.plannedW, digits: 1)),
               PmKv('متوسط الإنجاز الفعلي للجارية (موزون)', pctOrDash(r.actualW, digits: 1)),

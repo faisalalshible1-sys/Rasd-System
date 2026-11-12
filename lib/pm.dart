@@ -152,6 +152,7 @@ class PmConfig {
     this.weights = const {'schedule': 0.3, 'delay': 0.15, 'field': 0.4, 'response': 0.15},
     this.spiZero = 0.7,
     this.delayZero = 0.2,
+    this.kpiMinComponents = 2,
     this.grades = const [],
     this.refDate,
     this.raw = const {},
@@ -175,6 +176,10 @@ class PmConfig {
   final Map<String, double> weights;
   final double spiZero;
   final double delayZero;
+
+  /// الحد الأدنى لعدد مكونات التقييم لإصدار الدرجة المركّبة (من 4)، ويُشترط معه
+  /// توفر التقييم الميداني أو قياسات التقدم (الإصدار 2.3).
+  final int kpiMinComponents;
   final List<PmGrade> grades;
   final DateTime? refDate;
 
@@ -190,7 +195,10 @@ class PmConfig {
   ];
 
   static const PmConfig defaults = PmConfig(
-    projectTypes: ['طرق', 'جسور', 'مبانٍ عامة', 'مدارس', 'إسكان', 'مرافق وشبكات', 'ترميم مبانٍ تراثية', 'فراغات عامة وأحياء', 'مرافق صحية'],
+    projectTypes: [
+      'طرق', 'جسور', 'مبانٍ عامة', 'مدارس', 'إسكان', 'مرافق وشبكات', 'ترميم مبانٍ تراثية', 'فراغات عامة وأحياء', 'مرافق صحية', //
+      'إزالة الركام والمخلفات والهدم', 'توريد وتركيب',
+    ],
     departments: ['الإشراف والتنسيق', 'الشؤون الفنية', 'الترميم', 'المطابقة والاستلام', 'مكتب المدير'],
     delayCauses: [
       'التمويل والمستخلصات', 'التصميم والمخططات', 'أوامر التغيير', 'المقاول – الموارد والإدارة', 'المواد والتوريد', //
@@ -247,6 +255,7 @@ class PmConfig {
       weights: w.length == 4 ? w : defaults.weights,
       spiZero: dbl('spi_zero', 0.7),
       delayZero: dbl('delay_zero', 0.2),
+      kpiMinComponents: integer('kpi_min_components', 2).clamp(1, 4).toInt(),
       grades: gr.length >= 2 ? gr : defaultGrades,
       refDate: _day(m['ref_date']),
       raw: m,
@@ -283,6 +292,7 @@ class PmSchedule {
     this.startDate,
     this.endDate,
     this.notes = '',
+    this.displayName = '',
   });
 
   final String projectId;
@@ -294,6 +304,9 @@ class PmSchedule {
   final DateTime? endDate;
   final String notes;
 
+  /// الاسم المختصر للعرض (لوحة العرض والتقارير)؛ فارغ = الاسم الكامل.
+  final String displayName;
+
   factory PmSchedule.fromMap(Map<String, dynamic> m) => PmSchedule(
         projectId: _str(m['project_id']),
         projectType: _str(m['project_type']),
@@ -303,6 +316,7 @@ class PmSchedule {
         startDate: _day(m['start_date']),
         endDate: _day(m['end_date']),
         notes: _str(m['notes']),
+        displayName: _str(m['display_name']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -313,6 +327,7 @@ class PmSchedule {
         'start_date': pmIso(startDate),
         'end_date': pmIso(endDate),
         'notes': notes,
+        'display_name': displayName,
       };
 }
 
@@ -918,6 +933,13 @@ class ProjectTrack {
 
   String get opStatus => schedule?.opStatus ?? 'running';
   bool get isRunning => opStatus == 'running';
+  bool get isDone => opDone.contains(opStatus);
+
+  /// الاسم المختصر للعرض إن سُجّل، وإلا اسم العقد.
+  String get displayName {
+    final d = schedule?.displayName.trim() ?? '';
+    return d.isNotEmpty ? d : project.name;
+  }
   DateTime? get start => schedule?.startDate;
   DateTime? get end => schedule?.endDate;
   int? get durationDays => start == null || end == null ? null : daysBetween(end!, start!);
@@ -965,16 +987,20 @@ class ProjectTrack {
   /// السرعة المطلوبة للإنهاء في الموعد المعدّل.
   double? get requiredSpeed {
     final a = actual, rEnd = revisedEnd, ld = lastDate;
-    if (a == null || rEnd == null || ld == null || a >= 1 || overrun) return null;
+    if (a == null || rEnd == null || ld == null || a >= 1 || overrun || isDone) return null;
     return (1 - a) / daysBetween(rEnd, ld) * 7;
   }
 
   bool get tooSlow => speed != null && requiredSpeed != null && requiredSpeed! > speed!;
 
+  /// منجز أو مستلم ولم يُسجَّل له قياس نهائي بنسبة 100%.
+  bool get doneWithoutFinal => isDone && (actual == null || actual! < 1);
+
   DateTime? get forecastEnd {
     final a = actual, ld = lastDate;
     if (a == null || ld == null) return null;
     if (a >= 1) return ld;
+    if (isDone) return null; // منجز أو مستلم دون قياس نهائي: لا توقع
     final s = speed;
     if (s == null || s <= 0) return null;
     return addDays(ld, ((1 - a) / s * 7).round());
@@ -1079,9 +1105,17 @@ class ContractorKpi {
         w += cfg.weight(k);
       }
     }
-    composite = w == 0 ? null : sum / w;
+    // لا تصدر الدرجة المركّبة إلا بعدد كافٍ من المكونات، ومعها التقييم الميداني أو قياسات التقدم
+    final enough = completeness >= cfg.kpiMinComponents && (scheduleScore != null || fieldScore != null);
+    composite = w == 0 || !enough ? null : sum / w;
     grade = composite == null ? null : cfg.gradeOf(composite!);
   }
+
+  static const insufficientLabel = 'بيانات غير كافية';
+  static const insufficientRec = 'استكمال التقييم الميداني وقياسات التقدم قبل الحكم';
+
+  String get gradeName => grade?.name ?? insufficientLabel;
+  String get gradeRec => grade?.rec ?? insufficientRec;
 }
 
 // =====================================================================
@@ -1187,6 +1221,7 @@ class PmTabs {
   static const report = 48;
   static const settings = 49;
   static const guide = 50;
+  static const presentation = 51;
   static const riskDashboard = 20;
   static const riskRegister = 21;
   static const riskMatrix = 22;
@@ -1401,6 +1436,8 @@ class PmAnalysis {
       PmAlert('slow', 'مشاريع سرعتها الحالية أقل من السرعة المطلوبة', t.where((x) => x.tooSlow).length,
           'رفع وتيرة العمل أو إعادة جدولة الأعمال', PmTabs.projects),
       PmAlert('stale', 'مشاريع جارية دون تحديث للتقدم', staleProjects, 'إدخال القياس الأسبوعي في سجل التقدم', PmTabs.progress),
+      PmAlert('final', 'مشاريع منجزة أو مستلمة دون قياس إنجاز نهائي 100%', t.where((x) => x.doneWithoutFinal).length,
+          'إدخال قياس نهائي 100% بتاريخ الإنجاز الفعلي في سجل التقدم', PmTabs.progress),
       PmAlert('high', 'مخاطر مرتفعة/مرتفعة جداً نشطة', highRisksNow, 'التصعيد وفق المسار المحدد في مصفوفة المخاطر', PmTabs.riskRegister),
       PmAlert('rising', 'مخاطر متصاعدة منذ آخر مراجعة', risingRisks, 'مراجعة فعالية الإجراء الوقائي وتعزيزه', PmTabs.riskRegister),
       PmAlert('reviews', 'مراجعات مخاطر متأخرة', overdueReviews, 'تنفيذ المراجعة وتسجيلها', PmTabs.riskRegister),
@@ -1501,8 +1538,17 @@ class PeriodicReport {
     return 'أسبوع $week / ${start.year}';
   }
 
-  List<ReportRow> get runningRows => rows.where((r) => r.track.isRunning).toList();
-  int get runningProjects => a.running.length;
+  /// جارٍ خلال الفترة: بدأ قبل نهايتها، ولم يكتمل إنجازه قبل بدايتها، وليس «لم يبدأ» ولا «موقوف»
+  /// (الإصدار 2.3: يشمل ما اكتمل خلال الفترة نفسها).
+  bool runningIn(ProjectTrack t) {
+    final s = t.start;
+    if (s == null || s.isAfter(end)) return false;
+    if (t.opStatus == 'not_started' || t.opStatus == 'suspended') return false;
+    return (t.lastOnOrBefore(addDays(start, -1))?.actual ?? 0) < 1;
+  }
+
+  List<ReportRow> get runningRows => rows.where((r) => runningIn(r.track)).toList();
+  int get runningProjects => a.tracks.values.where(runningIn).length;
   int get lateAtEnd => runningRows.where((r) => ['slight', 'critical'].contains(r.perf(a.cfg))).length;
 
   double? _w(double? Function(ReportRow) f) {

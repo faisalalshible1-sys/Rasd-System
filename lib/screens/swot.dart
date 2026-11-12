@@ -981,7 +981,7 @@ class SwotWeightedPage extends StatelessWidget {
             title: 'مصفوفة IE (داخلي × خارجي)',
             icon: Icons.grid_3x3_rounded,
             subtitle: 'الأعمدة من مجموع IFE والصفوف من مجموع EFE: قوي 3–4 · متوسط 2–2.99 · ضعيف 1–1.99.',
-            child: _IeMatrix(cell: a.ieCell, ife: a.ifeTotal, efe: a.efeTotal),
+            child: IeMatrix(cell: a.ieCell, ife: a.ifeTotal, efe: a.efeTotal),
           ),
           SectionCard(
             title: 'قراءة النتيجة',
@@ -1093,8 +1093,9 @@ class _WeightedTable extends StatelessWidget {
   }
 }
 
-class _IeMatrix extends StatelessWidget {
-  const _IeMatrix({required this.cell, required this.ife, required this.efe});
+/// مصفوفة IE (3×3) بالموقع الحالي (تُستخدم أيضاً في لوحة العرض).
+class IeMatrix extends StatelessWidget {
+  const IeMatrix({super.key, required this.cell, required this.ife, required this.efe});
 
   final int cell;
   final double ife;
@@ -2268,6 +2269,21 @@ class SwotMethodPage extends StatelessWidget {
             bullet('تحديث سجل المخاطر شهرياً من قسم الإشراف والتنسيق وربطه بالتهديدات.'),
             bullet('مراجعة تقييم العوامل وأولوياتها كل ربع سنة.'),
             bullet('مراجعة شاملة للتحليل كل ${meta.reviewCycleMonths} أشهر وإصدار نسخة جديدة.'),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        SectionCard(
+          title: 'إضافة البنود وتعديلها أثناء العمل',
+          icon: Icons.playlist_add_rounded,
+          child: Column(children: [
+            bullet('عامل جديد: من «سجل العوامل» ← «عامل جديد». يُعطى الرمز التالي المتاح لتصنيفه تلقائياً، ويُقيَّد التقييم بالمنهجية '
+                '(القوة 3 أو 4، والضعف 1 أو 2)، ويظهر فوراً في المصفوفة والتقييم المرجح ومصفوفة IE ولوحتي المتابعة والعرض.'),
+            bullet('استراتيجية TOWS جديدة: من «استراتيجيات TOWS» باختيار عوامل موجودة في السجل، فيُحتسب الربط وحالة التغطية تلقائياً.'),
+            bullet('إجراء تنفيذي جديد: من «خطة التنفيذ» ويرتبط باستراتيجية موجودة؛ وتُحسب تواريخ الانتهاء والإنجاز المخطط والانحراف '
+                'ومؤشر الالتزام والتنبيهات تلقائياً.'),
+            bullet('التعديل والحذف: تعديل رمز عامل يحدّث روابطه في الاستراتيجيات والإجراءات، وحذفه يزيله منها. لا تُحذف استراتيجية '
+                'مرتبطة بإجراءات قبل نقلها، والحذف من صلاحية مدير المكتب.'),
+            bullet('البنود المقترحة (مصدرها «مقترح» أو «إفادة إدارة المكتب») درجاتها أولية، وتُؤكَّد أو تُعدَّل في ورشة العمل قبل الاعتماد.'),
           ]),
         ),
         const SizedBox(height: 14),

@@ -25,12 +25,14 @@ import 'projects.dart';
 import 'requests.dart';
 import 'pm_contractors.dart';
 import 'pm_dashboard.dart';
+import 'pm_presentation.dart';
 import 'pm_projects.dart';
 import 'pm_registers.dart';
 import 'pm_report.dart';
 import 'pm_settings.dart';
 import 'risks.dart';
 import 'swot.dart';
+import 'swot_presentation.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
 class Tabs {
@@ -59,6 +61,7 @@ class Tabs {
   static const pmReport = 48;
   static const pmSettings = 49;
   static const pmGuide = 50;
+  static const pmPresentation = 51;
 
   // تحليل SWOT
   static const swotDashboard = 30;
@@ -68,6 +71,7 @@ class Tabs {
   static const swotTows = 34;
   static const swotPlan = 35;
   static const swotMethod = 36;
+  static const swotPresentation = 37;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -136,6 +140,7 @@ List<_Dest> _destinations(AppState app) {
     return [
       _Dest(Tabs.pmDashboard, 'لوحة القيادة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
           badge: pm.alerts.where((a) => a.count > 0).length),
+      const _Dest(Tabs.pmPresentation, 'لوحة العرض', Icons.co_present_outlined, Icons.co_present_rounded),
       _Dest(Tabs.pmProjects, 'سجل المشاريع', Icons.view_timeline_outlined, Icons.view_timeline_rounded,
           badge: pm.tracks.values.where((t) => t.perf == 'critical').length),
       _Dest(Tabs.pmProgress, 'التقدم الدوري', Icons.show_chart_outlined, Icons.show_chart_rounded, badge: pm.staleProjects),
@@ -158,6 +163,7 @@ List<_Dest> _destinations(AppState app) {
     final alerts = app.v6Ready ? app.swot.alerts.length : 0;
     return [
       const _Dest(Tabs.swotDashboard, 'لوحة المتابعة', Icons.insights_outlined, Icons.insights_rounded),
+      const _Dest(Tabs.swotPresentation, 'لوحة العرض', Icons.co_present_outlined, Icons.co_present_rounded),
       const _Dest(Tabs.swotMatrix, 'مصفوفة SWOT', Icons.grid_view_outlined, Icons.grid_view_rounded),
       const _Dest(Tabs.swotFactors, 'سجل العوامل', Icons.format_list_numbered_outlined, Icons.format_list_numbered_rounded),
       const _Dest(Tabs.swotWeighted, 'التقييم المرجح', Icons.balance_outlined, Icons.balance_rounded),
@@ -225,6 +231,7 @@ Widget _page(int id) => switch (id) {
       Tabs.pmReport => const PmReportPage(),
       Tabs.pmSettings => const PmSettingsPage(),
       Tabs.pmGuide => const PmGuidePage(),
+      Tabs.pmPresentation => const PmPresentationPage(),
       Tabs.swotDashboard => const SwotDashboardPage(),
       Tabs.swotMatrix => const SwotMatrixPage(),
       Tabs.swotFactors => const SwotFactorsPage(),
@@ -232,6 +239,7 @@ Widget _page(int id) => switch (id) {
       Tabs.swotTows => const SwotTowsPage(),
       Tabs.swotPlan => const SwotPlanPage(),
       Tabs.swotMethod => const SwotMethodPage(),
+      Tabs.swotPresentation => const SwotPresentationPage(),
       _ => const DashboardPage(),
     };
 

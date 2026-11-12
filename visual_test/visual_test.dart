@@ -19,12 +19,14 @@ import 'package:dc_app/screens/home_shell.dart';
 import 'package:dc_app/screens/project_detail.dart';
 import 'package:dc_app/screens/pm_contractors.dart';
 import 'package:dc_app/screens/pm_dashboard.dart';
+import 'package:dc_app/screens/pm_presentation.dart';
 import 'package:dc_app/screens/pm_projects.dart';
 import 'package:dc_app/screens/pm_registers.dart';
 import 'package:dc_app/screens/pm_report.dart';
 import 'package:dc_app/screens/pm_settings.dart';
 import 'package:dc_app/screens/risks.dart';
 import 'package:dc_app/screens/swot.dart';
+import 'package:dc_app/screens/swot_presentation.dart';
 import 'package:dc_app/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -311,6 +313,7 @@ void _tracking(AppState app) {
         'op_status': i == 5 ? 'not_started' : 'running',
         'start_date': _day(300 - i * 20),
         'end_date': _day(-200 - i * 30),
+        'display_name': i < 3 ? ['تأهيل طريق الصابري', 'ترميم مبنى القنصلية', 'شبكات وسط البلاد'][i] : '',
       }),
   };
   final ms = <PmProgress>[];
@@ -645,6 +648,8 @@ void main() {
     await _shot(tester, '89_pm_report_light', app, _scaffold(const PmReportPage()), size: const Size(1200, 2600));
     await _shot(tester, '90_pm_settings_light', app, _scaffold(const PmSettingsPage()), size: const Size(1200, 2200));
     await _shot(tester, '91_pm_guide_mobile', app, _scaffold(const PmGuidePage()), size: const Size(400, 5200));
+    await _shot(tester, '92_pm_presentation_light', app, _scaffold(const PmPresentationPage()), size: const Size(1600, 1500));
+    await _shot(tester, '93_pm_presentation_dark_mobile', app, _scaffold(const PmPresentationPage()), size: const Size(400, 4200), dark: true);
     app.tab = 30;
     await _shot(tester, '70_swot_dashboard_light', app, const HomeShell(), size: const Size(1440, 2400));
     await _shot(tester, '71_swot_matrix_dark', app, _scaffold(const SwotMatrixPage()), size: const Size(1200, 1500), dark: true);
@@ -652,6 +657,8 @@ void main() {
     await _shot(tester, '73_swot_weighted_light', app, _scaffold(const SwotWeightedPage()), size: const Size(1200, 2000));
     await _shot(tester, '74_swot_tows_mobile', app, _scaffold(const SwotTowsPage()), size: const Size(400, 2600));
     await _shot(tester, '75_swot_plan_light', app, _scaffold(const SwotPlanPage()), size: const Size(1200, 1900));
-    await _shot(tester, '76_swot_method_light', app, _scaffold(const SwotMethodPage()), size: const Size(1200, 2600));
+    await _shot(tester, '76_swot_method_light', app, _scaffold(const SwotMethodPage()), size: const Size(1200, 2800));
+    await _shot(tester, '77_swot_presentation_light', app, _scaffold(const SwotPresentationPage()), size: const Size(1600, 1900));
+    await _shot(tester, '78_swot_presentation_mobile', app, _scaffold(const SwotPresentationPage()), size: const Size(400, 5200));
   });
 }

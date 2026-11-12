@@ -157,6 +157,16 @@ Future<String?> _save(Excel excel, String baseName) async {
   return FileSaver.instance.saveFile(name: name, bytes: data, ext: 'xlsx', mimeType: MimeType.microsoftExcel);
 }
 
+/// حفظ صورة PNG (لوحات العرض) بالاسم المعطى وتاريخ اليوم.
+Future<String?> saveImageBytes(Uint8List bytes, String baseName) {
+  final name = '$baseName ${_day(DateTime.now())}';
+  final mobile = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+  if (mobile) {
+    return FileSaver.instance.saveAs(name: name, bytes: bytes, ext: 'png', mimeType: MimeType.png);
+  }
+  return FileSaver.instance.saveFile(name: name, bytes: bytes, ext: 'png', mimeType: MimeType.png);
+}
+
 /// تصدير قائمة المستخدمين (للمدير وCISO). [security] من مركز الأمان: التحقق بخطوتين وآخر دخول.
 Future<String?> exportUsersXlsx(AppState app, List<Map<String, dynamic>> security) async {
   final excel = Excel.createExcel();
@@ -596,8 +606,8 @@ Future<String?> exportPmXlsx(AppState app) async {
       _d(k.avgSpi, 2), IntCellValue(k.contractorDelayDays), IntCellValue(k.totalDuration), _d(k.delayRatio == null ? null : k.delayRatio! * 100, 1),
       IntCellValue(k.issuesAssigned), IntCellValue(k.openIssues), _d(k.avgIssueAge, 1), IntCellValue(k.safetyIssues), IntCellValue(k.qualityIssues),
       IntCellValue(k.changesFromContractor), IntCellValue(k.rejectedChanges), _d(k.avgField, 2), IntCellValue(k.evaluations),
-      _d(k.scheduleScore, 0), _d(k.delayScore, 0), _d(k.fieldScore, 0), _d(k.responseScore, 0), _d(k.composite, 0), _t(k.grade?.name),
-      k.rank == 0 ? null : IntCellValue(k.rank), _t(k.grade?.rec), TextCellValue('${k.completeness} من 4'),
+      _d(k.scheduleScore, 0), _d(k.delayScore, 0), _d(k.fieldScore, 0), _d(k.responseScore, 0), _d(k.composite, 0), _t(k.gradeName),
+      k.rank == 0 ? null : IntCellValue(k.rank), _t(k.gradeRec), TextCellValue('${k.completeness} من 4'),
     ]);
   }
 
@@ -625,7 +635,7 @@ Future<String?> exportPmReportXlsx(AppState app, PeriodicReport r, String notes)
   sh.appendRow([TextCellValue('أولاً: ملخص الفترة')]);
   String p(double? v) => v == null ? '' : '${(v * 100).toStringAsFixed(1)}%';
   for (final (k, v) in [
-    ('المشاريع الجارية', '${r.runningProjects}'),
+    ('المشاريع الجارية خلال الفترة', '${r.runningProjects}'),
     ('مشاريع متأخرة في نهاية الفترة', '${r.lateAtEnd}'),
     ('متوسط الإنجاز المخطط (موزون)', p(r.plannedW)),
     ('متوسط الإنجاز الفعلي (موزون)', p(r.actualW)),

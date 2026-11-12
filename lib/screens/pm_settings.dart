@@ -84,6 +84,10 @@ class PmSettingsPage extends StatelessWidget {
           PmField('delay_zero', 'نسبة التأخير المنسوب التي تكون عندها الدرجة صفراً', PmKind.percent, required: true,
               helper: 'لا تأخير منسوب = 100 درجة'),
         ]),
+        PmSection('شرط إصدار الدرجة', [
+          PmField('kpi_min_components', 'الحد الأدنى لعدد مكونات التقييم (من 4)', PmKind.integer, required: true,
+              helper: 'ويُشترط معه توفر التقييم الميداني أو قياسات التقدم؛ وإلا «بيانات غير كافية»'),
+        ]),
       ],
       values: {
         'w_schedule': c.weight('schedule'),
@@ -92,6 +96,7 @@ class PmSettingsPage extends StatelessWidget {
         'w_response': c.weight('response'),
         'spi_zero': c.spiZero,
         'delay_zero': c.delayZero,
+        'kpi_min_components': c.kpiMinComponents,
       },
       onSave: (d) async {
         final w = {
@@ -102,8 +107,10 @@ class PmSettingsPage extends StatelessWidget {
         };
         final sum = w.values.fold<double>(0, (a, b) => a + b);
         if ((sum - 1).abs() > 0.001) throw 'مجموع الأوزان ${(sum * 100).toStringAsFixed(1)}% ويجب أن يساوي 100%';
+        final minC = d['kpi_min_components'] as int;
+        if (minC < 1 || minC > 4) throw 'الحد الأدنى لمكونات التقييم من 1 إلى 4';
         await app.setSetting('pm.config', Map<String, dynamic>.from(app.pmConfig.raw)
-          ..addAll({'weights': w, 'spi_zero': d['spi_zero'], 'delay_zero': d['delay_zero']}));
+          ..addAll({'weights': w, 'spi_zero': d['spi_zero'], 'delay_zero': d['delay_zero'], 'kpi_min_components': minC}));
       },
     );
   }
@@ -206,6 +213,7 @@ class PmSettingsPage extends StatelessWidget {
               PmKv('سرعة حل المشاكل', pctText(c.weight('response'))),
               PmKv('SPI عند درجة الصفر', spiText(c.spiZero)),
               PmKv('نسبة التأخير عند درجة الصفر', pctText(c.delayZero)),
+              PmKv('الحد الأدنى لمكونات التقييم لإصدار الدرجة', '${c.kpiMinComponents} من 4'),
             ]),
           ),
           SectionCard(
@@ -298,6 +306,7 @@ class PmGuidePage extends StatelessWidget {
             columns: const ['الصفحة', 'الغرض', 'المسؤول عن التحديث', 'الدورية'],
             rows: const [
               ['لوحة القيادة', 'نظرة موحدة: مؤشرات، تنبيهات، ملخص المشاريع، رسوم', '—', 'تلقائي'],
+              ['لوحة العرض', 'ملخص المحفظة في صفحة واحدة للعرض التقديمي والطباعة (تُحفظ صورةً)', '—', 'تلقائي'],
               ['سجل المشاريع', 'البرنامج الزمني ومؤشرات الإنجاز لكل عقد', 'مكتب المدير + القسم المشرف', 'عند التعاقد وأي تعديل'],
               ['التقدم الدوري', 'قياسات الإنجاز التراكمي المخطط والفعلي', 'الإشراف والتنسيق / القسم المشرف', 'أسبوعياً كل خميس'],
               ['سجل المخاطر', 'تعريف المخاطر وتقييمها وخطط معالجتها ومراجعاتها', 'مالك الخطر (رئيس القسم)', 'عند ظهور خطر وحسب مستواه'],
