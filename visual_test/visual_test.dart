@@ -38,13 +38,16 @@ const _desktop = Size(1440, 2600);
 const _mobile = Size(400, 3200);
 
 Future<void> _loadFonts() async {
-  // خط محلي يدعم العربية بدل Google Fonts (لا شبكة في الاختبارات)
+  // خط محلي يدعم العربية بدل Google Fonts (لا شبكة في الاختبارات). أولها خط مدمج عربي ولاتيني
+  // (Noto Sans Arabic مع حروف لاتينية ورموز مثل % و·) حتى لا تظهر مربعات مكان الحروف اللاتينية والرموز.
   final candidates = <String, List<String>>{
     'regular': [
+      'visual_test/fonts/ArLatSans-Regular.ttf',
       '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
       '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
     ],
     'bold': [
+      'visual_test/fonts/ArLatSans-Bold.ttf',
       '/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf',
       '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
     ],
