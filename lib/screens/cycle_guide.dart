@@ -8,10 +8,11 @@ import '../ui/widgets.dart';
 
 // =====================================================================
 // الدليل المرجعي للدورة المستندية: المخطط المجمّع من عرض «الدورة المستندية للعقود»
-// (25 بنداً في 5 مراحل، وجهات التنفيذ والمتابعة، والتعديلات المقترحة على ترتيب ملف الوورد).
+// (25 بنداً في 5 مراحل، وجهات التنفيذ والمتابعة، والتعديلات على ترتيب ملف الوورد).
+// اعتمده مدير المكتب في 2026-11-12، وطُبّق على نماذج الدورة المستندية في المنظومة (الترحيل 19).
 // =====================================================================
 
-const String guideStatus = 'مقترح بانتظار الاعتماد · 2026-11-09';
+const String guideStatus = 'معتمد · 2026-11-12';
 
 class GuideLane {
   const GuideLane(this.name, this.light, this.dark);
@@ -147,9 +148,9 @@ const List<String> guideFileNotes = [
 ];
 
 const List<(String, String)> guideApprovals = [
-  ('اعتماد الترتيب المقترح', 'التعديلات الخمسة على ترتيب الملف، من Δ1 إلى Δ5'),
-  ('اعتماد الجهات المقترحة', 'جهات التنفيذ والمتابعة للبنود 1 و2 و23 و24 و25'),
-  ('تأكيد موضع المستخلص الختامي', 'مطابقة التعديل الخامس مع شروط العقد'),
+  ('اعتُمد الترتيب', 'التعديلات الخمسة على ترتيب الملف، من Δ1 إلى Δ5، ومنها موضع المستخلص الختامي'),
+  ('اعتُمدت جهات الخانات الفارغة', 'جهات التنفيذ والمتابعة للبنود 1 و2 و23 و24 و25'),
+  ('طُبّق على المنظومة', 'نماذج الدورة المستندية ومراحلها وجهاتها في كل العقود، ومعها «تكليف مهندس سلامة» في المرحلة الثانية'),
 ];
 
 // =====================================================================
@@ -184,14 +185,14 @@ class _CycleGuidePageState extends State<CycleGuidePage> {
           title: 'الدليل المرجعي للدورة المستندية',
           subtitle: 'المخطط المجمّع لترتيب النماذج والوثائق والجهات المسؤولة عن التنفيذ والمتابعة، من أمر التعاقد إلى إقفال العقد.',
           icon: Icons.schema_outlined,
-          actions: [ToneBadge(guideStatus, color: sem.wip)],
+          actions: [ToneBadge(guideStatus, color: sem.ok, icon: Icons.verified_outlined)],
         ),
         ResponsiveGrid(minItemWidth: 150, spacing: 10, children: [
           StatCard(label: 'بنداً في الدورة', value: '${guideSteps.length}', icon: Icons.format_list_numbered_rounded),
           StatCard(label: 'مراحل', value: '${guideStages.length}', icon: Icons.view_week_rounded),
           StatCard(label: 'جهات تنفيذ ومتابعة', value: '${guideLanes.length}', icon: Icons.groups_2_rounded),
-          StatCard(label: 'تعديلات مقترحة على الترتيب', value: '${guideDeltas.length}', sub: '$moved بنود نُقلت', icon: Icons.swap_vert_rounded),
-          StatCard(label: 'جهات مقترحة لخانات فارغة', value: '$suggested', icon: Icons.person_add_alt_rounded),
+          StatCard(label: 'تعديلات على ترتيب الملف', value: '${guideDeltas.length}', sub: '$moved بنود نُقلت', icon: Icons.swap_vert_rounded),
+          StatCard(label: 'جهات حُدّدت لخانات فارغة', value: '$suggested', icon: Icons.person_add_alt_rounded),
         ]),
         const SizedBox(height: 16),
         Wrap(spacing: 8, runSpacing: 8, children: [
@@ -845,12 +846,12 @@ class _ChangesView extends StatelessWidget {
                 ]),
               ),
             ),
-          InfoBanner(text: 'التعديل الخامس (موضع المستخلص الختامي) يحتاج تأكيداً مع شروط العقد قبل الاعتماد.', level: 'warning'),
+          const InfoBanner(text: 'اعتُمدت التعديلات الخمسة كلها، ومنها موضع المستخلص الختامي، في 2026-11-12.', level: 'ok'),
         ]),
       ),
       const SizedBox(height: 14),
       SectionCard(
-        title: 'جهات مقترحة للخانات الفارغة',
+        title: 'جهات الخانات الفارغة',
         icon: Icons.person_add_alt_rounded,
         subtitle: 'خانة «الجهة المسؤولة عن التنفيذ والمتابعة» فارغة في الملف لهذه البنود.',
         child: Column(children: [
@@ -881,18 +882,19 @@ class _ChangesView extends StatelessWidget {
       ),
       const SizedBox(height: 14),
       SectionCard(
-        title: 'المطلوب للاعتماد',
+        title: 'الاعتماد',
         icon: Icons.verified_outlined,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < guideApprovals.length; i++)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(radius: 16, child: Text('${i + 1}')),
+              leading: Icon(Icons.check_circle_rounded, color: sem.ok),
               title: Text(guideApprovals[i].$1, style: const TextStyle(fontWeight: FontWeight.w700)),
               subtitle: Text(guideApprovals[i].$2, style: TextStyle(color: sem.muted)),
             ),
           const SizedBox(height: 6),
-          Text('بعد الاعتماد: يُعمَّم الجدول على الأقسام، ويُحدَّث ملف الوورد والمخطط التفاعلي بالترتيب المعتمد.',
+          Text('النماذج السبعة الجديدة تبدأ في العقود القائمة بحالة «لم يبدأ» حتى تُحدَّث. '
+              'يحدّث كل نموذج الجهة المسؤولة عن تنفيذه ومتابعته، وموظفو مكتب المدير، ومدير المكتب.',
               style: TextStyle(color: sem.muted)),
         ]),
       ),

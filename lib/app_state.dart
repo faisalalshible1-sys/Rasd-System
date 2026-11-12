@@ -314,7 +314,7 @@ class AppState extends ChangeNotifier {
 
   bool needsApproval(FormDef d) => d.sensitive && !isDirector;
 
-  /// البيانات المالية للعقد يحدّثها من يختص بـ«أمر تعاقد» في المشروع.
+  /// البيانات المالية للعقد يحدّثها من يختص بـ«أمر بالتعاقد» في المشروع.
   bool canEditFinance(Project p) {
     final d = formDef(contractFormKey);
     return d != null && canEditForm(p, d);

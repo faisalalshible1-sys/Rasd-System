@@ -43,7 +43,7 @@ void main() {
     expect(p.required, 15);
     expect(p.pct, closeTo(0.266666, 1e-4));
     expect(p.next?.name, 'أمر تعاقد');
-    expect(stageName(p.stage), 'التعاقد');
+    expect(stageName(p.stage), 'التعاقد والإعداد الفني');
     expect(p.cycle, CycleState.running);
   });
 

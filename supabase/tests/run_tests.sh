@@ -52,3 +52,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261112000018_na_options.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000018_na_options.sql"
 $P -d dctest -f "$DIR/migrations/20261112000018_na_options.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000018_na_options.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/92_na_options_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# الدورة المستندية للعقود – الإصدار 2 المعتمد (الترحيل 19)
+$P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql"
+$P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/93_doc_cycle_v2_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
