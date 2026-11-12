@@ -35,6 +35,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   final Map<String, TextEditingController> _fin = {};
   bool _finDirty = false; // تعديلات مالية لم تُحفظ بعد: لا يُكتب فوقها عند وصول تحديث
   bool _busyFin = false;
+  bool _busyGna = false;
   String? _busyForm;
   bool _busyNote = false;
   List<AuditEntry>? _history;
@@ -147,6 +148,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   // ---------------------------------------------------------------
   Future<void> _change(Project p, FormDef d, FormStatus s) async {
     final app = AppScope.read(context);
+    final kind = d.engineerField?.substring(4);
+    if (s == FormStatus.na && kind != null && app.engineerFormOf(kind)?.key == d.key && app.engineersOf(p.id, kind).isNotEmpty) {
+      showToast(context, 'في العقد ${engineerKindPlural(kind)} مكلّفون. ألغِ تكليفاتهم أولاً ثم سجّل «${d.name}» «لا ينطبق».', error: true);
+      return;
+    }
     var note = '';
     if (app.needsApproval(d)) {
       final res = await textInputDialog(
@@ -396,6 +402,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       if (mounted) showToast(context, friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _busyFin = false);
+    }
+  }
+
+  Future<void> _setGuaranteeNa(Project p, bool na) async {
+    if (na == p.guaranteeInitialNa) return;
+    setState(() => _busyGna = true);
+    try {
+      await AppScope.read(context).setGuaranteeInitialNa(p.id, na);
+      if (mounted) {
+        showToast(context, na ? 'سُجّل أن الضمان الابتدائي لا ينطبق على العقد' : 'الضمان الابتدائي ينطبق ويُحسب من الأعمال المنفذة');
+      }
+      _loadSide();
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _busyGna = false);
     }
   }
 
@@ -890,16 +912,21 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final list = app.engineersOf(p.id, kind);
     final can = app.canAssignEngineer(p, kind);
     final form = app.engineerFormOf(kind);
+    // «لا ينطبق» حالة نموذج التكليف المقابل في الدورة المستندية؛ يُعرض لكل الأنواع ويُتاح زرّه لمهندس السلامة
+    final na = list.isEmpty && app.engineerNa(p, kind);
+    final canNa = can && form != null && kind == 'saf' && app.pendingFor(p.id, form.key) == null;
+    final busyNa = form != null && _busyForm == form.key;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Icon(_kindIcon(kind), size: 20, color: cs.primary),
+            Icon(_kindIcon(kind), size: 20, color: na ? sem.muted : cs.primary),
             const SizedBox(width: 8),
             Expanded(child: Text(engineerKindPlural(kind), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
             if (list.isNotEmpty) ToneBadge('${list.length}', color: cs.primary),
-            if (can) ...[
+            if (na) ToneBadge('لا ينطبق', color: sem.muted, icon: Icons.block_outlined),
+            if (can && !na) ...[
               const SizedBox(width: 4),
               TextButton.icon(
                 onPressed: () => _editEngineer(app, p, kind, null),
@@ -910,8 +937,34 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           ],
         ),
         const SizedBox(height: 6),
-        if (list.isEmpty)
-          Text('لم يُكلَّف أحد بعد.', style: TextStyle(color: sem.muted, fontSize: 12.5))
+        if (na)
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('سُجّل أن ${engineerKindLabel(kind)} لا ينطبق على هذا العقد.', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+              if (canNa)
+                TextButton.icon(
+                  onPressed: busyNa ? null : () => _change(p, form!, FormStatus.todo),
+                  icon: const Icon(Icons.undo_rounded, size: 18),
+                  label: const Text('يلزم تكليف'),
+                ),
+            ],
+          )
+        else if (list.isEmpty)
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('لم يُكلَّف أحد بعد.', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+              if (canNa)
+                TextButton.icon(
+                  onPressed: busyNa ? null : () => _change(p, form!, FormStatus.na),
+                  icon: const Icon(Icons.block_outlined, size: 18),
+                  label: const Text('لا ينطبق'),
+                ),
+            ],
+          )
         else
           for (final e in list) _engineerTile(context, app, p, e, can),
         if (!can && form != null)
@@ -992,7 +1045,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final contract = lockValue ? p.contractValue : val('contract_value', p.contractValue);
     final executed = lockExec ? p.executedValue : val('executed_value', p.executedValue);
     final base = v3 ? executed : contract;
-    final gInitial = base == null ? null : roundMoney(base * guaranteeInitialRate);
+    final gNa = p.guaranteeInitialNa;
+    final gInitial = gNa || base == null ? null : roundMoney(base * guaranteeInitialRate);
+    final guaranteeRule = gNa
+        ? 'الضمان الابتدائي لا ينطبق على هذا العقد، ويُحسب النهائي (${rateText(guaranteeFinalRate)}) تلقائياً من '
+        : 'يُحسب الضمان الابتدائي (${rateText(guaranteeInitialRate)}) والنهائي (${rateText(guaranteeFinalRate)}) تلقائياً من ';
     final gFinal = base == null ? null : roundMoney(base * guaranteeFinalRate);
     final pays = [val('payment_first', p.paymentFirst), val('payment_second', p.paymentSecond), val('payment_final', p.paymentFinal)];
     final paid = pays.any((v) => v != null) ? roundMoney(pays.fold<double>(0, (a, v) => a + (v ?? 0))) : null;
@@ -1025,9 +1082,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       );
     }
 
-    Widget computed(String label, double? v) => InputDecorator(
-          decoration: fieldDeco(label).copyWith(suffixText: v == null ? null : currencyLabel, filled: true, fillColor: sem.surface2),
-          child: Text(fmtMoney(v), style: tabular.copyWith(fontWeight: FontWeight.w700)),
+    Widget computed(String label, double? v, {String? text}) => InputDecorator(
+          decoration: fieldDeco(label)
+              .copyWith(suffixText: v == null || text != null ? null : currencyLabel, filled: true, fillColor: sem.surface2),
+          child: Text(text ?? fmtMoney(v),
+              style: text != null ? TextStyle(color: sem.muted, fontWeight: FontWeight.w700) : tabular.copyWith(fontWeight: FontWeight.w700)),
         );
 
     return SectionCard(
@@ -1092,15 +1151,35 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             group([field('payment_first'), field('payment_second'), field('payment_final')]),
             const SizedBox(height: 10),
             group([
-              computed('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', gInitial),
+              computed('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', gInitial, text: gNa ? 'لا ينطبق' : null),
               computed('الضمان النهائي ${rateText(guaranteeFinalRate)}', gFinal),
             ]),
+            if (app.naReady) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('الضمان الابتدائي على هذا العقد', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('ينطبق'), icon: Icon(Icons.verified_outlined, size: 18)),
+                      ButtonSegment(value: true, label: Text('لا ينطبق'), icon: Icon(Icons.block_outlined, size: 18)),
+                    ],
+                    selected: {gNa},
+                    showSelectedIcon: false,
+                    onSelectionChanged: canEdit && !_busyGna ? (sel) => _setGuaranteeNa(p, sel.first) : null,
+                  ),
+                  if (_busyGna) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+            ],
             const SizedBox(height: 10),
             group([field('deductions'), computed(v4 ? 'الدفعات المسجلة يدوياً' : 'إجمالي الدفعات', paid)]),
             const SizedBox(height: 8),
             Text(
-              'يُحسب الضمان الابتدائي (${rateText(guaranteeInitialRate)}) والنهائي (${rateText(guaranteeFinalRate)}) تلقائياً من '
-              '${v3 ? 'قيمة الأعمال المنفذة' : 'قيمة التعاقد'}.'
+              '$guaranteeRule${v3 ? 'قيمة الأعمال المنفذة' : 'قيمة التعاقد'}.'
               '${!canEdit && contractDef != null ? ' يحدّث البيانات المالية: ${app.responsibleText(p, contractDef)}.' : ''}',
               style: TextStyle(fontSize: 11.5, color: sem.muted),
             ),
@@ -1326,13 +1405,15 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final sem = Sem.of(context);
     final list = app.engineersOf(p.id, kind);
     final can = app.canAssignEngineer(p, kind);
+    final na = list.isEmpty && app.engineerNa(p, kind);
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text('${engineerKindPlural(kind)}:', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-        if (list.isEmpty) Text('لم يُكلَّف أحد', style: TextStyle(color: sem.muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+        if (list.isEmpty)
+          Text(na ? 'لا ينطبق' : 'لم يُكلَّف أحد', style: TextStyle(color: sem.muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
         for (final e in list)
           can
               ? ActionChip(
@@ -1344,7 +1425,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   avatar: const Icon(Icons.person_outline, size: 16),
                   label: Text(e.assignNo.isEmpty ? e.name : '${e.name} · ${e.assignNo}'),
                 ),
-        if (can)
+        if (can && !na)
           ActionChip(
             avatar: const Icon(Icons.add_rounded, size: 16),
             label: const Text('تكليف'),

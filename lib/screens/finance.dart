@@ -1187,7 +1187,7 @@ class _GuaranteesView extends StatelessWidget {
                 onTap: () => _open(context, p.id),
                 title: Text('${p.contractTitle} · ${p.title}', maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(
-                  'محتجز ${fmtMoney(p.retentionHeld)} · ابتدائي ${fmtMoney(p.guaranteeInitial)} · نهائي ${fmtMoney(p.guaranteeFinal)}',
+                  'محتجز ${fmtMoney(p.retentionHeld)} · ابتدائي ${p.guaranteeInitialNa ? 'لا ينطبق' : fmtMoney(p.guaranteeInitial)} · نهائي ${fmtMoney(p.guaranteeFinal)}',
                   style: _tab.copyWith(fontSize: 12),
                 ),
                 trailing: Text(fmtMoney(p.retentionHeld + (p.guaranteeInitial ?? 0) + (p.guaranteeFinal ?? 0)),

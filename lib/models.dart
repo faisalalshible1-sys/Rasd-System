@@ -282,6 +282,7 @@ class Project {
     this.deductions,
     this.guaranteeInitial,
     this.guaranteeFinal,
+    this.guaranteeInitialNa = false,
     this.valueSource = 'manual',
     this.executedSource = 'manual',
     this.variationsNet = 0,
@@ -318,7 +319,9 @@ class Project {
   final double? paymentSecond;
   final double? paymentFinal;
   final double? deductions;
-  final double? guaranteeInitial; // 5% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
+  final double? guaranteeInitial; // 5% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات (فارغ إن لم ينطبق)
+  /// الضمان الابتدائي لا ينطبق على هذا العقد (الترحيل 18)
+  final bool guaranteeInitialNa;
   final double? guaranteeFinal; // 2% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
 
   // المالية الموسعة (تحسبها قاعدة البيانات من البنود والمستخلصات وأوامر التغيير)
@@ -418,6 +421,7 @@ class Project {
         deductions: _money(m['deductions']),
         guaranteeInitial: _money(m['guarantee_initial']),
         guaranteeFinal: _money(m['guarantee_final']),
+        guaranteeInitialNa: m['guarantee_initial_na'] == true,
         valueSource: _str(m['value_source']).isEmpty ? 'manual' : _str(m['value_source']),
         executedSource: _str(m['executed_source']).isEmpty ? 'manual' : _str(m['executed_source']),
         variationsNet: _money(m['variations_net']) ?? 0,
@@ -1049,6 +1053,7 @@ const Map<String, String> auditActionLabels = {
   'finance.payment_add': 'سجّل دفعة مستخلص',
   'finance.payment_delete': 'حذف دفعة مستخلص',
   'finance.advance': 'عدّل الدفعة المقدمة',
+  'finance.guarantee_initial': 'حدّد انطباق الضمان الابتدائي',
   'security.user_lock': 'قفل دخول حساب',
   'security.user_unlock': 'فكّ قفل حساب',
   'security.device_new': 'دخل من جهاز جديد',

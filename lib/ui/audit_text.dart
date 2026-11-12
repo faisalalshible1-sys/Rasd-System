@@ -147,6 +147,10 @@ String auditDescription(AppState app, AuditEntry e) {
       final on = d['paid_on'] is Map ? text((d['paid_on'] as Map)['to']) : '';
       if (to == null) return 'أزال الدفعة المقدمة للعقد (${_m(from)})';
       return 'الدفعة المقدمة للعقد: ${from == null ? '' : '${_m(from)} ← '}${_m(to)}${on.isNotEmpty ? ' · صُرفت ${on.replaceAll('-', '/')}' : ' · لم تُصرف'}';
+    case 'finance.guarantee_initial':
+      return d['na'] == true
+          ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
+          : 'سجّل أن الضمان الابتدائي ينطبق على العقد (${_m(d['amount'])})';
     case 'security.user_lock':
       final until = text(d['until']);
       return 'قفل دخول ${e.projectLabel}${until.startsWith('infinity') ? ' حتى يُفك' : ''} — ${text(d['reason'])}';

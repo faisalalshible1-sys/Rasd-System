@@ -75,6 +75,9 @@ class AppState extends ChangeNotifier {
   bool v7Ready = false;
   PmAnalysis? _pm;
 
+  /// الترحيل 18: خيار «لا ينطبق» للضمان الابتدائي (وحراسة «لا ينطبق» لتكليف المهندسين في القاعدة).
+  bool naReady = false;
+
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
 
@@ -345,6 +348,12 @@ class AppState extends ChangeNotifier {
 
   bool canAssignAnyEngineer(Project p) => engineerKinds.any((k) => canAssignEngineer(p, k));
 
+  /// تكليف هذا النوع «لا ينطبق» على العقد: نموذج التكليف المقابل حالته «لا ينطبق».
+  bool engineerNa(Project p, String kind) {
+    final d = engineerFormOf(kind);
+    return d != null && statusOf(p.id, d.key) == FormStatus.na;
+  }
+
   /// قيم البنود وأوامر التغيير والمستخلصات: من يختص بالبيانات المالية للعقد.
   bool canEditFinanceItems(Project p) => v4Ready && canEditFinance(p);
 
@@ -544,6 +553,7 @@ class AppState extends ChangeNotifier {
       allFormDefs = r[1].map(FormDef.fromMap).toList()..sort((a, b) => a.sort.compareTo(b.sort));
       formDefs = allFormDefs.where((d) => d.active).toList();
       projects = r[2].map(Project.fromMap).toList();
+      naReady = r[2].isNotEmpty && r[2].first.containsKey('guarantee_initial_na');
       final st = <String, Map<String, FormStatus>>{};
       for (final row in r[3]) {
         final pid = row['project_id'].toString();
@@ -1118,6 +1128,12 @@ class AppState extends ChangeNotifier {
       'p_payment_final': paymentFinal,
       'p_deductions': deductions,
     });
+    await loadAll();
+  }
+
+  /// الضمان الابتدائي لا ينطبق على العقد (أو ينطبق فيُحسب من قيمة الأعمال المنفذة).
+  Future<void> setGuaranteeInitialNa(String projectId, bool na) async {
+    await client.rpc('set_guarantee_initial_na', params: {'p_project': projectId, 'p_na': na});
     await loadAll();
   }
 

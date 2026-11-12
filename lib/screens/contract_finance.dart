@@ -83,7 +83,8 @@ class ContractFinanceOverview extends StatelessWidget {
                 icon: Icons.savings_outlined,
                 badge: p.advancePaidOn == null ? 'لم تُصرف' : null,
                 sub: 'استُرد ${compactMoney(p.advanceRecovered)} · المتبقي ${compactMoney(p.advanceRemaining)}'),
-          stat('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', money(p.guaranteeInitial), icon: Icons.verified_outlined),
+          stat('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', p.guaranteeInitialNa ? 'لا ينطبق' : money(p.guaranteeInitial),
+              icon: Icons.verified_outlined, color: p.guaranteeInitialNa ? sem.muted : null),
           stat('الضمان النهائي ${rateText(guaranteeFinalRate)}', money(p.guaranteeFinal), icon: Icons.verified_user_outlined),
         ]),
         if ((adjusted ?? 0) > 0) ...[

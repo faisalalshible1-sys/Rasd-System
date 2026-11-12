@@ -65,7 +65,7 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
       money(p.paymentFirst),
       money(p.paymentSecond),
       money(p.paymentFinal),
-      money(p.guaranteeInitial),
+      p.guaranteeInitialNa ? TextCellValue('لا ينطبق') : money(p.guaranteeInitial),
       money(p.guaranteeFinal),
       money(p.deductions),
     ]);
@@ -300,7 +300,7 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
       m(p.remainingWork),
       m(p.remainingToPay),
       DoubleCellValue(p.retentionHeld),
-      m(p.guaranteeInitial),
+      p.guaranteeInitialNa ? TextCellValue('لا ينطبق') : m(p.guaranteeInitial),
       m(p.guaranteeFinal),
       m(p.deductions),
       m(p.advanceAmount),

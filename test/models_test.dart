@@ -136,6 +136,11 @@ void main() {
     expect(noContract.executionRatio, isNull);
     expect(roundMoney(100000 * guaranteeInitialRate), 5000);
     expect(roundMoney(100000 * guaranteeFinalRate), 2000);
+    expect(p.guaranteeInitialNa, isFalse);
+    final na = Project.fromMap({'id': 'p3', 'executed_value': 100000, 'guarantee_initial': null, 'guarantee_final': 2000, 'guarantee_initial_na': true});
+    expect(na.guaranteeInitialNa, isTrue);
+    expect(na.guaranteeInitial, isNull);
+    expect(na.guaranteeFinal, 2000);
   });
 
   test('أعمال العقد ومهندسوه بأرقام التكليف', () {
