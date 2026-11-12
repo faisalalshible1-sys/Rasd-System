@@ -20,7 +20,7 @@ Future<String?> saveBoardImage(GlobalKey key, String baseName, {double pixelRati
   try {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     if (data == null) throw StateError('تعذّر إنشاء الصورة');
-    return saveImageBytes(data.buffer.asUint8List(), baseName);
+    return await saveImageBytes(data.buffer.asUint8List(), baseName);
   } finally {
     image.dispose();
   }
