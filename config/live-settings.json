@@ -45,7 +45,7 @@
       "active": true,
       "engineer_field": null,
       "key": "f01",
-      "name": "أمر تعاقد",
+      "name": "أمر بالتعاقد",
       "responsible": [
         "office_staff",
         "contracts"
@@ -57,8 +57,8 @@
     {
       "active": true,
       "engineer_field": null,
-      "key": "f19",
-      "name": "المقايسة التقديرية",
+      "key": "f20",
+      "name": "نطاق وطريقة عمل",
       "responsible": [
         "office_staff",
         "head:technical"
@@ -70,14 +70,27 @@
     {
       "active": true,
       "engineer_field": null,
-      "key": "f02",
-      "name": "أمر عمل",
+      "key": "f19",
+      "name": "مقايسة تقديرية",
+      "responsible": [
+        "office_staff",
+        "head:technical"
+      ],
+      "sensitive": false,
+      "sort": 3,
+      "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f21",
+      "name": "ملحق فني",
       "responsible": [
         "office_staff",
         "contracts"
       ],
       "sensitive": false,
-      "sort": 3,
+      "sort": 4,
       "stage": 0
     },
     {
@@ -90,20 +103,32 @@
         "contracts"
       ],
       "sensitive": false,
-      "sort": 4,
+      "sort": 5,
       "stage": 0
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f02",
+      "name": "أمر عمل",
+      "responsible": [
+        "office_staff"
+      ],
+      "sensitive": false,
+      "sort": 6,
+      "stage": 1
     },
     {
       "active": true,
       "engineer_field": "eng_sup",
       "key": "f04",
-      "name": "تكليف مهندس مشرف",
+      "name": "تكليف مهندس إشراف",
       "responsible": [
         "office_staff",
         "head:supervising"
       ],
       "sensitive": false,
-      "sort": 5,
+      "sort": 7,
       "stage": 1
     },
     {
@@ -113,10 +138,10 @@
       "name": "تكليف مهندس حصر",
       "responsible": [
         "office_staff",
-        "head:technical"
+        "head:acceptance"
       ],
       "sensitive": false,
-      "sort": 6,
+      "sort": 8,
       "stage": 1
     },
     {
@@ -126,10 +151,10 @@
       "name": "تكليف مهندس متابعة",
       "responsible": [
         "office_staff",
-        "head:supervising"
+        "planning_qa"
       ],
       "sensitive": false,
-      "sort": 7,
+      "sort": 9,
       "stage": 1
     },
     {
@@ -142,21 +167,21 @@
         "head:supervising"
       ],
       "sensitive": false,
-      "sort": 8,
+      "sort": 10,
       "stage": 1
     },
     {
       "active": true,
       "engineer_field": null,
       "key": "f08",
-      "name": "محضر تسليم واستلام موقع",
+      "name": "محضر تسليم موقع عمل",
       "responsible": [
         "office_staff",
         "head:supervising"
       ],
       "sensitive": false,
-      "sort": 9,
-      "stage": 2
+      "sort": 11,
+      "stage": 1
     },
     {
       "active": true,
@@ -168,34 +193,47 @@
         "head:supervising"
       ],
       "sensitive": false,
-      "sort": 10,
-      "stage": 2
+      "sort": 12,
+      "stage": 1
     },
     {
       "active": true,
       "engineer_field": null,
       "key": "f10",
-      "name": "ورقة قياس مستخلص نموذج أ",
+      "name": "ورقة قياس نموذج أ",
       "responsible": [
         "office_staff",
-        "head:supervising"
+        "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 11,
-      "stage": 3
+      "sort": 13,
+      "stage": 2
     },
     {
       "active": true,
       "engineer_field": null,
       "key": "f11",
-      "name": "ورقة قياس مستخلص نموذج ب",
+      "name": "ورقة قياس نموذج ب",
       "responsible": [
         "office_staff",
-        "head:supervising"
+        "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 12,
-      "stage": 3
+      "sort": 14,
+      "stage": 2
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f22",
+      "name": "محضر حصر كميات",
+      "responsible": [
+        "office_staff",
+        "head:acceptance"
+      ],
+      "sensitive": false,
+      "sort": 15,
+      "stage": 2
     },
     {
       "active": true,
@@ -204,11 +242,24 @@
       "name": "كشف حصر مستخلص",
       "responsible": [
         "office_staff",
-        "head:technical"
+        "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 13,
-      "stage": 3
+      "sort": 16,
+      "stage": 2
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f14",
+      "name": "مستخلص جاري",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 17,
+      "stage": 2
     },
     {
       "active": true,
@@ -217,36 +268,47 @@
       "name": "شهادة دفع مستخلص",
       "responsible": [
         "office_staff",
-        "contracts"
+        "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 14,
-      "stage": 3
+      "sort": 18,
+      "stage": 2
     },
     {
       "active": true,
       "engineer_field": null,
-      "key": "f14",
-      "name": "مستند مستخلص جاري",
+      "key": "f23",
+      "name": "مراجعة مستخلص",
       "responsible": [
         "office_staff",
         "contracts"
       ],
-      "sensitive": true,
-      "sort": 15,
-      "stage": 3
+      "sensitive": false,
+      "sort": 19,
+      "stage": 2
     },
     {
       "active": true,
       "engineer_field": null,
-      "key": "f15",
-      "name": "مستند مستخلص ختامي",
+      "key": "f24",
+      "name": "اعتماد مستخلص",
       "responsible": [
-        "office_staff",
-        "contracts"
+        "office_staff"
       ],
-      "sensitive": true,
-      "sort": 16,
+      "sensitive": false,
+      "sort": 20,
+      "stage": 2
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f25",
+      "name": "تكليف لجنة استلام ابتدائي",
+      "responsible": [
+        "office_staff"
+      ],
+      "sensitive": false,
+      "sort": 21,
       "stage": 3
     },
     {
@@ -259,7 +321,32 @@
         "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 17,
+      "sort": 22,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f15",
+      "name": "مستخلص ختامي",
+      "responsible": [
+        "office_staff",
+        "contracts"
+      ],
+      "sensitive": true,
+      "sort": 23,
+      "stage": 3
+    },
+    {
+      "active": true,
+      "engineer_field": null,
+      "key": "f26",
+      "name": "تكليف لجنة استلام نهائي",
+      "responsible": [
+        "office_staff"
+      ],
+      "sensitive": false,
+      "sort": 24,
       "stage": 4
     },
     {
@@ -272,7 +359,7 @@
         "head:acceptance"
       ],
       "sensitive": true,
-      "sort": 18,
+      "sort": 25,
       "stage": 4
     },
     {
@@ -285,7 +372,7 @@
         "contracts"
       ],
       "sensitive": true,
-      "sort": 19,
+      "sort": 26,
       "stage": 4
     }
   ],
@@ -304,6 +391,118 @@
     "finance.guarantee_initial_rate": 0.05,
     "finance.retention_rate": 0.0,
     "finance.tax_rate": 0,
+    "pm.config": {
+      "alert_days": 7,
+      "change_decide_days": 21,
+      "change_limit": 0.1,
+      "change_reasons": [
+        "نقص أو خطأ في التصميم",
+        "طلب الجهة المالكة",
+        "ظروف موقع غير متوقعة",
+        "تعارض مع مرافق قائمة",
+        "تحديث مواصفات أو معايير",
+        "اقتراح توفير من المقاول",
+        "متطلبات الحفاظ التراثي",
+        "أخرى"
+      ],
+      "change_types": [
+        "أمر تغيير",
+        "أعمال إضافية",
+        "حذف أعمال",
+        "تعديل تصميم",
+        "تعديل مواصفات",
+        "تمديد مدة"
+      ],
+      "delay_causes": [
+        "التمويل والمستخلصات",
+        "التصميم والمخططات",
+        "أوامر التغيير",
+        "المقاول – الموارد والإدارة",
+        "المواد والتوريد",
+        "الموقع وتسليمه",
+        "المرافق والجهات الخدمية",
+        "الاعتمادات والتصاريح",
+        "الظروف الجوية",
+        "مخلفات الحرب والأمن",
+        "أخرى"
+      ],
+      "delay_zero": 0.2,
+      "departments": [
+        "الإشراف والتنسيق",
+        "الشؤون الفنية",
+        "الترميم",
+        "المطابقة والاستلام",
+        "مكتب المدير"
+      ],
+      "forecast_delay_alert": 30,
+      "framework": {
+        "issued": "2026-11",
+        "status": "مسودة للاعتماد",
+        "version": "2.3"
+      },
+      "grades": [
+        {
+          "min": 0,
+          "name": "ضعيف",
+          "rec": "تحتاج مراجعة قبل أي إسناد جديد"
+        },
+        {
+          "min": 50,
+          "name": "مقبول",
+          "rec": "إسناد مشروط بخطة تحسين"
+        },
+        {
+          "min": 65,
+          "name": "جيد",
+          "rec": "مؤهلة مع متابعة"
+        },
+        {
+          "min": 75,
+          "name": "جيد جداً",
+          "rec": "مؤهلة"
+        },
+        {
+          "min": 85,
+          "name": "ممتاز",
+          "rec": "مؤهلة ومفضّلة"
+        }
+      ],
+      "issue_days": 14,
+      "kpi_min_components": 2,
+      "lesson_apply": [
+        "تعديل نموذج",
+        "تعديل إجراء",
+        "شرط تعاقدي",
+        "تدريب",
+        "معيار تأهيل",
+        "أخرى"
+      ],
+      "project_types": [
+        "طرق",
+        "جسور",
+        "مبانٍ عامة",
+        "مدارس",
+        "إسكان",
+        "مرافق وشبكات",
+        "ترميم مبانٍ تراثية",
+        "فراغات عامة وأحياء",
+        "مرافق صحية",
+        "إزالة الركام والمخلفات والهدم",
+        "توريد وتركيب"
+      ],
+      "ref_date": null,
+      "spi_ahead": 1.05,
+      "spi_ok": 0.95,
+      "spi_warn": 0.85,
+      "spi_zero": 0.7,
+      "stale_days": 10,
+      "weights": {
+        "delay": 0.15,
+        "field": 0.4,
+        "response": 0.15,
+        "schedule": 0.3
+      }
+    },
     "risk.config": {
       "alert_days": 7,
       "categories": [
@@ -318,46 +517,63 @@
         "زمني",
         "بيئي",
         "قانوني",
-        "حوكمة"
+        "حوكمة",
+        "مخلفات الحرب والأمن",
+        "تراثي وترميم"
+      ],
+      "executors": [
+        "المقاول",
+        "الاستشاري",
+        "الإشراف والتنسيق",
+        "الشؤون الفنية",
+        "الترميم",
+        "المطابقة والاستلام",
+        "مكتب المدير",
+        "الشؤون المالية",
+        "العقود والمشتريات",
+        "الشؤون القانونية",
+        "السلامة المهنية",
+        "الجهات المختصة",
+        "اللجنة"
       ],
       "levels": [
         {
-          "action": "مراقبة",
+          "action": "مراقبة – رئيس القسم المختص",
           "min": 1,
-          "name": "منخفض جداً"
+          "name": "منخفض جداً",
+          "review_days": 90
         },
         {
-          "action": "متابعة",
+          "action": "متابعة دورية – رئيس القسم المختص",
           "min": 5,
-          "name": "منخفض"
+          "name": "منخفض",
+          "review_days": 60
         },
         {
-          "action": "خطة معالجة",
+          "action": "خطة معالجة – رئيس القسم المختص",
           "min": 9,
-          "name": "متوسط"
+          "name": "متوسط",
+          "review_days": 30
         },
         {
-          "action": "تصعيد إلى PMO",
+          "action": "تصعيد إلى مدير المكتب",
           "min": 13,
-          "name": "مرتفع"
+          "name": "مرتفع",
+          "review_days": 14
         },
         {
-          "action": "تصعيد عاجل",
+          "action": "تصعيد عاجل إلى مدير المكتب ورفعه للجنة",
           "min": 20,
-          "name": "مرتفع جداً"
+          "name": "مرتفع جداً",
+          "review_days": 7
         }
       ],
       "owners": [
-        "مدير المشروع",
-        "PMO",
-        "الاستشاري",
-        "المقاول",
-        "العقود",
-        "المالية",
-        "المشتريات",
-        "السلامة",
-        "الجودة",
-        "القانونية"
+        "الإشراف والتنسيق",
+        "الشؤون الفنية",
+        "الترميم",
+        "المطابقة والاستلام",
+        "مكتب المدير"
       ],
       "phases": [
         "التخطيط",
@@ -365,18 +581,19 @@
         "التعاقد",
         "التنفيذ",
         "الاستلام",
+        "فترة الضمان",
         "المتابعة"
       ],
       "projects": [
-        "الطرق والجسور",
-        "المباني العامة",
-        "المرافق",
-        "المدارس",
-        "الجسور",
-        "الإسكان",
-        "الطرق",
-        "المباني",
-        "الأحياء",
+        "طرق",
+        "جسور",
+        "مبانٍ عامة",
+        "مدارس",
+        "إسكان",
+        "مرافق وشبكات",
+        "ترميم مبانٍ تراثية",
+        "فراغات عامة وأحياء",
+        "مرافق صحية",
         "متعدد المشاريع"
       ]
     },
@@ -387,14 +604,14 @@
     "security.signups_open": true,
     "swot.meta": {
       "approved_by": "م. فيصل خليفة الشبلي — مدير المكتب الهندسي المكلف",
-      "issue_date": "2026-11-08",
+      "issue_date": "2026-11-12",
       "prepared_by": "فريق مكتب المدير",
       "review_cycle_months": 6,
       "reviewed_by": "رؤساء الأقسام الأربعة",
       "status": "مسودة للمراجعة والاعتماد",
       "subtitle": "مشروع إعادة إعمار منطقة الصابري ووسط البلاد – بنغازي",
       "title": "تحليل SWOT الاستراتيجي وخطة التنفيذ والمتابعة",
-      "version": "2.0"
+      "version": "2.1"
     },
     "ui.announcement": {
       "level": "info",
@@ -446,23 +663,23 @@
   "stages": [
     {
       "idx": 0,
-      "name": "التعاقد"
+      "name": "التعاقد والإعداد الفني"
     },
     {
       "idx": 1,
-      "name": "تكليف المهندسين"
+      "name": "أمر العمل وتسليم الموقع"
     },
     {
       "idx": 2,
-      "name": "بدء التنفيذ"
+      "name": "التنفيذ والمستخلصات الجارية"
     },
     {
       "idx": 3,
-      "name": "المستخلصات"
+      "name": "الاستلام الابتدائي والمستخلص الختامي"
     },
     {
       "idx": 4,
-      "name": "الاستلام والإقفال"
+      "name": "الاستلام النهائي وإقفال العقد"
     }
   ]
 }
