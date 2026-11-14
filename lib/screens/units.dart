@@ -211,10 +211,11 @@ class _UnitRecordsPageState extends State<UnitRecordsPage> {
     final q = _search.text.trim();
     final list = all.where((r) {
       if (_project != 'all' && (r.projectId ?? '') != _project) return false;
-      if (_status == 'open' && r.isClosed) return false;
-      if (_status == 'closed' && !r.isClosed) return false;
-      if (_status == 'overdue' && !r.overdue(today)) return false;
-      if (_status != 'all' && _status != 'open' && _status != 'closed' && _status != 'overdue' && r.status != _status) return false;
+      // قيم التصفية: is:* للمجموعات (المفتوحة، المغلقة، المتأخرة) وst:* لحالة بعينها، حتى لا تتكرر مفاتيح مثل open وclosed
+      if (_status == 'is:open' && r.isClosed) return false;
+      if (_status == 'is:closed' && !r.isClosed) return false;
+      if (_status == 'is:overdue' && !r.overdue(today)) return false;
+      if (_status.startsWith('st:') && r.status != _status.substring(3)) return false;
       if (_level != 'all' && r.level != _level) return false;
       final parent = r.parentId == null ? null : app.units.byId(r.parentId!);
       return pmMatch(q, [r.title, r.refNo, r.ownerText, r.notes, parent?.title ?? '', pmProjectName(app, r.projectId), ...r.data.values.map((v) => '$v')]);
@@ -269,7 +270,7 @@ class _UnitRecordsPageState extends State<UnitRecordsPage> {
               sub: 'تجاوزت ${k.dueLabel}',
               icon: Icons.schedule_rounded,
               color: overdue > 0 ? sem.danger : sem.ok,
-              onTap: overdue > 0 ? () => setState(() => _status = 'overdue') : null,
+              onTap: overdue > 0 ? () => setState(() => _status = 'is:overdue') : null,
             ),
           StatCard(label: 'أُغلقت هذا الشهر', value: '$closedMonth', icon: Icons.task_alt_rounded, color: sem.ok),
         ]),
@@ -280,10 +281,10 @@ class _UnitRecordsPageState extends State<UnitRecordsPage> {
             (v) => setState(() => _project = v), width: 240),
         pmFilter('الحالة', _status, [
           ('all', 'الكل'),
-          ('open', 'المفتوحة'),
-          ('closed', 'المغلقة'),
-          if (k.dueLabel != null) ('overdue', 'المتأخرة'),
-          ...k.statuses,
+          ('is:open', 'المفتوحة'),
+          ('is:closed', 'المغلقة'),
+          if (k.dueLabel != null) ('is:overdue', 'المتأخرة'),
+          for (final st in k.statuses) ('st:${st.$1}', st.$2),
         ], (v) => setState(() => _status = v)),
         if (k.hasLevels) pmFilter(k.levelLabel, _level, [('all', 'الكل'), ...k.levels.where((l) => l.$1.isNotEmpty)], (v) => setState(() => _level = v)),
       ],
