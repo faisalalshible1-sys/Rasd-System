@@ -18,6 +18,10 @@ dependencies:
   url_launcher: ^6.3.0
   qr_flutter: ^4.1.0
   shared_preferences: ^2.3.2
+  pdfrx: any
+  file_picker: any
+  image: any
+  flutter_markdown_plus: any
 
 dev_dependencies:
   flutter_test:

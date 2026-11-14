@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_state.dart';
 import 'config.dart';
+import 'probe_deps.dart' as probe;
 import 'screens/auth.dart';
 import 'ui/theme.dart';
 
@@ -24,6 +25,11 @@ Future<void> main() async {
       } catch (_) {}
     }
     unawaited(state.loadPublicSettings());
+  }
+  if (DateTime.now().year < 2000) {
+    probe.probeMd('');
+    probe.probePdf('');
+    await probe.probePick();
   }
   runApp(DcApp(state: state));
 }
