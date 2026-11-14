@@ -1,5 +1,6 @@
 # بناء نسخة آيفون (غير موقّعة) — منفصل لأن أجهزة Mac على GitHub تكون مزدحمة أحياناً.
-# يبدأ بعد نجاح الفحص على main، أو يدوياً من Actions مع اختيار نوع الجهاز.
+# يدوياً فقط من Actions مع اختيار نوع الجهاز: دقيقة جهاز Mac تُحتسب بعشر دقائق من رصيد GitHub،
+# وكان تشغيله التلقائي بعد كل فحص يستهلك أغلب الرصيد الشهري.
 # التوقيع والتوزيع عبر TestFlight يتطلبان حساب Apple Developer.
 name: ios
 
@@ -12,10 +13,6 @@ on:
         default: 'macos-15-intel'
         type: choice
         options: ['macos-15-intel', 'macos-latest', 'macos-14']
-  workflow_run:
-    workflows: [check]
-    types: [completed]
-    branches: [main]
 
 env:
   REF: ${{ github.event.workflow_run.head_sha || github.sha }}

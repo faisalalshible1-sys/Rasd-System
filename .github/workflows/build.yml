@@ -1,4 +1,5 @@
-# البناء الكامل لكل المنصات. يبدأ تلقائياً بعد نجاح الفحص (check) على الفرع main، أو يدوياً من تبويب Actions.
+# البناء الكامل لكل المنصات، يدوياً من تبويب Actions عند الحاجة (لم يعد يبدأ تلقائياً بعد كل فحص، توفيراً لدقائق GitHub).
+# الإصدار (release) يبني أندرويد وويندوز والويب بنفسه، فلا يحتاج هذا السير.
 # لكي يعمل التطبيق المبني، أضف في Settings ← Secrets and variables ← Actions:
 #   SUPABASE_URL       عنوان مشروع Supabase
 #   SUPABASE_ANON_KEY  المفتاح العام (anon أو publishable) — وليس مفتاح service_role
@@ -6,10 +7,6 @@ name: build
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [check]
-    types: [completed]
-    branches: [main]
 
 env:
   REF: ${{ github.event.workflow_run.head_sha || github.sha }}
