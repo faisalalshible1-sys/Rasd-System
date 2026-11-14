@@ -1,6 +1,7 @@
 import '../app_state.dart';
 import '../models.dart';
 import '../registers.dart';
+import '../units.dart';
 
 /// وصف سطر من سجل التدقيق بلغة مفهومة.
 String auditDescription(AppState app, AuditEntry e) {
@@ -277,6 +278,26 @@ String auditDescription(AppState app, AuditEntry e) {
           : 'ألغى الاطلاع على التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
     case 'report.file_add':
       return 'أرفق «${text(d['file'])}» بالتقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
+    case 'unit.create':
+      return 'أضاف ${_unitKind(d['kind'])} في ${_unitName(d['unit'])}: ${text(d['title'])}';
+    case 'unit.update':
+      return 'عدّل ${_unitKind(d['kind'])} «${text(d['title'])}»${_changed(d['changes'])}';
+    case 'unit.delete':
+      final n = (d['children'] as num?)?.toInt() ?? 0;
+      final files = (d['files'] as num?)?.toInt() ?? 0;
+      return 'حذف ${_unitKind(d['kind'])} «${text(d['title'])}» من ${_unitName(d['unit'])}'
+          '${n > 0 ? ' مع $n سجل تابع' : ''}${files > 0 ? ' ($files ملف)' : ''}';
+    case 'unit.file_add':
+      return 'أرفق «${text(d['file'])}» بـ${_unitKind(d['kind'])} «${text(d['title'])}»';
+    case 'unit.file_delete':
+      return 'أزال الملف «${text(d['file'])}» من سجل وحدة';
+    case 'user.unit':
+      final to = text(d['to_name']);
+      final from = text(d['from_name']);
+      final head = d['head'] is Map && (d['head'] as Map)['to'] == true;
+      return to.isEmpty
+          ? 'أزال ${e.projectLabel} من ${from.isEmpty ? 'وحدته' : from}'
+          : 'أسند ${e.projectLabel} إلى $to${head ? ' رئيساً لها' : ''}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
@@ -401,6 +422,12 @@ const Map<String, String> _registerFields = {
   'issues': 'المعوقات',
   'next_plan': 'خطة اليوم التالي',
   'progress_pct': 'نسبة الإنجاز التقديرية',
+  'rec_date': 'التاريخ',
+  'level': 'التصنيف',
+  'owner_text': 'المسؤول',
+  'data': 'البيانات التفصيلية',
+  'parent_id': 'السجل المرتبط',
+  'closed_at': 'تاريخ الإغلاق',
 };
 
 String _changed(Object? changes) {
@@ -448,3 +475,6 @@ const Map<String, String> settingLabels = {
 };
 
 String _docKind(Object? k) => switch (k?.toString()) { 'boq' => 'المقايسة', 'letter' => 'المراسلة', 'design' => 'التصميم', _ => 'المستند' };
+
+String _unitKind(Object? k) => unitKinds[k?.toString()]?.single ?? 'سجلاً';
+String _unitName(Object? u) => unitNames[u?.toString()] ?? 'وحدة';

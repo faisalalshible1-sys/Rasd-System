@@ -17,6 +17,8 @@ import 'package:dc_app/screens/control/appearance.dart';
 import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
 import 'package:dc_app/screens/docs.dart';
+import 'package:dc_app/screens/units.dart';
+import 'package:dc_app/units.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
 import 'package:dc_app/screens/manual.dart';
@@ -304,6 +306,7 @@ AppState _sampleState() {
   _registers(app);
   _tracking(app);
   _documents(app);
+  _units(app);
   app.settings = LiveSettings({
     'ai.enabled': true,
     'ai.model': 'claude-sonnet-5-5',
@@ -645,6 +648,144 @@ void _documents(AppState app) {
   debugSlideImage = (f) => byPath[f.path] ?? _demoImage('x', 0);
 }
 
+/// سجلات أقسام الوحدات (الترحيل 21): مبانٍ تاريخية، وخطط وتدقيقات وتكليفات، وسلامة، واستلام وضبط جودة.
+void _units(AppState app) {
+  final recs = <UnitRecord>[];
+  final files = <DocFile>[...app.docs.files];
+  var n = 0;
+  void rec(String id, String kind, String title,
+      {String? project, String? parent, String ref = '', int ago = 5, int? due, String? status, String level = '', double? progress,
+      String owner = '', int? closedAgo, Map<String, dynamic> data = const {}, String notes = ''}) {
+    final k = unitKinds[kind]!;
+    final st = status ?? k.defaultStatus;
+    recs.add(UnitRecord.fromMap({
+      'id': id, 'unit': k.unit, 'kind': kind, 'project_id': project, 'parent_id': parent, 'title': title, 'ref_no': ref,
+      'rec_date': _day(ago), 'due_date': due == null ? null : _day(-due), 'status': st, 'level': level, 'progress': progress,
+      'owner_text': owner, 'closed_at': k.closed.contains(st) ? _day(closedAgo ?? ago) : null, 'data': data, 'notes': notes,
+      'created_by': 'u-2', 'created_at': _iso(ago), 'updated_at': _iso((ago - 1).clamp(0, 999)),
+    }));
+  }
+
+  void photo(String record, String name) {
+    n++;
+    files.add(DocFile.fromMap({'id': 'uf$n', 'record_id': record, 'path': 'unit/$record/u$n', 'name': name, 'mime': 'image/jpeg',
+      'size_bytes': 520000, 'sort': n, 'created_by': 'u-2', 'created_at': _iso(4)}));
+  }
+
+  void pdf(String record, String name) {
+    n++;
+    files.add(DocFile.fromMap({'id': 'uf$n', 'record_id': record, 'path': 'unit/$record/u$n', 'name': name, 'mime': 'application/pdf',
+      'size_bytes': 1400000, 'sort': n, 'created_by': 'u-2', 'created_at': _iso(4)}));
+  }
+
+  // الترميم والمباني التاريخية
+  rec('hb1', 'heritage_building', 'مبنى القنصلية الإيطالية', project: 'p-001', ref: 'HB-007', ago: 120, status: 'under_restoration', level: 'poor',
+      owner: 'أملاك الدولة', data: {'area': 'وسط البلاد', 'era': 'العهد الإيطالي', 'grade': 'مسجّل وطنياً', 'style': 'نيوكلاسيكي',
+        'floors': 2, 'area_m2': 1450, 'current_use': 'مغلق للترميم', 'build_year': '1928',
+        'description': 'مبنى من طابقين بواجهة حجرية وأعمدة مزدوجة عند المدخل، وسقف خشبي متضرر في الجناح الشمالي.'});
+  rec('hb2', 'heritage_building', 'سوق الجريد القديم', ref: 'HB-012', ago: 90, status: 'under_study', level: 'critical', owner: 'بلدية بنغازي',
+      data: {'area': 'سوق الظلام', 'era': 'العهد العثماني', 'grade': 'مسجّل وطنياً', 'floors': 1});
+  rec('hb3', 'heritage_building', 'مدرسة الأمير', ref: 'HB-015', ago: 60, level: 'fair', owner: 'وزارة التعليم',
+      data: {'area': 'الصابري', 'era': 'العهد الإيطالي', 'grade': 'مقترح للتسجيل', 'floors': 2});
+  rec('hb4', 'heritage_building', 'منارة بنغازي القديمة', ref: 'HB-003', ago: 200, status: 'restored', level: 'good', closedAgo: 30,
+      data: {'area': 'الميناء', 'era': 'العهد العثماني', 'grade': 'مسجّل وطنياً'});
+  rec('hb5', 'heritage_building', 'بيت آل الكيخيا', ref: 'HB-021', ago: 40, level: 'poor', owner: 'ملكية خاصة',
+      data: {'area': 'وسط البلاد', 'era': 'العهد العثماني', 'grade': 'مسجّل محلياً', 'floors': 2});
+  rec('ha1', 'heritage_assessment', 'تقييم الحالة قبل بدء الترميم', parent: 'hb1', project: 'p-001', ago: 100, status: 'final', level: 'poor',
+      owner: 'م. ليلى الزوي', data: {'urgency': 'عاجلة', 'cost_estimate': 1380000, 'damages': 'تآكل حديد التسليح في البلكونات، وتسرب مياه السقف.',
+        'recommendations': 'تدعيم البلكونات مؤقتاً، واستبدال الأخشاب المتضررة بأنواع مطابقة.'});
+  rec('ha2', 'heritage_assessment', 'تقييم بعد إزالة الطبقات الحديثة', parent: 'hb1', project: 'p-001', ago: 3, status: 'draft', level: 'poor',
+      owner: 'م. ليلى الزوي');
+  rec('ha3', 'heritage_assessment', 'تقييم عاجل بعد موسم الأمطار', parent: 'hb2', ago: 40, status: 'final', level: 'critical',
+      owner: 'م. عمر بوشناف', data: {'urgency': 'عاجلة', 'cost_estimate': 850000});
+  photo('hb1', 'الواجهة قبل الترميم.jpg');
+  photo('hb1', 'المدخل الرئيسي.jpg');
+  photo('hb1', 'السقف الخشبي.jpg');
+  photo('hb2', 'الممر الرئيسي للسوق.jpg');
+  pdf('ha1', 'تقرير التقييم الإنشائي.pdf');
+
+  // مكتب التخطيط وضمان الجودة
+  rec('pl1', 'plan', 'خطة الربع الرابع 2026', ago: 45, due: 47, status: 'active', level: 'quarterly', progress: 62, owner: 'قسم التخطيط',
+      data: {'kpi': 'نسبة العقود المنجزة في موعدها', 'target': '80%', 'actual': '64%'});
+  rec('pl2', 'plan', 'الخطة السنوية للمكتب 2026', ago: 318, due: 47, status: 'active', level: 'annual', progress: 81, owner: 'مدير المكتب');
+  rec('pl3', 'plan', 'خطة تسليم عقود الصابري', project: 'p-003', ago: 70, due: -5, status: 'active', level: 'project', progress: 35,
+      owner: 'قسم الإشراف والتنسيق');
+  rec('pl4', 'plan', 'خطة الربع الثالث 2026', ago: 136, due: -45, status: 'done', level: 'quarterly', progress: 100, closedAgo: 44);
+  rec('qa1', 'qa_audit', 'تدقيق ملف الجودة – واجهات شارع عمر المختار', project: 'p-003', ago: 12, status: 'done', level: 'needs_improvement',
+      owner: 'م. سارة المغربي', closedAgo: 10, data: {'auditee': 'قسم الإشراف والتنسيق', 'findings': 'غياب سجلات المعايرة، ونقص توثيق استلام المواد.'});
+  rec('qa2', 'qa_audit', 'تدقيق إجراءات المستخلصات', ago: 2, status: 'in_progress', owner: 'م. سارة المغربي', data: {'auditee': 'مكتب العقود'});
+  rec('nc1', 'ncr', 'غياب سجل معايرة أجهزة الموقع', parent: 'qa1', project: 'p-003', ago: 12, due: -3, level: 'major', owner: 'المقاول',
+      data: {'requirement': 'البند 8.2 من خطة الجودة', 'corrective_action': 'معايرة الأجهزة لدى جهة معتمدة وتقديم الشهادات.'});
+  rec('nc2', 'ncr', 'عدم توثيق استلام المواد في الموقع', parent: 'qa1', project: 'p-003', ago: 12, due: 7, status: 'in_progress', level: 'minor',
+      owner: 'مهندس الموقع');
+  rec('nc3', 'ncr', 'تجاوز نسبة الهالك في حديد التسليح', project: 'p-001', ago: 40, due: -20, status: 'closed', level: 'critical', closedAgo: 25);
+  rec('ft1', 'followup_task', 'تسليم تقرير الإنجاز الشهري لشهر أكتوبر', ago: 14, due: -4, level: 'high', owner: 'قسم الإشراف والتنسيق',
+      data: {'source': 'اجتماع المكتب الأسبوعي'});
+  rec('ft2', 'followup_task', 'تحديث البرنامج الزمني لعقد خط المياه', project: 'p-005', ago: 6, due: 4, owner: 'مكتب العقود');
+  rec('ft3', 'followup_task', 'الرد على ملاحظات اللجنة الفنية على التصاميم', ago: 3, due: 2, level: 'urgent', owner: 'قسم الشؤون الفنية');
+  rec('ft4', 'followup_task', 'حصر الأعمال الإضافية في عقد القنصلية', project: 'p-001', ago: 30, due: -20, status: 'done', closedAgo: 22);
+  rec('ft5', 'followup_task', 'تجهيز ملف الاستلام الابتدائي', project: 'p-003', ago: 25, due: -10, status: 'done', closedAgo: 8);
+  rec('ft6', 'followup_task', 'إعداد قائمة المقاولين المؤهلين', ago: 40, due: -15, status: 'done', closedAgo: 16);
+
+  // مكتب السلامة المهنية
+  rec('si1', 'safety_inspection', 'جولة تفتيش أسبوعية', project: 'p-003', ago: 2, level: 'acceptable', owner: 'م. خالد العريبي',
+      data: {'score': 72, 'workers': 34, 'ppe': 'نقص في الخوذ وأحزمة الأمان', 'actions': 'توفير أحزمة الأمان قبل استئناف العمل على الواجهة.'});
+  rec('si2', 'safety_inspection', 'جولة تفتيش على أعمال الحفر', project: 'p-005', ago: 6, status: 'closed', level: 'good', owner: 'م. خالد العريبي',
+      data: {'score': 85, 'workers': 18});
+  rec('si3', 'safety_inspection', 'جولة تفتيش مفاجئة', project: 'p-001', ago: 9, status: 'closed', level: 'excellent', owner: 'م. خالد العريبي',
+      data: {'score': 90, 'workers': 22});
+  rec('sn1', 'safety_incident', 'انزلاق عامل من سقالة منخفضة', project: 'p-003', ago: 25, status: 'closed', level: 'minor', owner: 'مهندس الموقع',
+      data: {'incident_type': 'سقوط من ارتفاع', 'injured': 1, 'lost_days': 3, 'immediate_action': 'إسعاف أولي ونقل العامل للمستشفى.'});
+  rec('sn2', 'safety_incident', 'سقوط أداة من الطابق الثاني دون إصابات', project: 'p-001', ago: 9, level: 'near_miss', owner: 'م. خالد العريبي',
+      data: {'incident_type': 'سقوط أجسام'});
+  rec('sv1', 'safety_violation', 'العمل على ارتفاع دون حزام أمان', parent: 'si1', project: 'p-003', ago: 2, due: -1, level: 'high',
+      owner: 'المقاول', data: {'category': 'العمل على ارتفاع'});
+  rec('sv2', 'safety_violation', 'ترك حفرية دون حواجز', project: 'p-005', ago: 1, due: 3, level: 'high', owner: 'المقاول',
+      data: {'category': 'الحفريات'});
+  rec('sv3', 'safety_violation', 'عدم توفر طفايات حريق في المخزن', project: 'p-001', ago: 9, due: -5, status: 'closed', level: 'medium',
+      closedAgo: 6, data: {'category': 'مكافحة الحريق'});
+  photo('si1', 'الواجهة الشمالية.jpg');
+  photo('sv1', 'المخالفة.jpg');
+
+  // المطابقة والاستلام
+  rec('ho1', 'handover', 'الاستلام الابتدائي – منارة بنغازي', project: 'p-001', ref: 'م.س-14', ago: 30, status: 'accepted_notes', level: 'initial',
+      owner: 'م. فيصل الشبلي', data: {'committee': 'م. أحمد الفيتوري، م. هدى العبيدي، م. سالم المبروك', 'contractor_rep': 'م. نوري الشريف'});
+  rec('ho2', 'handover', 'الاستلام الابتدائي – واجهات شارع عمر المختار (المرحلة 1)', project: 'p-003', ref: 'م.س-17', ago: -6, level: 'initial',
+      owner: 'م. فيصل الشبلي');
+  rec('ho3', 'handover', 'الاستلام النهائي – خط المياه الرئيسي', project: 'p-005', ref: 'م.س-11', ago: 50, status: 'accepted', level: 'final');
+  rec('pi1', 'punch_item', 'تشققات شعرية في لياسة الدرج', parent: 'ho1', project: 'p-001', ago: 30, due: -2, owner: 'المقاول',
+      data: {'location': 'الدرج الداخلي'});
+  rec('pi2', 'punch_item', 'استكمال دهان الدرابزين الحديدي', parent: 'ho1', project: 'p-001', ago: 30, due: 10, owner: 'المقاول');
+  rec('pi3', 'punch_item', 'تنظيف الواجهة من بقايا المونة', parent: 'ho1', project: 'p-001', ago: 30, due: -10, status: 'closed', closedAgo: 12);
+  rec('qc1', 'qc_test', 'مقاومة مكعبات الخرسانة 28 يوماً – القواعد', project: 'p-003', ref: 'LAB-221', ago: 3, status: 'passed', level: 'concrete',
+      owner: 'مختبر بنغازي المركزي', data: {'required': '25', 'result': '31.5', 'unit': 'MPa'});
+  rec('qc2', 'qc_test', 'دمك طبقة الأساس', project: 'p-005', ref: 'LAB-224', ago: 4, status: 'passed', level: 'soil', data: {'required': '95%', 'result': '97%'});
+  rec('qc3', 'qc_test', 'شد حديد التسليح قطر 16 مم', project: 'p-003', ref: 'LAB-226', ago: 5, status: 'failed', level: 'steel',
+      data: {'required': '420', 'result': '395', 'unit': 'MPa'});
+  rec('qc4', 'qc_test', 'مقاومة مكعبات الخرسانة 7 أيام – السقف', project: 'p-001', ago: 1, level: 'concrete');
+  rec('ma1', 'material_approval', 'حجر جيري للواجهات', project: 'p-001', ago: 8, due: -1, owner: 'محاجر الجبل الأخضر',
+      data: {'spec_ref': 'البند 4.3'});
+  rec('ma2', 'material_approval', 'دهانات سيليكات معدنية', project: 'p-001', ago: 20, due: -10, status: 'approved_notes', closedAgo: 12);
+  rec('ma3', 'material_approval', 'مواسير HDPE قطر 200 مم', project: 'p-005', ago: 40, due: -30, status: 'approved', closedAgo: 33);
+  pdf('ho1', 'محضر الاستلام الموقّع.pdf');
+  photo('ho1', 'المنارة بعد الترميم.jpg');
+
+  app.units = UnitIndex(recs);
+  app.docs = DocIndex(items: app.docs.items, revisions: app.docs.revisions, files: files, reports: app.docs.reports);
+  app.v9Ready = true;
+  // مستخدمو الوحدات
+  app.people['u-4'] = Profile.fromMap({'id': 'u-4', 'full_name': 'م. خالد العريبي', 'email': 'khaled@office.ly', 'role': 'contracts',
+    'active': true, 'unit': 'safety', 'unit_head': true});
+  app.people['u-5'] = Profile.fromMap({'id': 'u-5', 'full_name': 'م. سارة المغربي', 'email': 'sara@office.ly', 'role': 'planning_qa',
+    'active': true, 'unit': 'quality_assurance', 'unit_head': true});
+  app.people['u-6'] = Profile.fromMap({'id': 'u-6', 'full_name': 'م. ليلى الزوي', 'email': 'laila@office.ly', 'role': 'office_staff',
+    'active': true, 'unit': 'heritage'});
+  final prev = debugSlideImage;
+  var k = 100;
+  final extra = <String, MemoryImage>{for (final f in files) if (f.recordId != null && f.isImage) f.path: _demoImage(f.path, k++)};
+  debugSlideImage = (f) => extra[f.path] ?? (prev == null ? _demoImage('x', 0) : prev(f));
+}
+
 /// تحميل الصور التجريبية ونصوص الدليل خارج الوقت الوهمي للاختبار.
 Future<void> _preload(WidgetTester tester) async {
   await tester.runAsync(() async {
@@ -861,5 +1002,41 @@ void main() {
     await _shot(tester, 'a8_manual_docs_dark_mobile', app, _scaffold(const ManualPage()), size: const Size(400, 7000), dark: true);
     await _shot(tester, 'a9_whats_new_light', app, _scaffold(const WhatsNewPage()), size: const Size(1200, 2000));
     await _shot(tester, 'b0_contract_docs_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 6200));
+  });
+
+  testWidgets('unit sections', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    app.showHub = true;
+    await _shot(tester, 'c0_hub_ten_sections_light', app, const HomeShell(), size: const Size(1440, 1900));
+    await _shot(tester, 'c1_hub_ten_sections_dark_mobile', app, const HomeShell(), size: const Size(400, 4200), dark: true);
+    app.showHub = false;
+    app.tab = 90;
+    await _shot(tester, 'c2_heritage_overview_light', app, const HomeShell(), size: const Size(1440, 1900));
+    app.tab = 91;
+    await _shot(tester, 'c3_heritage_buildings_light', app, const HomeShell(), size: const Size(1440, 1500));
+    await _shot(tester, 'c4_heritage_building_detail_light', app, const UnitRecordDetailPage(recordId: 'hb1'), size: const Size(1200, 2600));
+    app.tab = 100;
+    await _shot(tester, 'c5_planning_qa_overview_light', app, const HomeShell(), size: const Size(1440, 2600));
+    app.tab = 102;
+    await _shot(tester, 'c6_quality_assurance_light', app, const HomeShell(), size: const Size(1440, 1400));
+    await _shot(tester, 'c7_audit_detail_dark_mobile', app, const UnitRecordDetailPage(recordId: 'qa1'), size: const Size(400, 2600), dark: true);
+    app.tab = 103;
+    await _shot(tester, 'c8_follow_up_mobile', app, _scaffold(const UnitRecordsPage(unit: 'follow_up', kinds: ['followup_task'])),
+        size: const Size(400, 2200));
+    app.tab = 110;
+    await _shot(tester, 'c9_safety_overview_light', app, const HomeShell(), size: const Size(1440, 1800));
+    app.tab = 113;
+    await _shot(tester, 'd0_safety_violations_light', app, const HomeShell(), size: const Size(1440, 1200));
+    await _shot(tester, 'd1_inspection_detail_light', app, const UnitRecordDetailPage(recordId: 'si1'), size: const Size(1200, 2400));
+    app.tab = 120;
+    await _shot(tester, 'd2_acceptance_overview_light', app, const HomeShell(), size: const Size(1440, 2000));
+    app.tab = 121;
+    await _shot(tester, 'd3_receiving_light', app, const HomeShell(), size: const Size(1440, 1300));
+    await _shot(tester, 'd4_handover_detail_light', app, const UnitRecordDetailPage(recordId: 'ho1'), size: const Size(1200, 2600));
+    app.tab = 122;
+    await _shot(tester, 'd5_quality_control_dark', app, const HomeShell(), size: const Size(1440, 1400), dark: true);
+    app.manualAnchor = '21_safety';
+    await _shot(tester, 'd6_manual_safety_light', app, _scaffold(const ManualPage()), size: const Size(1440, 4400));
   });
 }

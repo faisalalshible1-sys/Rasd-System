@@ -12,6 +12,7 @@ import 'models.dart';
 import 'pm.dart';
 import 'registers.dart';
 import 'services/doc_files.dart';
+import 'units.dart';
 import 'ui/appearance.dart';
 
 /// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
@@ -84,6 +85,10 @@ class AppState extends ChangeNotifier {
   DocIndex docs = DocIndex.empty();
   bool v8Ready = false;
   late final SignedUrls signedUrls = SignedUrls(client);
+
+  // الترحيل 21: أقسام الوحدات (الترميم والمباني التاريخية، التخطيط وضمان الجودة، السلامة المهنية، المطابقة والاستلام)
+  UnitIndex units = UnitIndex.empty();
+  bool v9Ready = false;
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -246,6 +251,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel6;
   RealtimeChannel? _channel7;
   RealtimeChannel? _channel8;
+  RealtimeChannel? _channel9;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -579,6 +585,7 @@ class AppState extends ChangeNotifier {
       await _loadV6();
       await _loadV7();
       await _loadV8();
+      await _loadV9();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -795,6 +802,34 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
+  /// أقسام الوحدات (الترحيل 21)؛ يعمل التطبيق بدونها كما كان. وحدات المستخدمين تُدمج في people.
+  Future<void> _loadV9() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('unit_records').select().order('rec_date', ascending: false).limit(10000),
+        client.from('profiles').select('id, unit, unit_head'),
+      ]);
+      units = UnitIndex(r[0].map(UnitRecord.fromMap).toList());
+      for (final row in r[1]) {
+        final id = row['id'].toString();
+        final p = people[id];
+        if (p != null) people[id] = p.withUnit(row['unit'] as String?, row['unit_head'] == true);
+      }
+      final mine = people[me?.id];
+      if (mine != null) me = mine;
+      v9Ready = true;
+    } catch (_) {
+      units = UnitIndex.empty();
+      v9Ready = false;
+    }
+  }
+
+  Future<void> _afterV9() async {
+    await _loadV9();
+    await _loadV8();
+    _notify();
+  }
+
   void _clearV7() {
     schedules = {};
     measurements = [];
@@ -907,6 +942,14 @@ class AppState extends ChangeNotifier {
     }
     ch8.subscribe();
     _channel8 = ch8;
+
+    // قناة الترحيل 21: سجلات الوحدات
+    final old9 = _channel9;
+    if (old9 != null) client.removeChannel(old9);
+    final ch9 = client.channel('dc-v9');
+    ch9.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'unit_records', callback: (_) => scheduleReload());
+    ch9.subscribe();
+    _channel9 = ch9;
   }
 
   void scheduleReload() {
@@ -946,6 +989,11 @@ class AppState extends ChangeNotifier {
     _channel8 = null;
     docs = DocIndex.empty();
     v8Ready = false;
+    final old9 = _channel9;
+    if (old9 != null) client.removeChannel(old9);
+    _channel9 = null;
+    units = UnitIndex.empty();
+    v9Ready = false;
     signedUrls.clear();
     _clearV7();
     risks = [];
@@ -960,7 +1008,11 @@ class AppState extends ChangeNotifier {
       ..['swot'] = 30
       ..['docs'] = 60
       ..['supervision'] = 70
-      ..['manual'] = 80;
+      ..['manual'] = 80
+      ..['heritage'] = 90
+      ..['planning_qa'] = 100
+      ..['safety'] = 110
+      ..['acceptance'] = 120;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -1037,8 +1089,13 @@ class AppState extends ChangeNotifier {
   }
 
   /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39)،
-  /// المستندات الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89).
+  /// المستندات الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89)، الترميم والمباني التاريخية (90–99)،
+  /// مكتب التخطيط وضمان الجودة (100–109)، مكتب السلامة المهنية (110–119)، المطابقة والاستلام (120–129).
   static String sectionOf(int t) => switch (t) {
+        >= 120 && < 130 => 'acceptance',
+        >= 110 && < 120 => 'safety',
+        >= 100 && < 110 => 'planning_qa',
+        >= 90 && < 100 => 'heritage',
         >= 80 && < 90 => 'manual',
         >= 70 && < 80 => 'supervision',
         >= 60 && < 70 => 'docs',
@@ -1048,7 +1105,18 @@ class AppState extends ChangeNotifier {
         _ => 'cycle',
       };
   String get section => sectionOf(tab);
-  final Map<String, int> _lastTab = {'cycle': 0, 'risks': 20, 'swot': 30, 'docs': 60, 'supervision': 70, 'manual': 80};
+  final Map<String, int> _lastTab = {
+    'cycle': 0,
+    'risks': 20,
+    'swot': 30,
+    'docs': 60,
+    'supervision': 70,
+    'manual': 80,
+    'heritage': 90,
+    'planning_qa': 100,
+    'safety': 110,
+    'acceptance': 120,
+  };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
   void openSection(String s) {
@@ -1730,6 +1798,72 @@ class AppState extends ChangeNotifier {
     final path = await client.rpc('delete_doc_file', params: {'p_id': id});
     if (path != null) await removeDocObjects(client, [path.toString()]);
     await _afterV8();
+  }
+
+  // ---------------------------------------------------------------
+  // أقسام الوحدات (الترحيل 21)
+  // ---------------------------------------------------------------
+  /// هل يكتب المستخدم في هذه الوحدة؟ (للعرض فقط؛ القاعدة تتحقق في unit_can_edit)
+  /// المدير وموظفو مكتبه، ومستخدمو الوحدة المُسنَدون إليها، ورئيس الترميم لسجل المباني التاريخية،
+  /// ورئيس المطابقة والاستلام لوحدتيه، ودور مكتب التخطيط وضمان الجودة لأقسامه الثلاثة.
+  bool canEditUnit(String unit) {
+    final r = role;
+    if (!v9Ready || r == null || r == AppRole.securityAuditor) return false;
+    if (r == AppRole.director) return true;
+    if (frozenForMe) return false;
+    if (r == AppRole.officeStaff || me?.unit == unit) return true;
+    return _parentHeadOf(unit);
+  }
+
+  /// رئيس الوحدة (يحذف سجلاتها ومرفقاتها): المدير، ورئيس الوحدة المُسنَد، ورئيس القسم الأم، ودور مكتب التخطيط لأقسامه.
+  bool isUnitHead(String unit) {
+    final r = role;
+    if (!v9Ready || r == null) return false;
+    if (r == AppRole.director) return true;
+    if (frozenForMe) return false;
+    if (me?.unit == unit && (me?.unitHead ?? false)) return true;
+    return _parentHeadOf(unit);
+  }
+
+  bool _parentHeadOf(String unit) {
+    final r = role;
+    final dep = me?.department;
+    return switch (unitSectionOf[unit]) {
+      'heritage' => r == AppRole.deptHead && dep == 'restoration',
+      'acceptance' => r == AppRole.deptHead && dep == 'acceptance',
+      'planning_qa' => r == AppRole.planningQa,
+      _ => false,
+    };
+  }
+
+  /// حذف سجل: رئيس الوحدة، أو من أضافه خلال 24 ساعة.
+  bool canDeleteUnitRecord(UnitRecord r) => isUnitHead(r.unit) || (canEditUnit(r.unit) && canRemoveOwn(r.createdBy, r.createdAt));
+
+  /// إزالة مرفق سجل: المدير ورئيس الوحدة، أو من رفعه خلال 24 ساعة.
+  bool canRemoveUnitFile(UnitRecord r, DocFile f) =>
+      isUnitHead(r.unit) || (canEditUnit(r.unit) && canRemoveOwn(f.createdBy, f.createdAt));
+
+  /// مستخدمو الوحدة المُسنَدون إليها (الرئيس أولاً).
+  List<Profile> unitMembers(String unit) =>
+      people.values.where((p) => p.active && p.unit == unit).toList()
+        ..sort((a, b) => a.unitHead == b.unitHead ? a.displayName.compareTo(b.displayName) : (a.unitHead ? -1 : 1));
+
+  Future<String> saveUnitRecord(String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_unit_record', params: {'p_id': id, 'p_data': data});
+    await _afterV9();
+    return res.toString();
+  }
+
+  Future<void> deleteUnitRecord(String id) async {
+    final paths = await client.rpc('delete_unit_record', params: {'p_id': id});
+    await removeDocObjects(client, _paths(paths));
+    await _afterV9();
+  }
+
+  /// إسناد مستخدم إلى وحدة أو إزالته منها (المدير وحده).
+  Future<void> setUserUnit(String userId, String? unit, bool head) async {
+    await client.rpc('set_user_unit', params: {'p_user': userId, 'p_unit': unit, 'p_head': head});
+    await _afterV9();
   }
 
   /// المساحة المستخدمة: (المستندات، غيرها، عدد الملفات، الحد)

@@ -12,6 +12,7 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/update.dart';
 import '../ui/widgets.dart';
+import '../units.dart' show UnitStats;
 import 'account.dart';
 import 'analysis.dart';
 import 'assistant.dart';
@@ -37,6 +38,7 @@ import 'risks.dart';
 import 'supervision.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
+import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
 class Tabs {
@@ -90,6 +92,28 @@ class Tabs {
   // دليل الاستخدام
   static const manual = 80;
   static const manualNews = 81;
+
+  // الترميم والمباني التاريخية
+  static const heritageOverview = 90;
+  static const heritageBuildings = 91;
+  static const heritageAssessments = 92;
+
+  // مكتب التخطيط وضمان الجودة
+  static const pqOverview = 100;
+  static const pqPlanning = 101;
+  static const pqQuality = 102;
+  static const pqFollowUp = 103;
+
+  // مكتب السلامة المهنية
+  static const safetyOverview = 110;
+  static const safetyInspections = 111;
+  static const safetyIncidents = 112;
+  static const safetyViolations = 113;
+
+  // المطابقة والاستلام
+  static const accOverview = 120;
+  static const accReceiving = 121;
+  static const accQuality = 122;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -198,6 +222,49 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 70),
     ];
   }
+  if (app.section == 'heritage') {
+    final today = _unitToday();
+    final s = UnitStats(app.units, today);
+    return [
+      const _Dest(Tabs.heritageOverview, 'لوحة القسم', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      _Dest(Tabs.heritageBuildings, 'المباني التاريخية', Icons.museum_outlined, Icons.museum_rounded, badge: s.buildingsAtRisk),
+      const _Dest(Tabs.heritageAssessments, 'تقييمات الحالة', Icons.fact_check_outlined, Icons.fact_check_rounded),
+      ..._adminDests(app, 90),
+    ];
+  }
+  if (app.section == 'planning_qa') {
+    final today = _unitToday();
+    final s = UnitStats(app.units, today);
+    return [
+      const _Dest(Tabs.pqOverview, 'لوحة المكتب', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      _Dest(Tabs.pqPlanning, 'قسم التخطيط', Icons.flag_outlined, Icons.flag_rounded, badge: s.overduePlans),
+      _Dest(Tabs.pqQuality, 'قسم ضمان الجودة', Icons.verified_outlined, Icons.verified_rounded, badge: s.overdueNcr),
+      _Dest(Tabs.pqFollowUp, 'قسم المتابعة', Icons.track_changes_outlined, Icons.track_changes_rounded, badge: s.overdueTasks),
+      ..._adminDests(app, 100),
+    ];
+  }
+  if (app.section == 'safety') {
+    final today = _unitToday();
+    final s = UnitStats(app.units, today);
+    return [
+      const _Dest(Tabs.safetyOverview, 'لوحة السلامة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      const _Dest(Tabs.safetyInspections, 'جولات التفتيش', Icons.health_and_safety_outlined, Icons.health_and_safety_rounded),
+      _Dest(Tabs.safetyIncidents, 'الحوادث', Icons.personal_injury_outlined, Icons.personal_injury_rounded, badge: s.openIncidents),
+      _Dest(Tabs.safetyViolations, 'المخالفات', Icons.do_not_disturb_on_outlined, Icons.do_not_disturb_on_rounded,
+          badge: s.overdueViolations),
+      ..._adminDests(app, 110),
+    ];
+  }
+  if (app.section == 'acceptance') {
+    final today = _unitToday();
+    final s = UnitStats(app.units, today);
+    return [
+      const _Dest(Tabs.accOverview, 'لوحة القسم', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      _Dest(Tabs.accReceiving, 'وحدة الاستلام', Icons.handshake_outlined, Icons.handshake_rounded, badge: s.overduePunch),
+      _Dest(Tabs.accQuality, 'وحدة ضبط الجودة', Icons.science_outlined, Icons.science_rounded, badge: s.overdueMaterials),
+      ..._adminDests(app, 120),
+    ];
+  }
   if (app.section == 'manual') {
     return [
       const _Dest(Tabs.manual, 'دليل الاستخدام', Icons.menu_book_outlined, Icons.menu_book_rounded),
@@ -259,8 +326,27 @@ Widget _page(int id) => switch (id) {
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 => const AssistantPage(),
+      Tabs.heritageOverview => const UnitOverviewPage(key: ValueKey('ov-heritage'), section: 'heritage'),
+      Tabs.heritageBuildings =>
+        const UnitRecordsPage(key: ValueKey('heritage_building'), unit: 'heritage', kinds: ['heritage_building']),
+      Tabs.heritageAssessments =>
+        const UnitRecordsPage(key: ValueKey('heritage_assessment'), unit: 'heritage', kinds: ['heritage_assessment']),
+      Tabs.pqOverview => const UnitOverviewPage(key: ValueKey('ov-planning_qa'), section: 'planning_qa'),
+      Tabs.pqPlanning => const UnitRecordsPage(key: ValueKey('planning'), unit: 'planning', kinds: ['plan'], title: 'قسم التخطيط'),
+      Tabs.pqQuality => const UnitRecordsPage(key: ValueKey('quality_assurance'), unit: 'quality_assurance', kinds: ['qa_audit', 'ncr']),
+      Tabs.pqFollowUp =>
+        const UnitRecordsPage(key: ValueKey('follow_up'), unit: 'follow_up', kinds: ['followup_task'], title: 'قسم المتابعة'),
+      Tabs.safetyOverview => const UnitOverviewPage(key: ValueKey('ov-safety'), section: 'safety'),
+      Tabs.safetyInspections =>
+        const UnitRecordsPage(key: ValueKey('safety_inspection'), unit: 'safety', kinds: ['safety_inspection']),
+      Tabs.safetyIncidents => const UnitRecordsPage(key: ValueKey('safety_incident'), unit: 'safety', kinds: ['safety_incident']),
+      Tabs.safetyViolations => const UnitRecordsPage(key: ValueKey('safety_violation'), unit: 'safety', kinds: ['safety_violation']),
+      Tabs.accOverview => const UnitOverviewPage(key: ValueKey('ov-acceptance'), section: 'acceptance'),
+      Tabs.accReceiving => const UnitRecordsPage(key: ValueKey('receiving'), unit: 'receiving', kinds: ['handover', 'punch_item']),
+      Tabs.accQuality =>
+        const UnitRecordsPage(key: ValueKey('quality_control'), unit: 'quality_control', kinds: ['qc_test', 'material_approval']),
       Tabs.docsBoq => const DocsPage(key: ValueKey('boq'), kind: 'boq'),
       Tabs.docsLetters => const DocsPage(key: ValueKey('letter'), kind: 'letter'),
       Tabs.docsDesigns => const DocsPage(key: ValueKey('design'), kind: 'design'),
@@ -938,3 +1024,7 @@ class _NotificationsSheet extends StatelessWidget {
 /// معلومات الإصدار في أسفل صفحة الحساب.
 String get appVersionText => 'الإصدار ${AppConfig.appVersion}';
 
+DateTime _unitToday() {
+  final n = DateTime.now();
+  return DateTime(n.year, n.month, n.day);
+}

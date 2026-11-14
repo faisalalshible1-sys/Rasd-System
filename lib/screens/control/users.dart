@@ -5,6 +5,7 @@ import '../../models.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 import '../../services/export.dart';
+import '../../units.dart';
 import 'control_panel.dart';
 import 'user_details.dart';
 
@@ -25,7 +26,8 @@ class _UsersSectionState extends State<UsersSection> {
   static String roleTextOf(AppState app, Profile u) {
     if (u.role == AppRole.director) return 'مدير المكتب · المسؤول الأول والأخير';
     if (u.role == null) return 'بانتظار التفعيل';
-    final r = u.role == AppRole.deptHead ? 'رئيس قسم ${app.departmentName(u.department)}' : u.role!.label;
+    var r = u.role == AppRole.deptHead ? 'رئيس قسم ${app.departmentName(u.department)}' : u.role!.label;
+    if (u.unit != null) r = '$r · ${u.unitHead ? 'رئيس ' : ''}${unitNames[u.unit] ?? u.unit}';
     return u.active ? r : '$r · موقوف';
   }
 
@@ -183,6 +185,8 @@ class _UserEditorState extends State<_UserEditor> {
   late String _role;
   late String _department;
   late bool _active;
+  late String _unit;
+  late bool _unitHead;
   late final TextEditingController _name;
   late final TextEditingController _email;
   bool _busy = false;
@@ -197,6 +201,8 @@ class _UserEditorState extends State<_UserEditor> {
     _role = u.role?.db ?? '';
     _department = u.department ?? 'supervision';
     _active = u.active || u.role == null;
+    _unit = u.unit ?? '';
+    _unitHead = u.unitHead;
     _name = TextEditingController(text: u.fullName);
     _email = TextEditingController(text: u.email);
   }
@@ -224,6 +230,12 @@ class _UserEditorState extends State<_UserEditor> {
         await widget.app.setUserEmail(widget.user.id, newEmail);
       }
       await widget.app.setUserAccess(widget.user.id, role: role, department: _department, active: _active, fullName: _name.text.trim());
+      // الوحدة (الترحيل 21): تُحفظ إن تغيّرت، ولا تُسند لمدقق الأمن
+      final unit = role == AppRole.securityAuditor ? '' : _unit;
+      final head = unit.isNotEmpty && _unitHead;
+      if (widget.app.v9Ready && (unit != (widget.user.unit ?? '') || head != widget.user.unitHead)) {
+        await widget.app.setUserUnit(widget.user.id, unit.isEmpty ? null : unit, head);
+      }
       if (!_active && widget.user.active && widget.app.v2Ready) {
         try {
           await widget.app.revokeUserSessions(widget.user.id);
@@ -323,6 +335,28 @@ class _UserEditorState extends State<_UserEditor> {
                 items: [for (final d in widget.app.departments) (d.key, d.name)],
                 onChanged: (v) => setState(() => _department = v),
               ),
+            ],
+            if (widget.app.v9Ready && _role.isNotEmpty && _role != AppRole.securityAuditor.db) ...[
+              const SizedBox(height: 12),
+              SelectField(
+                label: 'الوحدة',
+                value: _unit,
+                items: [('', 'دون وحدة'), for (final k in unitKeys) (k, unitNames[k]!)],
+                onChanged: (v) => setState(() {
+                  _unit = v;
+                  if (v.isEmpty) _unitHead = false;
+                }),
+              ),
+              const SizedBox(height: 4),
+              Text('يكتب في سجلات وحدته، ويطّلع على باقي الوحدات.', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+              if (_unit.isNotEmpty)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('رئيس الوحدة'),
+                  subtitle: Text('يحذف سجلات وحدته ومرفقاتها', style: TextStyle(color: sem.muted)),
+                  value: _unitHead,
+                  onChanged: (v) => setState(() => _unitHead = v),
+                ),
             ],
             const SizedBox(height: 8),
             SwitchListTile(

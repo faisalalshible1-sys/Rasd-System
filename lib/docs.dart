@@ -214,6 +214,7 @@ class DocFile {
     required this.id,
     this.revisionId,
     this.reportId,
+    this.recordId,
     required this.path,
     required this.name,
     required this.mime,
@@ -228,6 +229,9 @@ class DocFile {
   final String id;
   final String? revisionId;
   final String? reportId;
+
+  /// سجل من سجلات الوحدات (الترحيل 21).
+  final String? recordId;
   final String path;
   final String name;
   final String mime;
@@ -242,6 +246,7 @@ class DocFile {
         id: _s(m['id']),
         revisionId: m['revision_id'] as String?,
         reportId: m['report_id'] as String?,
+        recordId: m['record_id'] as String?,
         path: _s(m['path']),
         name: _s(m['name']),
         mime: _s(m['mime']),
@@ -367,8 +372,9 @@ class DocIndex {
     for (final f in files) {
       if (f.revisionId != null) (_filesByRev[f.revisionId!] ??= []).add(f);
       if (f.reportId != null) (_filesByRep[f.reportId!] ??= []).add(f);
+      if (f.recordId != null) (_filesByRec[f.recordId!] ??= []).add(f);
     }
-    for (final l in [..._filesByRev.values, ..._filesByRep.values]) {
+    for (final l in [..._filesByRev.values, ..._filesByRep.values, ..._filesByRec.values]) {
       l.sort((a, b) => a.sort.compareTo(b.sort));
     }
   }
@@ -382,6 +388,7 @@ class DocIndex {
   final Map<String, List<DocRevision>> _revBy = {};
   final Map<String, List<DocFile>> _filesByRev = {};
   final Map<String, List<DocFile>> _filesByRep = {};
+  final Map<String, List<DocFile>> _filesByRec = {};
 
   List<DocItem> ofKind(String kind) => items.where((i) => i.kind == kind).toList();
 
@@ -394,6 +401,7 @@ class DocIndex {
 
   List<DocFile> filesOfRevision(String revisionId) => _filesByRev[revisionId] ?? const [];
   List<DocFile> filesOfReport(String reportId) => _filesByRep[reportId] ?? const [];
+  List<DocFile> filesOfRecord(String recordId) => _filesByRec[recordId] ?? const [];
 
   /// ملفات أحدث إصدار، وإن خلا من الملفات فأحدث إصدار فيه ملفات.
   List<DocFile> currentFiles(String itemId) {

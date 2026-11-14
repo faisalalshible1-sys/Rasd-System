@@ -160,7 +160,8 @@ Future<void> showDocEditor(BuildContext context, String kind, {DocItem? item, St
 /// اختيار الملفات ورفعها مع نافذة تقدّم.
 Future<void> pickAndAttach(BuildContext context, String scope, String ownerId, {String kind = 'report'}) async {
   final app = AppScope.read(context);
-  final allowed = scope == 'report' ? (pdf: true, images: true) : docAllowedFiles(kind);
+  // المستندات حسب نوعها؛ والتقارير اليومية وسجلات الوحدات تقبل PDF والصور معاً
+  final allowed = scope == 'doc' ? docAllowedFiles(kind) : (pdf: true, images: true);
   List<PickedDoc> files;
   try {
     files = await pickDocFiles(pdf: allowed.pdf, images: allowed.images);

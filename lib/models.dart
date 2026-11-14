@@ -236,6 +236,8 @@ class Profile {
     this.createdAt,
     this.lockedUntil,
     this.lockReason = '',
+    this.unit,
+    this.unitHead = false,
   });
 
   final String id;
@@ -247,6 +249,10 @@ class Profile {
   final DateTime? createdAt;
   final DateTime? lockedUntil; // قفل الدخول المؤقت (أو الدائم حتى يُفك)
   final String lockReason;
+
+  /// الوحدة المُسنَدة (الترحيل 21): مثل safety أو quality_control، وهل هو رئيسها.
+  final String? unit;
+  final bool unitHead;
 
   bool get locked => lockedUntil != null && lockedUntil!.isAfter(DateTime.now());
 
@@ -264,6 +270,23 @@ class Profile {
         createdAt: _date(m['created_at']),
         lockedUntil: m['locked_until'] == 'infinity' ? DateTime(9999) : _date(m['locked_until']),
         lockReason: _str(m['lock_reason']),
+        unit: (m['unit'] as String?)?.isEmpty ?? true ? null : m['unit'] as String,
+        unitHead: m['unit_head'] == true,
+      );
+
+  /// نسخة بوحدة أخرى (تُدمج بها بيانات الوحدات بعد تحميلها).
+  Profile withUnit(String? u, bool head) => Profile(
+        id: id,
+        fullName: fullName,
+        email: email,
+        role: role,
+        department: department,
+        active: active,
+        createdAt: createdAt,
+        lockedUntil: lockedUntil,
+        lockReason: lockReason,
+        unit: u,
+        unitHead: u != null && head,
       );
 }
 
@@ -1082,6 +1105,12 @@ const Map<String, String> auditActionLabels = {
   'report.review': 'اطّلع على تقرير يومي',
   'report.file_add': 'أرفق صورة أو ملفاً بتقرير يومي',
   'report.file_delete': 'أزال ملفاً من تقرير يومي',
+  'unit.create': 'أضاف سجلاً في وحدة',
+  'unit.update': 'عدّل سجلاً في وحدة',
+  'unit.delete': 'حذف سجلاً من وحدة',
+  'unit.file_add': 'أرفق ملفاً بسجل وحدة',
+  'unit.file_delete': 'أزال ملفاً من سجل وحدة',
+  'user.unit': 'أسند مستخدماً إلى وحدة',
 };
 
 const Map<String, String> projectFieldLabels = {

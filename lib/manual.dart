@@ -39,9 +39,13 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('16_swot', 16, 'تحليل SWOT'),
   ManualChapter('17_docs', 17, 'المستندات الفنية: المقايسات والمراسلات والتصاميم'),
   ManualChapter('18_supervision', 18, 'الإشراف: التقارير اليومية ومتابعة التغطية'),
-  ManualChapter('19_admin', 19, 'الإدارة والتدقيق والمساعد'),
-  ManualChapter('20_manual', 20, 'دليل الاستخدام داخل المنظومة'),
-  ManualChapter('21_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
+  ManualChapter('19_heritage', 19, 'الترميم والمباني التاريخية'),
+  ManualChapter('20_planning_qa', 20, 'مكتب التخطيط وضمان الجودة'),
+  ManualChapter('21_safety', 21, 'مكتب السلامة المهنية'),
+  ManualChapter('22_acceptance', 22, 'المطابقة والاستلام'),
+  ManualChapter('23_admin', 23, 'الإدارة والتدقيق والمساعد'),
+  ManualChapter('24_manual', 24, 'دليل الاستخدام داخل المنظومة'),
+  ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
 const String manualChangelogAsset = 'assets/manual/changelog.md';
@@ -63,17 +67,17 @@ const Map<int, String> manualTabAnchors = {
   1: '04_cycle', // العقود
   2: '06_approvals', // الاعتمادات / طلباتي
   3: '05_progress', // التحليل
-  4: '19_admin', // الأفكار والتطوير
-  5: '19_admin', // لوحة التحكم
-  6: '19_admin', // مساعد Claude
+  4: '23_admin', // الأفكار والتطوير
+  5: '23_admin', // لوحة التحكم
+  6: '23_admin', // مساعد Claude
   7: '07_finance', // المالية
   8: '06_approvals', // الدليل المرجعي
   // المخاطر ومتابعة المشاريع
   20: '11_risk_board',
   21: '09_risk_register',
   22: '11_risk_board',
-  28: '19_admin',
-  29: '19_admin',
+  28: '23_admin',
+  29: '23_admin',
   40: '15_pm_dashboard',
   41: '12_pm_projects',
   42: '12_pm_projects',
@@ -95,25 +99,51 @@ const Map<int, String> manualTabAnchors = {
   35: '16_swot',
   36: '16_swot',
   37: '16_swot',
-  38: '19_admin',
-  39: '19_admin',
+  38: '23_admin',
+  39: '23_admin',
   // المستندات الفنية
   60: '17_docs',
   61: '17_docs',
   62: '17_docs',
   63: '17_docs',
-  68: '19_admin',
-  69: '19_admin',
+  68: '23_admin',
+  69: '23_admin',
   // الإشراف
   70: '18_supervision',
   71: '18_supervision',
-  78: '19_admin',
-  79: '19_admin',
+  78: '23_admin',
+  79: '23_admin',
   // دليل الاستخدام
-  80: '20_manual',
-  81: '20_manual',
-  88: '19_admin',
-  89: '19_admin',
+  80: '24_manual',
+  81: '24_manual',
+  88: '23_admin',
+  89: '23_admin',
+  // الترميم والمباني التاريخية
+  90: '19_heritage',
+  91: '19_heritage',
+  92: '19_heritage',
+  98: '23_admin',
+  99: '23_admin',
+  // مكتب التخطيط وضمان الجودة
+  100: '20_planning_qa',
+  101: '20_planning_qa',
+  102: '20_planning_qa',
+  103: '20_planning_qa',
+  108: '23_admin',
+  109: '23_admin',
+  // مكتب السلامة المهنية
+  110: '21_safety',
+  111: '21_safety',
+  112: '21_safety',
+  113: '21_safety',
+  118: '23_admin',
+  119: '23_admin',
+  // المطابقة والاستلام
+  120: '22_acceptance',
+  121: '22_acceptance',
+  122: '22_acceptance',
+  128: '23_admin',
+  129: '23_admin',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).
@@ -123,7 +153,11 @@ const Map<String, String> manualSectionAnchors = {
   'swot': '16_swot',
   'docs': '17_docs',
   'supervision': '18_supervision',
-  'manual': '20_manual',
+  'heritage': '19_heritage',
+  'planning_qa': '20_planning_qa',
+  'safety': '21_safety',
+  'acceptance': '22_acceptance',
+  'manual': '24_manual',
 };
 
 String manualAnchorForTab(int tab) => manualTabAnchors[tab] ?? '00_about';

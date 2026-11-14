@@ -8,6 +8,7 @@ import '../registers.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import '../units.dart';
 import 'finance.dart' show FinanceStats;
 import 'supervision.dart' show activeSiteProjects;
 
@@ -26,14 +27,40 @@ const List<(String, String, String, IconData)> appSections = [
   ('supervision', 'الإشراف',
       'التقارير اليومية للمواقع: الأعمال المنفذة والعمالة والمعدات والمعوقات والسلامة، مع صور الموقع ومتابعة التغطية.',
       Icons.engineering_rounded),
+  ('heritage', 'الترميم والمباني التاريخية',
+      'سجل المباني التاريخية ببطاقة لكل مبنى وحالته الإنشائية وصوره، وتقييمات الحالة، وأعمال الترميم المرتبطة بالعقود.',
+      Icons.museum_rounded),
+  ('planning_qa', 'مكتب التخطيط وضمان الجودة',
+      'قسم التخطيط بالخطط ونسب إنجازها، وقسم ضمان الجودة بالتدقيقات وحالات عدم المطابقة، وقسم المتابعة بالتكليفات ومواعيدها.',
+      Icons.query_stats_rounded),
+  ('safety', 'مكتب السلامة المهنية', 'جولات التفتيش ونسبة الالتزام، والحوادث وأيام العمل الضائعة، والمخالفات ومعالجتها في مواقع العقود.',
+      Icons.health_and_safety_rounded),
+  ('acceptance', 'المطابقة والاستلام',
+      'وحدة الاستلام بمحاضر الاستلام وقوائم الملاحظات، ووحدة ضبط الجودة بالاختبارات ونسبة المطابقة واعتماد المواد.',
+      Icons.verified_rounded),
   ('manual', 'دليل الاستخدام', 'شرح كامل لكل أقسام المنظومة وإجراءاتها وطريقة كل حساب، ويُحدَّث مع كل إصدار جديد.',
       Icons.menu_book_rounded),
 ];
 
-/// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والمستندات والإشراف الترحيل 20)
+/// اسم مختصر للقسم في المبدّل الجانبي.
+const Map<String, String> sectionShortNames = {
+  'cycle': 'الدورة',
+  'risks': 'المخاطر',
+  'swot': 'SWOT',
+  'docs': 'المستندات',
+  'supervision': 'الإشراف',
+  'heritage': 'الترميم',
+  'planning_qa': 'التخطيط',
+  'safety': 'السلامة',
+  'acceptance': 'الاستلام',
+  'manual': 'الدليل',
+};
+
+/// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والمستندات والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
 bool sectionEnabled(AppState app, String key) => switch (key) {
       'cycle' || 'manual' => true,
       'docs' || 'supervision' => app.v8Ready,
+      'heritage' || 'planning_qa' || 'safety' || 'acceptance' => app.v9Ready,
       _ => app.v6Ready,
     };
 
@@ -49,6 +76,10 @@ Color sectionColor(BuildContext context, String key) {
     'docs' => dark ? const Color(0xFF5EC4B6) : const Color(0xFF0F766E),
     'supervision' => dark ? const Color(0xFFB39DFF) : const Color(0xFF6D3FB2),
     'manual' => dark ? const Color(0xFFB8C2CE) : const Color(0xFF4F5B69),
+    'heritage' => dark ? const Color(0xFFD9A066) : const Color(0xFF8A5A2B),
+    'planning_qa' => dark ? const Color(0xFF9FA8FF) : const Color(0xFF3949AB),
+    'safety' => dark ? const Color(0xFFE8B931) : const Color(0xFF8A6100),
+    'acceptance' => dark ? const Color(0xFFF07FB8) : const Color(0xFFA3246B),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -85,6 +116,15 @@ class SectionHub extends StatelessWidget {
             padding: EdgeInsets.only(top: 16),
             child: InfoBanner(
               text: 'سجل المخاطر وتحليل SWOT يعملان بعد تحديث قاعدة البيانات بالملف 20261109000015_risks_swot.sql.',
+              level: 'warning',
+            ),
+          ),
+        if (app.v8Ready && !app.v9Ready)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: InfoBanner(
+              text: 'أقسام الترميم والتخطيط وضمان الجودة والسلامة المهنية والمطابقة والاستلام تعمل بعد تحديث قاعدة البيانات '
+                  'بالملف 20261114000021_unit_sections.sql.',
               level: 'warning',
             ),
           ),
@@ -157,6 +197,38 @@ class _SectionCard extends StatelessWidget {
             ('$unreviewed', 'بانتظار اطلاعك', unreviewed > 0 ? sem.wip : null)
           else
             ('${reps.where((r) => r.hasIssues && !r.reportDate.isBefore(today.subtract(const Duration(days: 6)))).length}', 'بمعوقات', sem.danger),
+        ];
+      case 'heritage':
+        if (!app.v9Ready) return const [];
+        final s = UnitStats(app.units, DateTime.now());
+        return [
+          ('${s.buildings}', 'مبنى مسجّلاً', null),
+          ('${s.buildingsAtRisk}', 'بحالة سيئة أو خطرة', s.buildingsAtRisk > 0 ? sem.danger : null),
+          ('${s.underRestoration}', 'قيد الترميم', s.underRestoration > 0 ? sem.wip : null),
+        ];
+      case 'planning_qa':
+        if (!app.v9Ready) return const [];
+        final s = UnitStats(app.units, DateTime.now());
+        return [
+          ('${s.activePlans}', 'خطة قيد التنفيذ', null),
+          ('${s.openNcr}', 'عدم مطابقة مفتوحة', s.openNcr > 0 ? sem.danger : null),
+          ('${s.overdueTasks}', 'تكليف متأخر', s.overdueTasks > 0 ? sem.wip : null),
+        ];
+      case 'safety':
+        if (!app.v9Ready) return const [];
+        final s = UnitStats(app.units, DateTime.now());
+        return [
+          (s.daysWithoutIncident?.toString() ?? '—', 'يوماً بلا حوادث', sem.ok),
+          ('${s.openViolations}', 'مخالفة قائمة', s.openViolations > 0 ? sem.danger : null),
+          ('${s.inspectionsThisMonth}', 'جولة هذا الشهر', null),
+        ];
+      case 'acceptance':
+        if (!app.v9Ready) return const [];
+        final s = UnitStats(app.units, DateTime.now());
+        return [
+          ('${s.openPunch}', 'ملاحظة استلام قائمة', s.openPunch > 0 ? sem.wip : null),
+          ('${s.pendingTests}', 'اختبار بانتظار النتيجة', null),
+          ('${s.materialsUnderReview}', 'مادة قيد المراجعة', s.materialsUnderReview > 0 ? sem.wip : null),
         ];
       case 'manual':
         return [
@@ -294,7 +366,7 @@ class SectionSwitcher extends StatelessWidget {
           child: Tooltip(
             message: s.$2,
             child: _SwitchItem(
-              label: s.$2,
+              label: sectionShortNames[s.$1] ?? s.$2,
               icon: s.$4,
               color: sectionColor(context, s.$1),
               selected: app.section == s.$1,
@@ -307,8 +379,8 @@ class SectionSwitcher extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: sem.rule)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        for (var i = 0; i < appSections.length; i += 3)
-          Row(children: [for (final s in appSections.skip(i).take(3)) item(s)]),
+        for (var i = 0; i < appSections.length; i += 5)
+          Row(children: [for (final s in appSections.skip(i).take(5)) item(s)]),
       ]),
     );
   }
