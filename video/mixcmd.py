@@ -2,21 +2,24 @@
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 tl = json.load(open(os.path.join(HERE, 'timeline.json')))
-have = sys.argv[1].split(',') if len(sys.argv) > 1 else sorted(tl['start'])
+vo = json.load(open(os.path.join(HERE, 'voices.json')))['chosen']
+have = sorted(vo)
+gains = {k: round(-16.5 - vo[k]['lufs'], 2) for k in have}
 total = tl['total']
 starts = {k: round(tl['start'][k], 3) for k in have}
 py = f'''
 import subprocess, json
 S = {json.dumps(starts)}
+G = {json.dumps(gains)}
 T = {total}
 inp = ['-i', 'in/video.mp4', '-i', 'in/music.flac']
 fc = []
 labels = []
 for i, (k, s) in enumerate(sorted(S.items())):
     inp += ['-i', f'in/{{k}}.mp3']
-    fc.append(f'[{{i+2}}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,adelay={{int(s*1000)}}:all=1,apad=whole_dur={{T}}[v{{i}}]')
+    fc.append(f'[{{i+2}}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,volume={{G[k]}}dB,adelay={{int(s*1000)}}:all=1,apad=whole_dur={{T}}[v{{i}}]')
     labels.append(f'[v{{i}}]')
-fc.append(''.join(labels) + f'amix=inputs={{len(labels)}}:normalize=0:duration=longest,atrim=0:{{T}},highpass=f=60,acompressor=threshold=-22dB:ratio=2:attack=8:release=150,volume=5.6dB[vo]')
+fc.append(''.join(labels) + f'amix=inputs={{len(labels)}}:normalize=0:duration=longest,atrim=0:{{T}},highpass=f=60,acompressor=threshold=-22dB:ratio=2:attack=8:release=150,volume=0.8dB[vo]')
 fc.append('[vo]asplit=2[vm][vs]')
 fc.append(f"[1:a]aresample=48000,atrim=0:{{T}},volume=-8dB,volume='if(lt(t,3.0),2.3,if(gt(t,{{T-6.0}}),2.3,1))':eval=frame[mu]")
 fc.append('[mu][vs]sidechaincompress=threshold=0.02:ratio=5:attack=60:release=900:makeup=1[md]')

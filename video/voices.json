@@ -4,9 +4,159 @@
  "model": "eleven_v4",
  "flow": "3SLfRtdz9IE7VTuE7BYI",
  "gens": {
-  "s01": ["tnlbJMd1fhFyajwHzEZp"],
-  "s02": ["qm2HgXzF3RvJLPx7gs5u", "F7RF1MF0YcaxMbKFomcm"]
+  "s01": [
+   "tnlbJMd1fhFyajwHzEZp"
+  ],
+  "s02": [
+   "qm2HgXzF3RvJLPx7gs5u",
+   "F7RF1MF0YcaxMbKFomcm"
+  ],
+  "s03": [
+   "SpY9WkXehW5e4v8sNzMw"
+  ],
+  "s04": [
+   "hWuJMC61rzAW9nLYsh9A",
+   "RMbHouLwutcHBxtdVuRO"
+  ],
+  "s05": [
+   "OPMgtix0wq2bi3pCwHPg",
+   "sCyXAupsLhQEgNZtUW1G"
+  ],
+  "s06": [
+   "G6vQbKcy4EQZGOJ5zq16"
+  ],
+  "s07": [
+   "6ufEAFzgVqyd4Vtth4k5",
+   "ggPdgk7aRqrf2nT6q55P"
+  ],
+  "s08": [
+   "ldResYtW4czBYI38qwhi",
+   "9KhHV7Dk7NE2XIsc1onp"
+  ],
+  "s09": [
+   "kZCvgaXEBC7mA8aJ5zSW"
+  ],
+  "s10": [
+   "iEvojIb74vUpPt5WMjyD",
+   "qE31vZS2RHJcDhlb1MZR"
+  ],
+  "s11": [
+   "Ga9zdbUfxv4B2eAQ8HW3",
+   "1KMFUKEuGfUAmXifUQ8x"
+  ],
+  "s12": [
+   "TPMrP8Tk1Hx8POqRInzD"
+  ],
+  "s13": [
+   "SCWQssI2s9EsXTy4DRVS"
+  ]
  },
- "todo": ["s03","s04","s05","s06","s07","s08","s09","s10","s11","s12","s13"],
- "note": "بطلب المستخدم (22:10): صوت من فئة جودة الاستوديو. أُعيد توليد كل المقاطع بالصوت الجديد؛ مقاطع الصوت السابق (Ahmed) لم تعد مستخدمة. التوليد المجاني محدود السعة: مقطع واحد لكل دورة، وعند رسالة busy لا تبدأ توليداً آخر في الدورة نفسها."
+ "todo": [],
+ "note": "بطلب المستخدم (22:10): صوت من فئة جودة الاستوديو. أُعيد توليد كل المقاطع بالصوت الجديد؛ مقاطع الصوت السابق (Ahmed) لم تعد مستخدمة. التوليد المجاني محدود السعة: مقطع واحد لكل دورة، وعند رسالة busy لا تبدأ توليداً آخر في الدورة نفسها.",
+ "measured": {
+  "s01": [
+   18.834,
+   -27.3
+  ],
+  "s02": [
+   16.431,
+   -27.0
+  ],
+  "s03": [
+   19.409,
+   -27.2
+  ],
+  "s04": [
+   13.636,
+   -26.9
+  ],
+  "s05": [
+   18.286,
+   -27.6
+  ],
+  "s06": [
+   14.602,
+   -27.0
+  ],
+  "s07": [
+   13.636,
+   -27.6
+  ],
+  "s08": [
+   16.509,
+   -26.6
+  ],
+  "s09": [
+   15.647,
+   -27.1
+  ]
+ },
+ "note2": "الصوت الجديد أهدأ (~-27 LUFS): يلزم كسب لكل مقطع في الخلط = -16 - lufs. المدة الإجمالية المتوقعة ~3:48.",
+ "chosen": {
+  "s01": {
+   "gen": "tnlbJMd1fhFyajwHzEZp",
+   "dur": 18.834,
+   "lufs": -27.3
+  },
+  "s02": {
+   "gen": "qm2HgXzF3RvJLPx7gs5u",
+   "dur": 16.431,
+   "lufs": -27.0
+  },
+  "s03": {
+   "gen": "SpY9WkXehW5e4v8sNzMw",
+   "dur": 19.409,
+   "lufs": -27.2
+  },
+  "s04": {
+   "gen": "hWuJMC61rzAW9nLYsh9A",
+   "dur": 13.636,
+   "lufs": -26.9
+  },
+  "s05": {
+   "gen": "OPMgtix0wq2bi3pCwHPg",
+   "dur": 18.286,
+   "lufs": -27.6
+  },
+  "s06": {
+   "gen": "G6vQbKcy4EQZGOJ5zq16",
+   "dur": 14.602,
+   "lufs": -27.0
+  },
+  "s07": {
+   "gen": "6ufEAFzgVqyd4Vtth4k5",
+   "dur": 13.636,
+   "lufs": -27.6
+  },
+  "s08": {
+   "gen": "ldResYtW4czBYI38qwhi",
+   "dur": 16.509,
+   "lufs": -26.6
+  },
+  "s09": {
+   "gen": "kZCvgaXEBC7mA8aJ5zSW",
+   "dur": 15.647,
+   "lufs": -27.1
+  },
+  "s10": {
+   "gen": "iEvojIb74vUpPt5WMjyD",
+   "dur": 20.689,
+   "lufs": -27.5
+  },
+  "s11": {
+   "gen": "1KMFUKEuGfUAmXifUQ8x",
+   "dur": 20.036,
+   "lufs": -27.0
+  },
+  "s12": {
+   "gen": "TPMrP8Tk1Hx8POqRInzD",
+   "dur": 15.151,
+   "lufs": -27.2
+  },
+  "s13": {
+   "gen": "SCWQssI2s9EsXTy4DRVS",
+   "dur": 13.636,
+   "lufs": -27.4
+  }
+ }
 }
