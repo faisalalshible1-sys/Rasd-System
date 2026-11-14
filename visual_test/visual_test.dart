@@ -1,9 +1,12 @@
 // لقطات بصرية للصفحات الرئيسية ببيانات تجريبية (للتدقيق على التصميم، لا تُشغَّل مع الاختبارات العادية):
 //   flutter test visual_test --update-goldens
 // تُحفظ الصور في visual_test/goldens/ ويرفعها سير العمل visual.yml.
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dc_app/app_state.dart';
+import 'package:dc_app/docs.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
 import 'package:dc_app/registers.dart';
@@ -14,8 +17,10 @@ import 'package:dc_app/screens/cycle_guide.dart';
 import 'package:dc_app/screens/control/appearance.dart';
 import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
+import 'package:dc_app/screens/docs.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
+import 'package:dc_app/screens/manual.dart';
 import 'package:dc_app/screens/project_detail.dart';
 import 'package:dc_app/screens/pm_contractors.dart';
 import 'package:dc_app/screens/pm_dashboard.dart';
@@ -25,13 +30,16 @@ import 'package:dc_app/screens/pm_registers.dart';
 import 'package:dc_app/screens/pm_report.dart';
 import 'package:dc_app/screens/pm_settings.dart';
 import 'package:dc_app/screens/risks.dart';
+import 'package:dc_app/screens/supervision.dart';
 import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/screens/swot_presentation.dart';
+import 'package:dc_app/ui/slideshow.dart';
 import 'package:dc_app/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _desktop = Size(1440, 2600);
@@ -296,6 +304,7 @@ AppState _sampleState() {
   app.loadedOnce = true;
   _registers(app);
   _tracking(app);
+  _documents(app);
   app.settings = LiveSettings({
     'ai.enabled': true,
     'ai.model': 'claude-sonnet-5-5',
@@ -510,6 +519,155 @@ void _registers(AppState app) {
   ];
 }
 
+/// صور تجريبية للتصاميم والتقارير (لوحات مرسومة بألوان مختلفة).
+final Map<String, MemoryImage> _demoImages = {};
+
+MemoryImage _demoImage(String key, int seed) => _demoImages.putIfAbsent(key, () {
+      final im = img.Image(width: 960, height: 600);
+      const palettes = [
+        [(236, 229, 210), (138, 106, 30), (60, 70, 90)],
+        [(220, 232, 238), (43, 98, 168), (40, 50, 70)],
+        [(226, 238, 228), (46, 125, 79), (50, 60, 55)],
+        [(244, 226, 220), (180, 68, 28), (70, 50, 45)],
+      ];
+      final p = palettes[seed % palettes.length];
+      img.fill(im, color: img.ColorRgb8(p[0].$1, p[0].$2, p[0].$3));
+      final line = img.ColorRgb8(p[2].$1, p[2].$2, p[2].$3);
+      final accent = img.ColorRgb8(p[1].$1, p[1].$2, p[1].$3);
+      // مخطط واجهة: كتلة المبنى ونوافذه وخط الأرض
+      img.fillRect(im, x1: 140 + seed * 10, y1: 140, x2: 820 - seed * 10, y2: 520, color: img.ColorRgb8(250, 248, 242));
+      img.drawRect(im, x1: 140 + seed * 10, y1: 140, x2: 820 - seed * 10, y2: 520, color: line, thickness: 4);
+      for (var r = 0; r < 3; r++) {
+        for (var c = 0; c < 5; c++) {
+          final x = 190 + c * 120, y = 180 + r * 105;
+          img.fillRect(im, x1: x, y1: y, x2: x + 70, y2: y + 60, color: c == seed % 5 ? accent : img.ColorRgb8(200, 210, 220));
+          img.drawRect(im, x1: x, y1: y, x2: x + 70, y2: y + 60, color: line, thickness: 2);
+        }
+      }
+      img.fillRect(im, x1: 440, y1: 430, x2: 520, y2: 520, color: accent);
+      img.drawLine(im, x1: 40, y1: 522, x2: 920, y2: 522, color: line, thickness: 5);
+      img.fillRect(im, x1: 120 + seed * 10, y1: 100, x2: 840 - seed * 10, y2: 140, color: accent);
+      return MemoryImage(Uint8List.fromList(img.encodePng(im)));
+    });
+
+/// بيانات تجريبية للمستندات الفنية والتقارير اليومية.
+void _documents(AppState app) {
+  final items = <DocItem>[];
+  final revs = <DocRevision>[];
+  final files = <DocFile>[];
+  var fid = 0;
+  void file(String rev, String name, String mime, int size, {String? report}) {
+    fid++;
+    files.add(DocFile.fromMap({
+      'id': 'file$fid', 'revision_id': report == null ? rev : null, 'report_id': report, 'path': '${report == null ? 'doc' : 'report'}/$rev/f$fid',
+      'name': name, 'mime': mime, 'size_bytes': size, 'sort': fid, 'created_by': 'u-2', 'created_at': _iso(3),
+    }));
+  }
+
+  const boqs = [
+    ('b1', 'p-001', 'مقايسة تقديرية – ترميم مبنى القنصلية', 'BOQ-011', 'estimate', 'approved', 1380000.0, 2, 40),
+    ('b2', 'p-003', 'مقايسة تعاقدية – واجهات شارع عمر المختار', 'BOQ-013', 'contract', 'approved', 2300000.0, 1, 25),
+    ('b3', 'p-003', 'مقايسة تعديلية – إضافة أعمال العزل', 'BOQ-013-V1', 'variation', 'review', 185000.0, 3, 6),
+  ];
+  for (final b in boqs) {
+    items.add(DocItem.fromMap({'id': b.$1, 'kind': 'boq', 'project_id': b.$2, 'title': b.$3, 'ref_no': b.$4, 'category': b.$5,
+      'status': b.$6, 'amount': b.$7, 'doc_date': _day(b.$9), 'party': 'قسم الشؤون الفنية', 'updated_at': _iso(b.$9)}));
+    for (var r = 1; r <= b.$8; r++) {
+      revs.add(DocRevision.fromMap({'id': '${b.$1}r$r', 'item_id': b.$1, 'rev_no': r, 'rev_date': _day(b.$9 - r * 3),
+        'note': r == 1 ? 'الإصدار الأول' : 'تحديث الكميات بعد الحصر الميداني', 'created_by': 'u-2'}));
+      file('${b.$1}r$r', '${b.$4}-R$r.pdf', 'application/pdf', 820000 + r * 50000);
+    }
+  }
+  const letters = [
+    ('l1', 'p-003', 'طلب تمديد مدة التنفيذ 30 يوماً', 'وارد 412', 'in', 'contract', 'open', 'أثمار', 6, 2, null),
+    ('l2', 'p-003', 'الرد على طلب تمديد المدة', 'صادر 233', 'out', 'contract', 'closed', 'أثمار', 1, null, 'l1'),
+    ('l3', 'p-002', 'إشعار بتأخر صرف المستخلص الثالث', 'وارد 418', 'in', 'finance', 'open', 'جودة الإعمار', 4, -5, null),
+    ('l4', null, 'تعميم بتوحيد نماذج التقارير اليومية', 'داخلي 19', 'internal', 'admin', 'info', 'مكتب المدير', 9, null, null),
+    ('l5', 'p-001', 'طلب اعتماد عينات الحجر الجيري', 'وارد 420', 'in', 'technical', 'open', 'درع ليبيا', 2, -10, null),
+  ];
+  for (final l in letters) {
+    items.add(DocItem.fromMap({'id': l.$1, 'kind': 'letter', 'project_id': l.$2, 'title': l.$3, 'ref_no': l.$4, 'direction': l.$5,
+      'category': l.$6, 'status': l.$7, 'party': l.$8, 'doc_date': _day(l.$9), 'due_date': l.$10 == null ? null : _day(l.$10!),
+      'reply_to': l.$11, 'updated_at': _iso(l.$9)}));
+    revs.add(DocRevision.fromMap({'id': '${l.$1}r1', 'item_id': l.$1, 'rev_no': 1, 'rev_date': _day(l.$9), 'created_by': 'u-2'}));
+    file('${l.$1}r1', '${l.$4}.pdf', 'application/pdf', 240000);
+  }
+  const designs = [
+    ('d1', 'p-001', 'واجهة مبنى القنصلية الإيطالية', 'heritage', 'approved', 'الاستشاري المعماري', 3),
+    ('d2', 'p-003', 'تطوير واجهات شارع عمر المختار', 'architectural', 'review', 'قسم الشؤون الفنية', 2),
+    ('d3', 'p-005', 'مسار خط المياه الرئيسي', 'plumbing', 'draft', 'الشركة العامة للمياه', 1),
+  ];
+  var seed = 0;
+  for (final d in designs) {
+    items.add(DocItem.fromMap({'id': d.$1, 'kind': 'design', 'project_id': d.$2, 'title': d.$3, 'category': d.$4, 'status': d.$5,
+      'party': d.$6, 'doc_date': _day(30), 'ref_no': 'DWG-${d.$1.toUpperCase()}', 'updated_at': _iso(2)}));
+    for (var r = 1; r <= d.$7; r++) {
+      revs.add(DocRevision.fromMap({'id': '${d.$1}r$r', 'item_id': d.$1, 'rev_no': r, 'rev_date': _day(30 - r * 7),
+        'note': switch (r) { 1 => 'الفكرة الأولية', 2 => 'تعديل النسب بعد ملاحظات اللجنة', _ => 'الاعتماد النهائي مع تفاصيل الحجر' },
+        'created_by': 'u-2'}));
+      file('${d.$1}r$r', 'منظور ${r}A.jpg', 'image/jpeg', 640000);
+      file('${d.$1}r$r', 'مسقط ${r}B.png', 'image/png', 420000);
+      if (r == d.$7) file('${d.$1}r$r', 'لوحات الإصدار $r.pdf', 'application/pdf', 3200000);
+    }
+    seed++;
+  }
+  // التقارير اليومية لآخر 14 يوماً لثلاثة عقود (بفجوات)
+  final reports = <SiteReport>[];
+  const works = ['حفر خنادق الصرف وتسوية القاع', 'صب خرسانة النظافة للقواعد', 'تركيب السقالات على الواجهة الشمالية',
+    'إزالة الدهانات القديمة بالطرق الآمنة', 'نقل المخلفات إلى المكب المعتمد', 'تمديد مواسير المياه قطر 200 مم'];
+  var rid = 0;
+  for (final (k, pid) in ['p-001', 'p-003', 'p-005'].indexed) {
+    for (var d = 0; d < 14; d++) {
+      final day = _d(d);
+      if (day.weekday == DateTime.friday) continue;
+      if ((d + k * 2) % 5 == 3) continue;
+      rid++;
+      final id = 'rep$rid';
+      reports.add(SiteReport.fromMap({
+        'id': id, 'project_id': pid, 'report_date': _day(d), 'weather': ['clear', 'clear', 'dust', 'cloudy', 'hot', 'clear', 'wind'][(d + k) % 7],
+        'temp_c': 22 + (d % 6), 'workers': 12 + (d * 3 + k * 5) % 20, 'equipment': 'حفار، قلاب، خلاطة',
+        'works_done': works[(d + k) % works.length], 'issues': (d + k) % 4 == 1 ? 'تأخر وصول شاحنة المواسير من المورد' : '',
+        'safety': d % 6 == 2 ? 'عامل دون خوذة؛ نُبّه المقاول' : '', 'next_plan': 'استكمال الأعمال في المقطع التالي',
+        'progress_pct': 30 + (14 - d) * 2, 'reviewed_at': d > 2 ? _iso(d - 1) : null, 'review_note': d > 2 && d % 3 == 0 ? 'يُتابع التوريد' : '',
+        'created_by': 'u-3', 'created_at': _iso(d),
+      }));
+      if (d < 3) {
+        file('x', 'الموقع صباحاً.jpg', 'image/jpeg', 380000, report: id);
+        file('x', 'الأعمال المنفذة.jpg', 'image/jpeg', 410000, report: id);
+      }
+    }
+  }
+  app.docs = DocIndex(items: items, revisions: revs, files: files, reports: reports);
+  app.v8Ready = true;
+  // كل ملف صورة يأخذ لوحة تجريبية بلون إصداره
+  var n = 0;
+  final byPath = <String, MemoryImage>{};
+  for (final f in files) {
+    if (f.isImage) byPath[f.path] = _demoImage(f.path, n++);
+  }
+  debugSlideImage = (f) => byPath[f.path] ?? _demoImage('x', 0);
+}
+
+/// تحميل الصور التجريبية ونصوص الدليل خارج الوقت الوهمي للاختبار.
+Future<void> _preload(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    await loadManualTexts();
+    for (final im in _demoImages.values) {
+      final c = Completer<void>();
+      final stream = im.resolve(ImageConfiguration.empty);
+      late final ImageStreamListener l;
+      l = ImageStreamListener((_, __) {
+        if (!c.isCompleted) c.complete();
+        stream.removeListener(l);
+      }, onError: (_, __) {
+        if (!c.isCompleted) c.complete();
+      });
+      stream.addListener(l);
+      await c.future;
+    }
+  });
+}
+
 Future<void> _shot(WidgetTester tester, String name, AppState app, Widget page,
     {Size size = _desktop, bool dark = false, String appearanceKey = ''}) async {
   await tester.binding.setSurfaceSize(size);
@@ -674,5 +832,37 @@ void main() {
     await _shot(tester, '76_swot_method_light', app, _scaffold(const SwotMethodPage()), size: const Size(1200, 2800));
     await _shot(tester, '77_swot_presentation_light', app, _scaffold(const SwotPresentationPage()), size: const Size(1600, 1900));
     await _shot(tester, '78_swot_presentation_mobile', app, _scaffold(const SwotPresentationPage()), size: const Size(400, 5200));
+  });
+
+  testWidgets('documents and supervision', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    app.showHub = true;
+    await _shot(tester, '94_hub_six_sections_light', app, const HomeShell(), size: const Size(1440, 1300));
+    app.showHub = false;
+    app.tab = 62;
+    await _shot(tester, '95_docs_designs_light', app, const HomeShell(), size: const Size(1440, 1500));
+    await _shot(tester, '96_docs_designs_dark_mobile', app, _scaffold(const DocsPage(kind: 'design')), size: const Size(400, 2200), dark: true);
+    await _shot(tester, '97_doc_design_detail_light', app, const DocDetailPage(itemId: 'd1'), size: const Size(1200, 2600));
+    app.tab = 61;
+    await _shot(tester, '98_docs_letters_light', app, const HomeShell(), size: const Size(1440, 1300));
+    await _shot(tester, '99_doc_boq_detail_mobile', app, const DocDetailPage(itemId: 'b3'), size: const Size(400, 1900));
+    app.tab = 60;
+    await _shot(tester, 'a0_docs_boq_light', app, const HomeShell(), size: const Size(1440, 1000));
+    await _shot(tester, 'a1_storage_light', app, _scaffold(const StoragePage()), size: const Size(1200, 1100));
+    app.tab = 70;
+    await _shot(tester, 'a2_reports_light', app, const HomeShell(), size: const Size(1440, 2600));
+    await _shot(tester, 'a3_reports_dark_mobile', app, _scaffold(const SiteReportsPage()), size: const Size(400, 3000), dark: true);
+    await _shot(tester, 'a4_report_detail_light', app, SiteReportDetailPage(reportId: app.docs.reports.first.id), size: const Size(1200, 2600));
+    app.tab = 71;
+    await _shot(tester, 'a5_coverage_light', app, const HomeShell(), size: const Size(1440, 1100));
+    app.tab = 80;
+    await _shot(tester, 'a6_manual_light_desktop', app, const HomeShell(), size: const Size(1440, 2400));
+    app.manualAnchor = '09_risk_register';
+    await _shot(tester, 'a7_manual_risk_light', app, _scaffold(const ManualPage()), size: const Size(1440, 4200));
+    app.manualAnchor = '17_docs';
+    await _shot(tester, 'a8_manual_docs_dark_mobile', app, _scaffold(const ManualPage()), size: const Size(400, 7000), dark: true);
+    await _shot(tester, 'a9_whats_new_light', app, _scaffold(const WhatsNewPage()), size: const Size(1200, 2000));
+    await _shot(tester, 'b0_contract_docs_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 6200));
   });
 }

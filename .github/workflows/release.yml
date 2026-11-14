@@ -41,6 +41,14 @@ jobs:
     name: التحقق قبل الإصدار
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      - name: دليل الاستخدام محدّث لهذا الإصدار
+        shell: bash
+        run: |
+          if ! grep -qxF "## الإصدار $VERSION" assets/manual/changelog.md; then
+            echo "::error title=دليل الاستخدام::لا يُنشر الإصدار $VERSION قبل إضافة قسم «## الإصدار $VERSION» في assets/manual/changelog.md يشرح ما تغيّر، وتحديث فصول الدليل المعنية."
+            exit 1
+          fi
       - name: الأسرار المطلوبة
         env:
           URL: ${{ secrets.SUPABASE_URL }}
@@ -183,6 +191,40 @@ jobs:
           url=$(python3 -c "import json; d=json.load(open('deploy.json')); print(d.get('url') or d.get('deploy_url') or '')")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "::notice title=الويب::$url"
+
+  manual:
+    name: دليل الاستخدام PDF
+    needs: checks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: الخطوط والأدوات
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core fonts-freefont-ttf >/dev/null
+          pip install --quiet pypdf
+      - name: بناء نسخة PDF
+        run: python3 tool/build_manual.py --version "$VERSION" --out "manual-$VERSION.pdf"
+      - name: رفعها إلى المخزن الخاص للمنظومة
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        shell: bash
+        run: |
+          auth=(-H "apikey: $SUPABASE_SERVICE_KEY")
+          case "$SUPABASE_SERVICE_KEY" in eyJ*) auth+=(-H "Authorization: Bearer $SUPABASE_SERVICE_KEY");; esac
+          for name in "manual-$VERSION.pdf" "manual-latest.pdf"; do
+            code=$(curl -s -o out.txt -w '%{http_code}' -X POST "${SUPABASE_URL%/}/storage/v1/object/docs/manual/$name" \
+              "${auth[@]}" -H "Content-Type: application/pdf" -H "x-upsert: true" --data-binary @"manual-$VERSION.pdf")
+            if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+              echo "::warning title=دليل الاستخدام::تعذّر رفع $name (HTTP $code): $(head -c 300 out.txt)"; exit 0
+            fi
+          done
+          echo "::notice title=دليل الاستخدام::نُشرت نسخة PDF للإصدار $VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manual-pdf
+          path: manual-*.pdf
 
   publish:
     name: نشر الإصدار

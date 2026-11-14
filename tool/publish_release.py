@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """نشر إصدار جديد: رفع ملفات أندرويد وويندوز إلى Supabase Storage، وتسجيل الإصدار في جدول app_releases،
-ثم حذف الملفات الأقدم (يُحتفظ بآخر ثلاثة إصدارات لكل منصة).
+ثم حذف الملفات الأقدم (يُحتفظ بآخر إصدارين لكل منصة، توفيراً لمساحة التخزين).
 
 يُشغَّل من سير العمل release على GitHub. المتغيرات:
   SUPABASE_URL, SUPABASE_SERVICE_KEY   عنوان المشروع ومفتاح الخدمة (سرّ في GitHub فقط)
@@ -14,7 +14,7 @@ import sys
 import urllib.error
 import urllib.request
 
-KEEP = 3
+KEEP = 2
 
 
 def env(name, default=None):

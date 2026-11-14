@@ -1,0 +1,393 @@
+// =====================================================================
+// دليل الاستخدام: فهرس الفصول، وربط كل صفحة بفصلها، والقيم والجداول الحية، ومحلل صيغة الفصول.
+//
+// قاعدة ثابتة: كل صفحة جديدة في القوائم (رقم في Tabs) تُربط هنا بفصل، وكل فصل ملفه في assets/manual/.
+// وتتحقق الاختبارات من ذلك (test/manual_test.dart) فلا تُضاف صفحة دون شرح.
+// =====================================================================
+
+class ManualChapter {
+  const ManualChapter(this.id, this.number, this.title);
+
+  /// اسم الملف دون الامتداد في assets/manual/
+  final String id;
+
+  /// رقم الفصل كما يُشار إليه في النص («الفصل 17»)؛ 0 للمقدمة، و-1 للملحق.
+  final int number;
+  final String title;
+
+  String get asset => 'assets/manual/$id.md';
+  String get label => number > 0 ? '$number. $title' : title;
+}
+
+const List<ManualChapter> manualChapters = [
+  ManualChapter('00_about', 0, 'عن هذا الدليل'),
+  ManualChapter('01_overview', 1, 'نظرة عامة على المنظومة'),
+  ManualChapter('02_access', 2, 'الدخول والحساب والأمان'),
+  ManualChapter('03_roles', 3, 'الأدوار والصلاحيات'),
+  ManualChapter('04_cycle', 4, 'الدورة المستندية: العقود والنماذج'),
+  ManualChapter('05_progress', 5, 'حساب نسبة إنجاز الدورة ومؤشراتها'),
+  ManualChapter('06_approvals', 6, 'الاعتمادات والدمج والدليل المرجعي'),
+  ManualChapter('07_finance', 7, 'المالية: القيم والمستخلصات والضمانات'),
+  ManualChapter('08_pm_map', 8, 'المخاطر ومتابعة المشاريع: خريطة القسم'),
+  ManualChapter('09_risk_register', 9, 'سجل المخاطر: التسجيل والتقييم'),
+  ManualChapter('10_risk_review', 10, 'سجل المخاطر: المراجعة والمتابعة والإغلاق'),
+  ManualChapter('11_risk_board', 11, 'لوحة المخاطر والسجل والمصفوفة'),
+  ManualChapter('12_pm_projects', 12, 'سجل المشاريع والتقدم الدوري'),
+  ManualChapter('13_pm_registers', 13, 'المشاكل والتأخيرات والتغييرات والدروس'),
+  ManualChapter('14_contractors', 14, 'تقييم الشركات المنفذة'),
+  ManualChapter('15_pm_dashboard', 15, 'لوحة القيادة والتنبيهات والتقرير الدوري'),
+  ManualChapter('16_swot', 16, 'تحليل SWOT'),
+  ManualChapter('17_docs', 17, 'المستندات الفنية: المقايسات والمراسلات والتصاميم'),
+  ManualChapter('18_supervision', 18, 'الإشراف: التقارير اليومية ومتابعة التغطية'),
+  ManualChapter('19_admin', 19, 'الإدارة والتدقيق والمساعد'),
+  ManualChapter('20_manual', 20, 'دليل الاستخدام داخل المنظومة'),
+  ManualChapter('21_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
+];
+
+const String manualChangelogAsset = 'assets/manual/changelog.md';
+
+/// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
+const String manualUpdated = '2026/11/14';
+
+ManualChapter? manualChapter(String id) {
+  for (final c in manualChapters) {
+    if (c.id == id) return c;
+  }
+  return null;
+}
+
+/// فصل الدليل لكل صفحة في القوائم (قيم app.tab). صفحات الإدارة لها أرقام في كل قسم.
+const Map<int, String> manualTabAnchors = {
+  // الدورة المستندية
+  0: '05_progress', // الرئيسية
+  1: '04_cycle', // العقود
+  2: '06_approvals', // الاعتمادات / طلباتي
+  3: '05_progress', // التحليل
+  4: '19_admin', // الأفكار والتطوير
+  5: '19_admin', // لوحة التحكم
+  6: '19_admin', // مساعد Claude
+  7: '07_finance', // المالية
+  8: '06_approvals', // الدليل المرجعي
+  // المخاطر ومتابعة المشاريع
+  20: '11_risk_board',
+  21: '09_risk_register',
+  22: '11_risk_board',
+  28: '19_admin',
+  29: '19_admin',
+  40: '15_pm_dashboard',
+  41: '12_pm_projects',
+  42: '12_pm_projects',
+  43: '13_pm_registers',
+  44: '13_pm_registers',
+  45: '13_pm_registers',
+  46: '13_pm_registers',
+  47: '14_contractors',
+  48: '15_pm_dashboard',
+  49: '15_pm_dashboard',
+  50: '08_pm_map',
+  51: '15_pm_dashboard',
+  // تحليل SWOT
+  30: '16_swot',
+  31: '16_swot',
+  32: '16_swot',
+  33: '16_swot',
+  34: '16_swot',
+  35: '16_swot',
+  36: '16_swot',
+  37: '16_swot',
+  38: '19_admin',
+  39: '19_admin',
+  // المستندات الفنية
+  60: '17_docs',
+  61: '17_docs',
+  62: '17_docs',
+  63: '17_docs',
+  68: '19_admin',
+  69: '19_admin',
+  // الإشراف
+  70: '18_supervision',
+  71: '18_supervision',
+  78: '19_admin',
+  79: '19_admin',
+  // دليل الاستخدام
+  80: '20_manual',
+  81: '20_manual',
+  88: '19_admin',
+  89: '19_admin',
+};
+
+/// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).
+const Map<String, String> manualSectionAnchors = {
+  'cycle': '04_cycle',
+  'risks': '08_pm_map',
+  'swot': '16_swot',
+  'docs': '17_docs',
+  'supervision': '18_supervision',
+  'manual': '20_manual',
+};
+
+String manualAnchorForTab(int tab) => manualTabAnchors[tab] ?? '00_about';
+
+// ---------------------------------------------------------------------
+// صيغة الفصول: # و## و###، فقرات، قوائم (- و1.)، جداول |، صناديق :::نوع عنوان … :::
+// وأسطر كاملة بين {{ }} لعناصر حية (مثل {{RISK_MATRIX}}).
+// ---------------------------------------------------------------------
+sealed class MBlock {
+  const MBlock();
+}
+
+class MHeading extends MBlock {
+  const MHeading(this.level, this.text);
+  final int level;
+  final String text;
+}
+
+class MParagraph extends MBlock {
+  const MParagraph(this.text);
+  final String text;
+}
+
+class MListItem {
+  const MListItem(this.text, this.depth, this.ordered, this.number);
+  final String text;
+  final int depth;
+  final bool ordered;
+  final int number;
+}
+
+class MList extends MBlock {
+  const MList(this.items);
+  final List<MListItem> items;
+}
+
+class MTable extends MBlock {
+  const MTable(this.header, this.rows);
+  final List<String> header;
+  final List<List<String>> rows;
+
+  /// جدول بلا ترويسة حقيقية (كل خلايا الترويسة فارغة).
+  bool get headless => header.every((h) => h.trim().isEmpty);
+}
+
+class MBox extends MBlock {
+  const MBox(this.kind, this.title, this.children);
+
+  /// formula | example | note | warning
+  final String kind;
+  final String title;
+  final List<MBlock> children;
+}
+
+class MWidget extends MBlock {
+  const MWidget(this.name);
+  final String name;
+}
+
+final RegExp _listRe = RegExp(r'^(\s*)(-|\d+\.)\s+(.*)$');
+final RegExp _boxRe = RegExp(r'^:::(formula|example|note|warning)\s*(.*)$');
+final RegExp _widgetRe = RegExp(r'^\{\{([A-Z_0-9]+)\}\}$');
+
+List<String> _cells(String line) {
+  var l = line.trim();
+  if (l.startsWith('|')) l = l.substring(1);
+  if (l.endsWith('|') && !l.endsWith(r'\|')) l = l.substring(0, l.length - 1);
+  final out = <String>[];
+  final b = StringBuffer();
+  for (var i = 0; i < l.length; i++) {
+    if (l[i] == r'\' && i + 1 < l.length && l[i + 1] == '|') {
+      b.write('|');
+      i++;
+    } else if (l[i] == '|') {
+      out.add(b.toString().trim());
+      b.clear();
+    } else {
+      b.write(l[i]);
+    }
+  }
+  out.add(b.toString().trim());
+  return out;
+}
+
+bool _isSeparator(String line) => RegExp(r'^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{0,}:?\s*\|?$').hasMatch(line.trim());
+
+/// يحلل نص الفصل إلى كتل.
+List<MBlock> parseManual(String text) {
+  final lines = text.replaceAll('\r\n', '\n').split('\n');
+  var i = 0;
+
+  List<MBlock> parse({bool inBox = false}) {
+    final out = <MBlock>[];
+    final para = <String>[];
+    void flush() {
+      if (para.isNotEmpty) {
+        out.add(MParagraph(para.join('\n')));
+        para.clear();
+      }
+    }
+
+    while (i < lines.length) {
+      final raw = lines[i];
+      final line = raw.trimRight();
+      final t = line.trim();
+      if (inBox && t == ':::') {
+        flush();
+        i++;
+        return out;
+      }
+      if (t.isEmpty) {
+        flush();
+        i++;
+        continue;
+      }
+      final box = _boxRe.firstMatch(t);
+      if (box != null) {
+        flush();
+        i++;
+        final children = parse(inBox: true);
+        out.add(MBox(box.group(1)!, box.group(2)!.trim(), children));
+        continue;
+      }
+      final w = _widgetRe.firstMatch(t);
+      if (w != null) {
+        flush();
+        out.add(MWidget(w.group(1)!));
+        i++;
+        continue;
+      }
+      if (t.startsWith('#')) {
+        flush();
+        final level = t.indexOf(RegExp(r'[^#]'));
+        out.add(MHeading(level.clamp(1, 3), t.substring(level).trim()));
+        i++;
+        continue;
+      }
+      if (t.startsWith('|') && i + 1 < lines.length && _isSeparator(lines[i + 1])) {
+        flush();
+        final header = _cells(t);
+        i += 2;
+        final rows = <List<String>>[];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+          final c = _cells(lines[i]);
+          rows.add([for (var k = 0; k < header.length; k++) k < c.length ? c[k] : '']);
+          i++;
+        }
+        out.add(MTable(header, rows));
+        continue;
+      }
+      if (_listRe.hasMatch(line)) {
+        flush();
+        final items = <MListItem>[];
+        while (i < lines.length) {
+          final m = _listRe.firstMatch(lines[i].trimRight());
+          if (m == null) break;
+          final depth = m.group(1)!.length ~/ 2;
+          final mark = m.group(2)!;
+          final ordered = mark != '-';
+          items.add(MListItem(m.group(3)!, depth, ordered, ordered ? int.parse(mark.substring(0, mark.length - 1)) : 0));
+          i++;
+        }
+        out.add(MList(items));
+        continue;
+      }
+      para.add(t);
+      i++;
+    }
+    flush();
+    return out;
+  }
+
+  return parse();
+}
+
+/// أجزاء نص مضمّن: (النص، عريض، مائل، شيفرة)
+List<(String, bool, bool, bool)> parseInline(String s) {
+  final out = <(String, bool, bool, bool)>[];
+  final re = RegExp(r'\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`');
+  var pos = 0;
+  for (final m in re.allMatches(s)) {
+    if (m.start > pos) out.add((s.substring(pos, m.start), false, false, false));
+    if (m.group(1) != null) {
+      // عريض قد يحتوي مائلاً: نكتفي بالعريض
+      out.add((m.group(1)!.replaceAll('*', ''), true, false, false));
+    } else if (m.group(2) != null) {
+      out.add((m.group(2)!, false, true, false));
+    } else {
+      out.add((m.group(3)!, false, false, true));
+    }
+    pos = m.end;
+  }
+  if (pos < s.length) out.add((s.substring(pos), false, false, false));
+  return out;
+}
+
+/// النص المجرد للبحث (دون علامات التنسيق).
+String manualPlain(String md) => md
+    .replaceAll(RegExp(r'^:::\w*\s*', multiLine: true), '')
+    .replaceAll(RegExp(r'[*`#|]'), ' ')
+    .replaceAll(RegExp(r'\s+'), ' ');
+
+/// عدد مرات ورود [q] في [text] (بتطبيع بسيط للهمزات والتاء المربوطة).
+int manualCount(String text, String q) {
+  final n = _norm(q.trim());
+  if (n.isEmpty) return 0;
+  final h = _norm(text);
+  var c = 0;
+  var i = h.indexOf(n);
+  while (i >= 0) {
+    c++;
+    i = h.indexOf(n, i + n.length);
+  }
+  return c;
+}
+
+String _norm(String s) => s
+    .replaceAll(RegExp('[أإآ]'), 'ا')
+    .replaceAll('ة', 'ه')
+    .replaceAll('ى', 'ي')
+    .replaceAll(RegExp('[ً-ْـ]'), '')
+    .toLowerCase();
+
+/// يستبدل القيم الحية المضمّنة {{NAME}} بقيمها. الأسماء غير المعروفة تبقى كما هي.
+String applyManualValues(String text, Map<String, String> values) =>
+    text.replaceAllMapped(RegExp(r'\{\{([A-Z_0-9]+)\}\}'), (m) => values[m.group(1)!] ?? m.group(0)!);
+
+/// الجهات المسؤولة عن النماذج بأسمائها في الدليل.
+const Map<String, String> manualResponsibleLabels = {
+  'office_staff': 'موظفو مكتب المدير',
+  'head:supervising': 'رئيس القسم المشرف',
+  'head:technical': 'رئيس قسم الشؤون الفنية',
+  'head:acceptance': 'رئيس قسم المطابقة والاستلام',
+  'contracts': 'مكتب العقود والمستخلصات',
+  'planning_qa': 'مكتب التخطيط وضمان الجودة',
+};
+
+/// جدول النماذج الحي بصيغة الدليل: (مرحلة، نماذجها) → صفوف.
+String manualFormsTable({
+  required List<String> stageNames,
+  required List<({String name, int stage, bool sensitive, List<String> responsible})> forms,
+}) {
+  final b = StringBuffer('| م | النموذج | المسؤول عن التحديث (مع المدير) | حساس |\n| --- | --- | --- | --- |\n');
+  var n = 0;
+  for (var st = 0; st < stageNames.length; st++) {
+    final fs = forms.where((f) => f.stage == st).toList();
+    if (fs.isEmpty) continue;
+    b.write('| | **المرحلة ${st + 1}: ${stageNames[st]} (${fs.length})** | | |\n');
+    for (final f in fs) {
+      n++;
+      final resp = f.responsible.map((r) => manualResponsibleLabels[r] ?? r).join('، ');
+      b.write('| $n | ${f.name} | $resp | ${f.sensitive ? '●' : ''} |\n');
+    }
+  }
+  return b.toString();
+}
+
+/// جدول مستويات الخطر الحي: (الاسم، الحد الأدنى، الإجراء، دورية المراجعة) مرتبة تصاعدياً.
+String manualLevelsTable(List<({String name, int min, String action, int? reviewDays})> levels) {
+  final b = StringBuffer('| المستوى | نطاق الدرجة | الاستجابة ومسار التصعيد | دورية المراجعة |\n| --- | --- | --- | --- |\n');
+  for (var i = levels.length - 1; i >= 0; i--) {
+    final l = levels[i];
+    final hi = i + 1 < levels.length ? levels[i + 1].min - 1 : 25;
+    b.write('| **${l.name}** | ${l.min} – $hi | ${l.action} | ${l.reviewDays == null ? '—' : '${l.reviewDays} يوماً'} |\n');
+  }
+  return b.toString();
+}

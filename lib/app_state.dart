@@ -7,9 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
+import 'docs.dart';
 import 'models.dart';
 import 'pm.dart';
 import 'registers.dart';
+import 'services/doc_files.dart';
 import 'ui/appearance.dart';
 
 /// حالة التطبيق المشتركة: البيانات، التحديث اللحظي، والعمليات على قاعدة البيانات.
@@ -77,6 +79,11 @@ class AppState extends ChangeNotifier {
 
   /// الترحيل 18: خيار «لا ينطبق» للضمان الابتدائي (وحراسة «لا ينطبق» لتكليف المهندسين في القاعدة).
   bool naReady = false;
+
+  // الترحيل 20: «المستندات الفنية» (المقايسات والمراسلات والتصاميم) و«الإشراف» (التقارير اليومية)
+  DocIndex docs = DocIndex.empty();
+  bool v8Ready = false;
+  late final SignedUrls signedUrls = SignedUrls(client);
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -238,6 +245,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel5;
   RealtimeChannel? _channel6;
   RealtimeChannel? _channel7;
+  RealtimeChannel? _channel8;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -570,6 +578,7 @@ class AppState extends ChangeNotifier {
       await _loadV4();
       await _loadV6();
       await _loadV7();
+      await _loadV8();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -759,6 +768,33 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// المستندات الفنية والتقارير اليومية (الترحيل 20)؛ يعمل التطبيق بدونها كما كان.
+  Future<void> _loadV8() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('doc_items').select().order('doc_date', ascending: false),
+        client.from('doc_revisions').select().order('rev_no'),
+        client.from('doc_files').select().order('sort'),
+        client.from('site_reports').select().order('report_date', ascending: false).limit(5000),
+      ]);
+      docs = DocIndex(
+        items: r[0].map(DocItem.fromMap).toList(),
+        revisions: r[1].map(DocRevision.fromMap).toList(),
+        files: r[2].map(DocFile.fromMap).toList(),
+        reports: r[3].map(SiteReport.fromMap).toList(),
+      );
+      v8Ready = true;
+    } catch (_) {
+      docs = DocIndex.empty();
+      v8Ready = false;
+    }
+  }
+
+  Future<void> _afterV8() async {
+    await _loadV8();
+    _notify();
+  }
+
   void _clearV7() {
     schedules = {};
     measurements = [];
@@ -861,6 +897,16 @@ class AppState extends ChangeNotifier {
     }
     ch7.subscribe();
     _channel7 = ch7;
+
+    // قناة الترحيل 20: المستندات الفنية والتقارير اليومية
+    final old8 = _channel8;
+    if (old8 != null) client.removeChannel(old8);
+    final ch8 = client.channel('dc-v8');
+    for (final t in const ['doc_items', 'doc_revisions', 'doc_files', 'site_reports']) {
+      ch8.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch8.subscribe();
+    _channel8 = ch8;
   }
 
   void scheduleReload() {
@@ -895,6 +941,12 @@ class AppState extends ChangeNotifier {
     final old7 = _channel7;
     if (old7 != null) client.removeChannel(old7);
     _channel7 = null;
+    final old8 = _channel8;
+    if (old8 != null) client.removeChannel(old8);
+    _channel8 = null;
+    docs = DocIndex.empty();
+    v8Ready = false;
+    signedUrls.clear();
     _clearV7();
     risks = [];
     swotFactors = [];
@@ -905,7 +957,10 @@ class AppState extends ChangeNotifier {
     _lastTab
       ..['cycle'] = 0
       ..['risks'] = 20
-      ..['swot'] = 30;
+      ..['swot'] = 30
+      ..['docs'] = 60
+      ..['supervision'] = 70
+      ..['manual'] = 80;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -965,6 +1020,8 @@ class AppState extends ChangeNotifier {
     if (old6 != null) client.removeChannel(old6);
     final old7 = _channel7;
     if (old7 != null) client.removeChannel(old7);
+    final old8 = _channel8;
+    if (old8 != null) client.removeChannel(old8);
     _heartbeat?.cancel();
     super.dispose();
   }
@@ -979,10 +1036,19 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
-  /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39).
-  static String sectionOf(int t) => t >= 40 && t < 60 ? 'risks' : (t >= 30 ? 'swot' : (t >= 20 ? 'risks' : 'cycle'));
+  /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39)،
+  /// المستندات الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89).
+  static String sectionOf(int t) => switch (t) {
+        >= 80 && < 90 => 'manual',
+        >= 70 && < 80 => 'supervision',
+        >= 60 && < 70 => 'docs',
+        >= 40 && < 60 => 'risks',
+        >= 30 && < 40 => 'swot',
+        >= 20 && < 30 => 'risks',
+        _ => 'cycle',
+      };
   String get section => sectionOf(tab);
-  final Map<String, int> _lastTab = {'cycle': 0, 'risks': 20, 'swot': 30};
+  final Map<String, int> _lastTab = {'cycle': 0, 'risks': 20, 'swot': 30, 'docs': 60, 'supervision': 70, 'manual': 80};
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
   void openSection(String s) {
@@ -1009,6 +1075,28 @@ class AppState extends ChangeNotifier {
   void openFinance({String view = 'summary', String? status}) {
     financeRequest = (view: view, status: status, seq: ++_financeSeq);
     setTab(7);
+  }
+
+  /// فتح صفحة من «المستندات الفنية» أو «الإشراف» مصفّاة على عقد (تستهلكه الصفحة مرة واحدة).
+  String? _docsProject;
+
+  void openDocsTab(int tab, {String? projectId}) {
+    _docsProject = projectId;
+    setTab(tab);
+  }
+
+  String? takeDocsProject() {
+    final p = _docsProject;
+    _docsProject = null;
+    return p;
+  }
+
+  /// فتح دليل الاستخدام على فصل محدد (يستهلكه الدليل مرة واحدة).
+  String? manualAnchor;
+
+  void openManual([String? anchor]) {
+    manualAnchor = anchor;
+    setTab(80);
   }
 
   void openProjects({CycleState? cycle, int? stage, String? form, bool nextOnly = false}) {
@@ -1525,6 +1613,141 @@ class AppState extends ChangeNotifier {
     await client.rpc('delete_pm_record', params: {'p_kind': kind, 'p_id': id});
     await _afterV7(finance: kind == 'change');
   }
+
+  // ---------------------------------------------------------------
+  // المستندات الفنية والتقارير اليومية (الترحيل 20)
+  // ---------------------------------------------------------------
+  /// هل يملك المستخدم إضافة/تعديل هذا النوع من المستندات لهذا العقد؟ (للعرض فقط؛ القاعدة تتحقق)
+  bool canEditDoc(String kind, String? projectId) {
+    final r = role;
+    if (!v8Ready || r == null || r == AppRole.securityAuditor) return false;
+    if (r == AppRole.director) return true;
+    if (frozenForMe) return false;
+    final dep = me?.department;
+    final p = projectId == null || projectId.isEmpty ? null : project(projectId);
+    return switch (kind) {
+      'boq' => r == AppRole.officeStaff || r == AppRole.contracts || (r == AppRole.deptHead && (dep == 'technical' || dep == 'acceptance')),
+      'letter' => r != AppRole.securityAuditor,
+      'design' => r == AppRole.officeStaff ||
+          (r == AppRole.deptHead && (dep == 'technical' || dep == 'restoration' || (p != null && p.department == dep))),
+      _ => false,
+    };
+  }
+
+  /// هل يملك إضافة هذا النوع لأي عقد أو بشكل عام؟ (لإظهار زر الإضافة)
+  bool canAddDoc(String kind) =>
+      canEditDoc(kind, null) || (kind == 'design' && role == AppRole.deptHead && projects.any((p) => canEditDoc(kind, p.id)));
+
+  /// التقرير اليومي: المدير، وموظفو مكتب المدير، ورئيس القسم المشرف على العقد.
+  bool canEditReport(String projectId) {
+    final r = role;
+    if (!v8Ready || r == null) return false;
+    if (r == AppRole.director) return true;
+    if (frozenForMe) return false;
+    if (r == AppRole.officeStaff) return true;
+    final p = project(projectId);
+    return r == AppRole.deptHead && p != null && p.department == me?.department;
+  }
+
+  bool get canAddReport => projects.any((p) => canEditReport(p.id));
+
+  /// حذف إصدار أو ملف أو تقرير: المدير، أو صاحبه خلال 24 ساعة.
+  bool canRemoveOwn(String? createdBy, DateTime? createdAt) =>
+      isDirector ||
+      (!frozenForMe &&
+          createdBy != null &&
+          createdBy == me?.id &&
+          createdAt != null &&
+          DateTime.now().difference(createdAt) < const Duration(hours: 23, minutes: 50));
+
+  /// حفظ مستند؛ يعيد (معرّف المستند، معرّف أحدث إصدار).
+  Future<(String, String?)> saveDocItem(String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_doc_item', params: {'p_id': id, 'p_data': data});
+    await _afterV8();
+    final m = res is Map ? res : const {};
+    return (m['item_id'].toString(), m['revision_id']?.toString());
+  }
+
+  Future<String> saveDocRevision(String? id, String itemId, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_doc_revision', params: {'p_id': id, 'p_item': itemId, 'p_data': data});
+    await _afterV8();
+    return res.toString();
+  }
+
+  Future<void> deleteDocRevision(String id) async {
+    final paths = await client.rpc('delete_doc_revision', params: {'p_id': id});
+    await removeDocObjects(client, _paths(paths));
+    await _afterV8();
+  }
+
+  Future<void> deleteDocItem(String id) async {
+    final paths = await client.rpc('delete_doc_item', params: {'p_id': id});
+    await removeDocObjects(client, _paths(paths));
+    await _afterV8();
+  }
+
+  Future<String> saveSiteReport(String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_site_report', params: {'p_id': id, 'p_data': data});
+    await _afterV8();
+    return res.toString();
+  }
+
+  Future<void> reviewSiteReport(String id, bool reviewed, String note) async {
+    await client.rpc('review_site_report', params: {'p_id': id, 'p_reviewed': reviewed, 'p_note': note});
+    await _afterV8();
+  }
+
+  Future<void> deleteSiteReport(String id) async {
+    final paths = await client.rpc('delete_site_report', params: {'p_id': id});
+    await removeDocObjects(client, _paths(paths));
+    await _afterV8();
+  }
+
+  /// يرفع الملفات ويسجّلها لإصدار مستند ([scope] = doc) أو لتقرير يومي ([scope] = report).
+  /// يعيد عدد ما رُفع؛ ويرمي خطأً بأول ملف يتعذّر رفعه بعد تسجيل ما سبقه.
+  Future<int> attachFiles(String scope, String ownerId, List<PickedDoc> files, {void Function(int done)? onProgress}) async {
+    var done = 0;
+    try {
+      for (final f in files) {
+        final path = newDocPath(scope, ownerId, f.ext);
+        await uploadDoc(client, path, f);
+        try {
+          await client.rpc('add_doc_file', params: {'p_path': path, 'p_name': f.name, 'p_width': f.width, 'p_height': f.height});
+        } catch (_) {
+          await removeDocObjects(client, [path]);
+          rethrow;
+        }
+        done++;
+        onProgress?.call(done);
+      }
+    } finally {
+      await _afterV8();
+    }
+    return done;
+  }
+
+  Future<void> deleteDocFile(String id) async {
+    final path = await client.rpc('delete_doc_file', params: {'p_id': id});
+    if (path != null) await removeDocObjects(client, [path.toString()]);
+    await _afterV8();
+  }
+
+  /// المساحة المستخدمة: (المستندات، غيرها، عدد الملفات، الحد)
+  Future<(int, int, int, int)> storageUsage() async {
+    final res = await client.rpc('docs_storage_usage');
+    final m = res is Map ? res : const {};
+    int n(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? 0}') ?? 0;
+    return (n(m['docs_bytes']), n(m['other_bytes']), n(m['files']), n(m['limit_bytes']));
+  }
+
+  /// تنظيف الملفات اليتيمة في الحاوية (للمدير). يعيد عددها.
+  Future<int> cleanOrphanFiles() async {
+    final paths = _paths(await client.rpc('docs_orphan_paths'));
+    await removeDocObjects(client, paths);
+    return paths.length;
+  }
+
+  static List<String> _paths(Object? res) => res is List ? [for (final p in res) if (p != null) p.toString()] : const [];
 
   Future<void> deleteExtractPayment(String id) async {
     await client.rpc('delete_extract_payment', params: {'p_id': id});
@@ -2144,6 +2367,19 @@ String friendlyError(Object e) {
     if (m.contains('contract_extracts_period')) return 'بداية فترة المستخلص بعد نهايتها.';
     return m;
   }
+  if (e is StorageException) {
+    final m = e.message.toLowerCase();
+    if (m.contains('row-level security') || m.contains('unauthorized') || e.statusCode == '403') {
+      return 'لا تملك صلاحية رفع هذا الملف أو قراءته.';
+    }
+    if (m.contains('too large') || m.contains('payload') || m.contains('maximum allowed size')) {
+      return 'الملف أكبر من الحد المسموح (20 ميجابايت).';
+    }
+    if (m.contains('mime') || m.contains('not supported')) return 'نوع الملف غير مسموح؛ المسموح PDF والصور.';
+    if (m.contains('not found')) return 'الملف غير موجود في المخزن؛ ربما حُذف.';
+    return e.message;
+  }
+  if (e is StateError) return e.message;
   if (e is AuthException) {
     final m = e.message.toLowerCase();
     if (m.contains('invalid login')) return 'البريد أو كلمة المرور غير صحيحة.';

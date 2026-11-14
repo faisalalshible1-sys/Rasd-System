@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../config.dart';
+import '../manual.dart';
 import '../models.dart';
 import '../registers.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'finance.dart' show FinanceStats;
+import 'supervision.dart' show activeSiteProjects;
 
-/// الأقسام الرئيسية الثلاثة للمنظومة: (المفتاح، الاسم، الوصف، الأيقونة)
+/// الأقسام الرئيسية للمنظومة: (المفتاح، الاسم، الوصف، الأيقونة)
 const List<(String, String, String, IconData)> appSections = [
   ('cycle', 'الدورة المستندية', 'متابعة نماذج العقود ومراحلها الخمس، والمالية والمستخلصات، مع الدليل المرجعي للدورة.',
       Icons.account_tree_rounded),
@@ -17,7 +20,22 @@ const List<(String, String, String, IconData)> appSections = [
       Icons.warning_amber_rounded),
   ('swot', 'تحليل SWOT', 'عوامل القوة والضعف والفرص والتهديدات، والتقييم المرجح، واستراتيجيات TOWS وخطة التنفيذ.',
       Icons.grid_view_rounded),
+  ('docs', 'المستندات الفنية',
+      'المقايسات والمراسلات بصيغة PDF، والتصاميم بعرض صور متحرك يتوقف عند التأشير، مع مسار تطوير كل مستند بإصداراته.',
+      Icons.folder_copy_rounded),
+  ('supervision', 'الإشراف',
+      'التقارير اليومية للمواقع: الأعمال المنفذة والعمالة والمعدات والمعوقات والسلامة، مع صور الموقع ومتابعة التغطية.',
+      Icons.engineering_rounded),
+  ('manual', 'دليل الاستخدام', 'شرح كامل لكل أقسام المنظومة وإجراءاتها وطريقة كل حساب، ويُحدَّث مع كل إصدار جديد.',
+      Icons.menu_book_rounded),
 ];
+
+/// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والمستندات والإشراف الترحيل 20)
+bool sectionEnabled(AppState app, String key) => switch (key) {
+      'cycle' || 'manual' => true,
+      'docs' || 'supervision' => app.v8Ready,
+      _ => app.v6Ready,
+    };
 
 String sectionName(String key) => appSections.firstWhere((s) => s.$1 == key, orElse: () => appSections.first).$2;
 IconData sectionIcon(String key) => appSections.firstWhere((s) => s.$1 == key, orElse: () => appSections.first).$4;
@@ -28,11 +46,14 @@ Color sectionColor(BuildContext context, String key) {
   return switch (key) {
     'risks' => dark ? const Color(0xFFF08A5D) : const Color(0xFFB4441C),
     'swot' => dark ? const Color(0xFF7FB2F0) : const Color(0xFF2B62A8),
+    'docs' => dark ? const Color(0xFF5EC4B6) : const Color(0xFF0F766E),
+    'supervision' => dark ? const Color(0xFFB39DFF) : const Color(0xFF6D3FB2),
+    'manual' => dark ? const Color(0xFFB8C2CE) : const Color(0xFF4F5B69),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
 
-/// شاشة الدخول: الأقسام الرئيسية الثلاثة كقوائم منفصلة، ولكل قسم مؤشرات حية مختصرة.
+/// شاشة الدخول: الأقسام الرئيسية كقوائم منفصلة، ولكل قسم مؤشرات حية مختصرة.
 class SectionHub extends StatelessWidget {
   const SectionHub({super.key});
 
@@ -41,10 +62,10 @@ class SectionHub extends StatelessWidget {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
-    if (!app.loadedOnce) return const SkeletonPage(cards: 3);
+    if (!app.loadedOnce) return const SkeletonPage(cards: 6);
     final first = (app.me?.displayName ?? '').split(' ').where((w) => w.isNotEmpty).take(2).join(' ');
     return PageBody(
-      maxWidth: 1100,
+      maxWidth: 1180,
       onRefresh: app.loadAll,
       children: staggered([
         Padding(
@@ -56,7 +77,7 @@ class SectionHub extends StatelessWidget {
           child: Text('اختر القسم الذي تعمل عليه. لكل قسم قائمته الخاصة، وتعود إلى هذه الشاشة من زر «الأقسام» في أعلى الصفحة.',
               style: t.bodyMedium?.copyWith(color: sem.muted)),
         ),
-        ResponsiveGrid(minItemWidth: 300, spacing: 14, children: [
+        ResponsiveGrid(minItemWidth: 330, spacing: 14, children: [
           for (final s in appSections) _SectionCard(app: app, section: s),
         ]),
         if (!app.v6Ready)
@@ -64,6 +85,14 @@ class SectionHub extends StatelessWidget {
             padding: EdgeInsets.only(top: 16),
             child: InfoBanner(
               text: 'سجل المخاطر وتحليل SWOT يعملان بعد تحديث قاعدة البيانات بالملف 20261109000015_risks_swot.sql.',
+              level: 'warning',
+            ),
+          ),
+        if (app.v6Ready && !app.v8Ready)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: InfoBanner(
+              text: 'المستندات الفنية والإشراف يعملان بعد تحديث قاعدة البيانات بالملف 20261114000020_documents_supervision.sql.',
               level: 'warning',
             ),
           ),
@@ -100,6 +129,41 @@ class _SectionCard extends StatelessWidget {
           ('${st.risks.where((r) => !r.isClosed && app.riskConfig.isHigh(r.score)).length}', 'مرتفعة نشطة', sem.danger),
           ('$overdue', 'مراجعة متأخرة', overdue > 0 ? sem.wip : null),
         ];
+      case 'docs':
+        if (!app.v8Ready) return const [];
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final letters = app.docs.ofKind('letter');
+        final open = letters.where((l) => l.status == 'open').length;
+        final late = letters.where((l) => l.overdue(today)).length;
+        return [
+          ('${app.docs.ofKind('boq').length}', 'مقايسة', null),
+          ('$open', late > 0 ? 'مراسلة ($late متأخرة)' : 'مراسلة بانتظار رد', late > 0 ? sem.danger : (open > 0 ? sem.wip : null)),
+          ('${app.docs.ofKind('design').length}', 'تصميماً', null),
+        ];
+      case 'supervision':
+        if (!app.v8Ready) return const [];
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final active = activeSiteProjects(app);
+        final reps = app.docs.reports;
+        final todayN = reps.where((r) => r.reportDate == today && active.contains(r.projectId)).map((r) => r.projectId).toSet().length;
+        final week = reps.where((r) => !r.reportDate.isBefore(today.subtract(const Duration(days: 6)))).length;
+        final unreviewed = reps.where((r) => !r.reviewed).length;
+        return [
+          ('$todayN/${active.length}', 'تقارير اليوم', todayN < active.length ? sem.wip : sem.ok),
+          ('$week', 'تقريراً هذا الأسبوع', null),
+          if (app.isDirector)
+            ('$unreviewed', 'بانتظار اطلاعك', unreviewed > 0 ? sem.wip : null)
+          else
+            ('${reps.where((r) => r.hasIssues && !r.reportDate.isBefore(today.subtract(const Duration(days: 6)))).length}', 'بمعوقات', sem.danger),
+        ];
+      case 'manual':
+        return [
+          ('${manualChapters.length}', 'فصلاً', null),
+          (AppConfig.appVersion, 'إصدار الدليل', Theme.of(context).colorScheme.primary),
+          ('PDF', 'نسخة للطباعة', null),
+        ];
       case 'swot':
         if (!app.v6Ready) return const [];
         final a = app.swot;
@@ -126,7 +190,7 @@ class _SectionCard extends StatelessWidget {
     final sem = Sem.of(context);
     final t = Theme.of(context).textTheme;
     final color = sectionColor(context, section.$1);
-    final enabled = section.$1 == 'cycle' || app.v6Ready;
+    final enabled = sectionEnabled(app, section.$1);
     final stats = _stats(context);
     final radius = BorderRadius.circular(appearance.radius.clamp(12, 24).toDouble());
     return HoverLift(
@@ -226,24 +290,25 @@ class SectionSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
+    Widget item((String, String, String, IconData) s) => Expanded(
+          child: Tooltip(
+            message: s.$2,
+            child: _SwitchItem(
+              label: s.$2,
+              icon: s.$4,
+              color: sectionColor(context, s.$1),
+              selected: app.section == s.$1,
+              enabled: sectionEnabled(app, s.$1),
+              onTap: () => app.openSection(s.$1),
+            ),
+          ),
+        );
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: sem.rule)),
-      child: Row(children: [
-        for (final s in appSections)
-          Expanded(
-            child: Tooltip(
-              message: s.$2,
-              child: _SwitchItem(
-                label: s.$2,
-                icon: s.$4,
-                color: sectionColor(context, s.$1),
-                selected: app.section == s.$1,
-                enabled: s.$1 == 'cycle' || app.v6Ready,
-                onTap: () => app.openSection(s.$1),
-              ),
-            ),
-          ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 0; i < appSections.length; i += 3)
+          Row(children: [for (final s in appSections.skip(i).take(3)) item(s)]),
       ]),
     );
   }

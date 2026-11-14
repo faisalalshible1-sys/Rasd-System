@@ -1068,6 +1068,20 @@ const Map<String, String> auditActionLabels = {
   'security.device_block': 'حظر جهازاً',
   'security.device_unblock': 'رفع حظر جهاز',
   'security.device_blocked_attempt': 'حاول الدخول من جهاز محظور',
+  'doc.create': 'أضاف مستنداً فنياً',
+  'doc.update': 'عدّل مستنداً فنياً',
+  'doc.delete': 'حذف مستنداً فنياً',
+  'doc.revision_add': 'أضاف إصداراً لمستند',
+  'doc.revision_update': 'عدّل إصدار مستند',
+  'doc.revision_delete': 'حذف إصدار مستند',
+  'doc.file_add': 'أرفق ملفاً بمستند',
+  'doc.file_delete': 'أزال ملفاً من مستند',
+  'report.create': 'رفع تقريراً يومياً',
+  'report.update': 'عدّل تقريراً يومياً',
+  'report.delete': 'حذف تقريراً يومياً',
+  'report.review': 'اطّلع على تقرير يومي',
+  'report.file_add': 'أرفق صورة أو ملفاً بتقرير يومي',
+  'report.file_delete': 'أزال ملفاً من تقرير يومي',
 };
 
 const Map<String, String> projectFieldLabels = {

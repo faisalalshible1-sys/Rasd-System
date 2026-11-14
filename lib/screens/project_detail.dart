@@ -9,6 +9,7 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_finance.dart';
+import 'docs.dart' show ContractDocsCard;
 import 'pm_projects.dart' show ProjectTrackCard;
 import 'projects.dart';
 
@@ -505,6 +506,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         VariationsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
       _cycleCard(context, app, p, pr),
       if (app.v7Ready) ProjectTrackCard(project: p),
+      if (app.v8Ready) ContractDocsCard(project: p),
       if (app.activeFields.isNotEmpty) _extraCard(context, app, p),
       _notesCard(context, app, p),
       if (app.isDirector || app.settings.feature('quality_notes')) _qualityCard(context, app, p),

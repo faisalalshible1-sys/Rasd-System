@@ -247,6 +247,36 @@ String auditDescription(AppState app, AuditEntry e) {
         _ => 'التقييم الميداني',
       };
       return 'حذف $what ${text(d['code'] ?? d['company'])}${text(d['description']).isNotEmpty ? ': ${text(d['description'])}' : ''}';
+    case 'doc.create':
+      return 'أضاف ${_docKind(d['kind'])}: ${text(d['title'])}${text(d['ref_no']).isNotEmpty ? ' (رقم ${text(d['ref_no'])})' : ''}';
+    case 'doc.update':
+      return 'عدّل ${_docKind(d['kind'])} «${text(d['title'])}»${_changed(d['changes'])}';
+    case 'doc.delete':
+      return 'حذف ${_docKind(d['kind'])} «${text(d['title'])}» بكل إصداراته (${text(d['files'])} ملف)';
+    case 'doc.revision_add':
+      return 'أضاف الإصدار ${text(d['rev_no'])} إلى ${_docKind(d['kind'])} «${text(d['title'])}»${text(d['note']).isNotEmpty ? ': ${text(d['note'])}' : ''}';
+    case 'doc.revision_update':
+      return 'عدّل بيانات الإصدار ${text(d['rev_no'])} من ${_docKind(d['kind'])} «${text(d['title'])}»';
+    case 'doc.revision_delete':
+      return 'حذف الإصدار ${text(d['rev_no'])} من ${_docKind(d['kind'])} «${text(d['title'])}» (${text(d['files'])} ملف)';
+    case 'doc.file_add':
+      return 'أرفق «${text(d['file'])}» بالإصدار ${text(d['rev_no'])} من ${_docKind(d['kind'])} «${text(d['title'])}»';
+    case 'doc.file_delete':
+    case 'report.file_delete':
+      return 'أزال الملف «${text(d['file'])}»';
+    case 'report.create':
+      return 'رفع التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
+    case 'report.update':
+      return 'عدّل التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}${_changed(d['changes'])}';
+    case 'report.delete':
+      return 'حذف التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
+    case 'report.review':
+      final note = text(d['note']);
+      return d['reviewed'] == true
+          ? 'اطّلع على التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}${note.isNotEmpty ? ' — $note' : ''}'
+          : 'ألغى الاطلاع على التقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
+    case 'report.file_add':
+      return 'أرفق «${text(d['file'])}» بالتقرير اليومي ليوم ${text(d['date']).replaceAll('-', '/')}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }
@@ -352,6 +382,25 @@ const Map<String, String> _registerFields = {
   'cooperation': 'الاستجابة والتعاون',
   'documentation': 'التوثيق',
   'evaluator': 'المُقيِّم',
+  'title': 'العنوان',
+  'ref_no': 'الرقم',
+  'doc_date': 'التاريخ',
+  'direction': 'الاتجاه',
+  'amount': 'القيمة',
+  'reply_to': 'المراسلة المرتبطة',
+  'due_date': 'موعد الرد',
+  'origin_project': 'العقد الأصلي',
+  'work_id': 'العمل',
+  'report_date': 'تاريخ التقرير',
+  'weather': 'الطقس',
+  'temp_c': 'درجة الحرارة',
+  'workers': 'العمالة',
+  'equipment': 'المعدات',
+  'works_done': 'الأعمال المنفذة',
+  'materials': 'المواد',
+  'issues': 'المعوقات',
+  'next_plan': 'خطة اليوم التالي',
+  'progress_pct': 'نسبة الإنجاز التقديرية',
 };
 
 String _changed(Object? changes) {
@@ -397,3 +446,5 @@ const Map<String, String> settingLabels = {
   'pm.config': 'قوائم متابعة المشاريع وإعداداتها',
   'swot.meta': 'بيانات وثيقة تحليل SWOT',
 };
+
+String _docKind(Object? k) => switch (k?.toString()) { 'boq' => 'المقايسة', 'letter' => 'المراسلة', 'design' => 'التصميم', _ => 'المستند' };

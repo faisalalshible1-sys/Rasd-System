@@ -1,0 +1,111 @@
+@page {
+  size: A4;
+  margin: 20mm 17mm 21mm 17mm;
+  @bottom-left { content: counter(page); font-family: "DejaVu Sans"; font-size: 8.5pt; color: #6b6355; }
+  @bottom-right { content: "{{FOOTER}}"; font-family: "DejaVu Sans"; font-size: 7.5pt; color: #8b8373; }
+  @top-right { content: "مكتب الشؤون الهندسية"; font-family: "DejaVu Sans"; font-size: 7.5pt; color: #8b8373; }
+}
+@page cover { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } @top-right { content: none; } }
+
+:root {
+  --gold: #8A6A1E; --gold2: #B08A2E; --ink: #1f2430; --muted: #5d6270; --rule: #ddd6c6;
+  --soft: #FBF7EC; --green: #2E7D4F; --amber: #C8901A; --red: #B4232F; --blue: #2F4F9A;
+}
+* { box-sizing: border-box; }
+html { direction: rtl; }
+body { margin: 0; font-family: "FreeSerif", serif; font-size: 11.9pt; line-height: 1.62; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+p { margin: 0 0 6pt; text-align: justify; }
+b, strong { font-weight: bold; }
+h1, h2, h3, h4, .sans, table, .box-t, .kpi, .toc { font-family: "DejaVu Sans", sans-serif; }
+h1 { font-size: 19pt; color: var(--gold); margin: 0 0 4pt; line-height: 1.35; break-after: avoid; }
+h1 .num { display: inline-block; min-width: 30pt; color: #fff; background: var(--gold); border-radius: 6pt; text-align: center; margin-left: 8pt; padding: 0 6pt; }
+.chapter { break-before: page; }
+.lead { font-size: 12.2pt; color: var(--muted); border-bottom: 1.5pt solid var(--gold); padding-bottom: 6pt; margin-bottom: 12pt; }
+h2 { font-size: 13pt; color: var(--ink); margin: 12pt 0 4pt; break-after: avoid; border-right: 4pt solid var(--gold); padding-right: 7pt; line-height: 1.4; }
+h3 { font-size: 11pt; color: var(--gold); margin: 11pt 0 4pt; break-after: avoid; }
+ul, ol { margin: 0 0 8pt; padding-right: 20pt; padding-left: 0; }
+li { margin-bottom: 2.5pt; }
+.ui { font-family: "DejaVu Sans"; font-size: 0.86em; background: #f2eee3; border-radius: 3pt; padding: 0 3pt; white-space: nowrap; }
+.ltr { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+
+table { width: 100%; border-collapse: collapse; margin: 4pt 0 9pt; font-size: 8.6pt; line-height: 1.45; break-inside: avoid; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+th { background: var(--gold); color: #fff; font-weight: bold; padding: 4pt 5pt; text-align: right; border: 0.6pt solid #b49a5c; }
+td { padding: 3.5pt 5pt; border: 0.6pt solid var(--rule); vertical-align: top; text-align: right; }
+tbody tr:nth-child(even) td { background: #faf8f2; }
+td.c, th.c { text-align: center; }
+td.n { direction: ltr; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tight td { padding: 2.5pt 4pt; }
+
+.box { border-radius: 6pt; padding: 6pt 10pt 5pt; margin: 5pt 0 8pt; break-inside: avoid; border-right: 4pt solid; }
+.box-t { font-size: 9pt; font-weight: bold; margin-bottom: 3pt; letter-spacing: 0; }
+.box p:last-child, .box ul:last-child, .box table:last-child { margin-bottom: 0; }
+.f { background: var(--soft); border-color: var(--gold); }
+.f .box-t { color: var(--gold); }
+.f .eq { font-family: "DejaVu Sans"; font-size: 9.6pt; line-height: 1.85; margin: 1pt 0; }
+.f .eq b { color: var(--gold); }
+.ex { background: #F1F6F2; border-color: var(--green); }
+.ex .box-t { color: var(--green); }
+.ex table { background: #fff; }
+.nt { background: #FFF6E6; border-color: var(--amber); }
+.nt .box-t { color: #9a6a08; }
+.wr { background: #FCEEEE; border-color: var(--red); }
+.wr .box-t { color: var(--red); }
+.calc { font-family: "DejaVu Sans"; font-size: 9.2pt; line-height: 1.9; }
+
+.lv { display: inline-block; color: #fff; font-family: "DejaVu Sans"; font-size: 8pt; font-weight: bold; padding: 0 5pt; border-radius: 3pt; }
+.lv1 { background: #2E7D4F; } .lv2 { background: #7A9A2E; } .lv3 { background: #C8901A; } .lv4 { background: #D2601A; } .lv5 { background: #B4232F; }
+
+.matrix { width: auto; margin: 0 auto 6pt; border-collapse: separate; border-spacing: 2.5pt; font-size: 9pt; }
+.matrix td { border: 0; width: 34pt; height: 26pt; text-align: center; vertical-align: middle; color: #fff; font-weight: bold; border-radius: 4pt; padding: 0; }
+.matrix td.lab { background: none !important; color: var(--muted); font-weight: normal; font-size: 7.6pt; width: 56pt; line-height: 1.25; }
+.matrix tr:nth-child(even) td { background: none; }
+
+.ie { width: auto; margin: 4pt auto 8pt; border-collapse: separate; border-spacing: 3pt; font-size: 8.4pt; }
+.ie td { width: 92pt; height: 34pt; text-align: center; vertical-align: middle; border-radius: 4pt; border: 0; line-height: 1.35; padding: 2pt; }
+.ie td.lab { background: none !important; color: var(--muted); width: 70pt; }
+.ie .g { background: #DDEFE3; } .ie .h { background: #F6EBCF; } .ie .r { background: #F6DADA; }
+.ie .cur { outline: 2pt solid var(--ink); font-weight: bold; }
+
+.cols { display: flex; gap: 12pt; }
+.cols > div { flex: 1; }
+.kpis { display: flex; gap: 6pt; margin: 4pt 0 10pt; flex-wrap: wrap; }
+.kpi { flex: 1; min-width: 90pt; border: 0.8pt solid var(--rule); border-radius: 6pt; padding: 5pt 7pt; background: #fff; }
+.kpi .k { font-size: 7.6pt; color: var(--muted); }
+.kpi .v { font-size: 13pt; font-weight: bold; color: var(--gold); direction: ltr; text-align: right; }
+
+/* الغلاف */
+.cover { page: cover; height: 297mm; width: 210mm; position: relative; overflow: hidden; background: #fff; }
+.cover .band { position: absolute; top: 0; left: 0; right: 0; height: 9mm; background: linear-gradient(90deg, #239e46 0 33%, #111 33% 66%, #c8102e 66% 100%); opacity: .85; }
+.cover .banner { position: absolute; top: 22mm; left: 15mm; right: 15mm; }
+.cover .banner img { width: 100%; }
+.cover .title { position: absolute; top: 98mm; right: 18mm; left: 18mm; text-align: right; }
+.cover .title .kicker { font-family: "DejaVu Sans"; color: var(--gold); font-size: 12pt; font-weight: bold; letter-spacing: 0; }
+.cover .title h0 { display: block; font-family: "DejaVu Sans"; font-size: 30pt; font-weight: bold; line-height: 1.3; color: var(--ink); margin: 6pt 0 8pt; }
+.cover .title .sub { font-size: 15pt; color: var(--muted); line-height: 1.6; }
+.cover .rule { position: absolute; top: 172mm; right: 18mm; width: 60mm; height: 2.2pt; background: var(--gold); }
+.cover .meta { position: absolute; top: 182mm; right: 18mm; left: 18mm; font-family: "DejaVu Sans"; font-size: 9.6pt; }
+.cover .meta table { width: 120mm; font-size: 9.4pt; }
+.cover .meta td { border: 0; border-bottom: 0.6pt solid var(--rule); padding: 4pt 2pt; background: none !important; }
+.cover .meta td:first-child { color: var(--muted); width: 34mm; }
+.cover .seal { position: absolute; bottom: 20mm; left: 18mm; width: 34mm; opacity: .95; }
+.cover .foot { position: absolute; bottom: 16mm; right: 18mm; font-family: "DejaVu Sans"; font-size: 8.6pt; color: var(--muted); line-height: 1.7; }
+.cover .draft { position: absolute; top: 15mm; left: 15mm; font-family: "DejaVu Sans"; font-size: 8.6pt; font-weight: bold; color: #fff; background: var(--red); padding: 2pt 8pt; border-radius: 3pt; }
+
+/* المحتويات */
+.toc { font-size: 9.6pt; line-height: 1.5; }
+.toc .row { display: flex; align-items: baseline; padding: 2.4pt 0; }
+.toc .row .t { white-space: nowrap; }
+.toc .row .dots { flex: 1; border-bottom: 0.8pt dotted #b9ae95; margin: 0 5pt; transform: translateY(-3pt); }
+.toc .row .p { direction: ltr; min-width: 16pt; text-align: left; color: var(--gold); font-weight: bold; }
+.toc .l1 { font-weight: bold; color: var(--ink); margin-top: 5pt; font-size: 10.2pt; }
+.toc .l2 { padding-right: 16pt; color: var(--muted); }
+.mk { font-family: "DejaVu Sans"; font-size: 1pt; color: #ffffff; direction: ltr; unicode-bidi: isolate; }
+.small { font-size: 9.5pt; color: var(--muted); }
+
+.cols > div > table:first-child { margin-top: 0; }
+
+/* صفوف عناوين المراحل في جدول النماذج */
+td.stage { background: #efe6cf !important; color: #6b5216; font-weight: bold; }
+.box .eq + .eq { margin-top: 0; }

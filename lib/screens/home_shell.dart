@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_state.dart';
 import '../config.dart';
+import '../manual.dart' show manualAnchorForTab;
 import '../models.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
@@ -17,9 +18,11 @@ import 'assistant.dart';
 import 'control/control_panel.dart';
 import 'cycle_guide.dart';
 import 'dashboard.dart';
+import 'docs.dart';
 import 'finance.dart';
 import 'hub.dart';
 import 'ideas.dart';
+import 'manual.dart';
 import 'project_detail.dart';
 import 'projects.dart';
 import 'requests.dart';
@@ -31,6 +34,7 @@ import 'pm_registers.dart';
 import 'pm_report.dart';
 import 'pm_settings.dart';
 import 'risks.dart';
+import 'supervision.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
 
@@ -72,6 +76,20 @@ class Tabs {
   static const swotPlan = 35;
   static const swotMethod = 36;
   static const swotPresentation = 37;
+
+  // المستندات الفنية
+  static const docsBoq = 60;
+  static const docsLetters = 61;
+  static const docsDesigns = 62;
+  static const docsStorage = 63;
+
+  // الإشراف
+  static const supReports = 70;
+  static const supCoverage = 71;
+
+  // دليل الاستخدام
+  static const manual = 80;
+  static const manualNews = 81;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -159,6 +177,34 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 20),
     ];
   }
+  if (app.section == 'docs') {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final late = app.docs.ofKind('letter').where((l) => l.overdue(today)).length;
+    return [
+      const _Dest(Tabs.docsBoq, 'المقايسات', Icons.request_quote_outlined, Icons.request_quote_rounded),
+      _Dest(Tabs.docsLetters, 'المراسلات', Icons.mark_email_read_outlined, Icons.mark_email_read_rounded, badge: late),
+      const _Dest(Tabs.docsDesigns, 'التصاميم', Icons.architecture_outlined, Icons.architecture_rounded),
+      if (app.canAudit || app.role == AppRole.officeStaff)
+        const _Dest(Tabs.docsStorage, 'مساحة التخزين', Icons.cloud_outlined, Icons.cloud_rounded),
+      ..._adminDests(app, 60),
+    ];
+  }
+  if (app.section == 'supervision') {
+    final unreviewed = app.isDirector ? app.docs.reports.where((r) => !r.reviewed).length : 0;
+    return [
+      _Dest(Tabs.supReports, 'التقارير اليومية', Icons.assignment_outlined, Icons.assignment_rounded, badge: unreviewed),
+      const _Dest(Tabs.supCoverage, 'متابعة التغطية', Icons.grid_on_outlined, Icons.grid_on_rounded),
+      ..._adminDests(app, 70),
+    ];
+  }
+  if (app.section == 'manual') {
+    return [
+      const _Dest(Tabs.manual, 'دليل الاستخدام', Icons.menu_book_outlined, Icons.menu_book_rounded),
+      const _Dest(Tabs.manualNews, 'ما الجديد', Icons.new_releases_outlined, Icons.new_releases_rounded),
+      ..._adminDests(app, 80),
+    ];
+  }
   if (app.section == 'swot') {
     final alerts = app.v6Ready ? app.swot.alerts.length : 0;
     return [
@@ -213,8 +259,16 @@ Widget _page(int id) => switch (id) {
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
-      Tabs.control || 29 || 39 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 => const AssistantPage(),
+      Tabs.docsBoq => const DocsPage(key: ValueKey('boq'), kind: 'boq'),
+      Tabs.docsLetters => const DocsPage(key: ValueKey('letter'), kind: 'letter'),
+      Tabs.docsDesigns => const DocsPage(key: ValueKey('design'), kind: 'design'),
+      Tabs.docsStorage => const StoragePage(),
+      Tabs.supReports => const SiteReportsPage(),
+      Tabs.supCoverage => const ReportCoveragePage(),
+      Tabs.manual => const ManualPage(),
+      Tabs.manualNews => const WhatsNewPage(),
       Tabs.finance => const FinancePage(),
       Tabs.guide => const CycleGuidePage(),
       Tabs.riskDashboard => const RiskDashboardPage(),
@@ -734,6 +788,12 @@ class _TopBar extends StatelessWidget {
                               label: Text('الأقسام', style: TextStyle(color: sectionColor(context, app.section))),
                             ),
                           ),
+                  if (!hub && app.section != 'manual')
+                    IconButton(
+                      tooltip: 'شرح هذه الصفحة في دليل الاستخدام',
+                      onPressed: () => app.openManual(manualAnchorForTab(app.tab)),
+                      icon: const Icon(Icons.help_outline_rounded),
+                    ),
                   IconButton(tooltip: 'تحديث البيانات', onPressed: app.loadAll, icon: const Icon(Icons.refresh_rounded)),
                   IconButton(
                     tooltip: 'الإشعارات',

@@ -56,3 +56,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql"
 $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261112000019_doc_cycle_v2.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/93_doc_cycle_v2_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# المستندات الفنية والتقارير اليومية للإشراف (الترحيل 20)
+$P -d dctest -f "$DIR/migrations/20261114000020_documents_supervision.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261114000020_documents_supervision.sql"
+$P -d dctest -f "$DIR/migrations/20261114000020_documents_supervision.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261114000020_documents_supervision.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/94_documents_supervision_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

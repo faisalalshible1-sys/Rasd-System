@@ -18,6 +18,8 @@ dependencies:
   url_launcher: ^6.3.0
   qr_flutter: ^4.1.0
   shared_preferences: ^2.3.2
+  file_picker: ^13.0.0
+  image: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -28,6 +30,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/manual/
 
 # أيقونة التطبيق من ختم المؤسسة لكل المنصات (تُولَّد في tool/prepare_platforms.sh)
 flutter_launcher_icons:
