@@ -128,10 +128,9 @@ class SignedUrls {
       return hit == null || !hit.$2.isAfter(DateTime.now());
     }).toList();
     if (need.isNotEmpty) {
-      final res = await client.storage.from(docsBucket).createSignedUrls(need, 3600);
       final exp = DateTime.now().add(const Duration(minutes: 50));
-      for (final r in res) {
-        _cache[r.path] = (r.signedUrl, exp);
+      for (final p in need) {
+        _cache[p] = (await client.storage.from(docsBucket).createSignedUrl(p, 3600), exp);
       }
     }
     return {for (final p in paths) if (_cache[p] != null) p: _cache[p]!.$1};

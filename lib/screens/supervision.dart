@@ -34,6 +34,9 @@ const List<String> _weekdays = ['الاثنين', 'الثلاثاء', 'الأر�
 
 String dayName(DateTime d) => _weekdays[d.weekday - 1];
 
+/// الحرف المختصر لليوم في جدول التغطية: ن ث ر خ ج س ح
+String dayLetter(DateTime d) => const ['ن', 'ث', 'ر', 'خ', 'ج', 'س', 'ح'][d.weekday - 1];
+
 /// العقود الجارية التي يُنتظر لها تقرير يومي: الوضع التشغيلي «جارٍ» في البرنامج الزمني،
 /// أو عقود بلا برنامج زمني لم تكتمل دورتها المستندية.
 List<String> activeSiteProjects(AppState app) {
@@ -630,7 +633,7 @@ class _ReportCoveragePageState extends State<ReportCoveragePage> {
                   SizedBox(
                     width: 30,
                     child: Column(children: [
-                      Text(dayName(d).substring(0, 2), style: TextStyle(color: sem.muted, fontSize: 10)),
+                      Text(dayLetter(d), style: TextStyle(color: d.weekday == DateTime.friday ? sem.wip : sem.muted, fontSize: 10.5)),
                       Text('${d.day}', style: TextStyle(fontSize: 11.5, fontWeight: d == today ? FontWeight.w900 : FontWeight.w600)),
                     ]),
                   ),

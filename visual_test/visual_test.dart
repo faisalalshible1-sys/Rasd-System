@@ -3,7 +3,6 @@
 // تُحفظ الصور في visual_test/goldens/ ويرفعها سير العمل visual.yml.
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dc_app/app_state.dart';
 import 'package:dc_app/docs.dart';
@@ -597,7 +596,6 @@ void _documents(AppState app) {
     ('d2', 'p-003', 'تطوير واجهات شارع عمر المختار', 'architectural', 'review', 'قسم الشؤون الفنية', 2),
     ('d3', 'p-005', 'مسار خط المياه الرئيسي', 'plumbing', 'draft', 'الشركة العامة للمياه', 1),
   ];
-  var seed = 0;
   for (final d in designs) {
     items.add(DocItem.fromMap({'id': d.$1, 'kind': 'design', 'project_id': d.$2, 'title': d.$3, 'category': d.$4, 'status': d.$5,
       'party': d.$6, 'doc_date': _day(30), 'ref_no': 'DWG-${d.$1.toUpperCase()}', 'updated_at': _iso(2)}));
@@ -609,7 +607,6 @@ void _documents(AppState app) {
       file('${d.$1}r$r', 'مسقط ${r}B.png', 'image/png', 420000);
       if (r == d.$7) file('${d.$1}r$r', 'لوحات الإصدار $r.pdf', 'application/pdf', 3200000);
     }
-    seed++;
   }
   // التقارير اليومية لآخر 14 يوماً لثلاثة عقود (بفجوات)
   final reports = <SiteReport>[];

@@ -208,19 +208,31 @@ class _ManualPageState extends State<ManualPage> {
                   const SizedBox(height: 24),
                   Divider(color: sem.rule),
                   Row(children: [
-                    if (idx > 0)
-                      TextButton.icon(
-                        onPressed: () => _open(manualChapters[idx - 1].id),
-                        icon: const Icon(Icons.chevron_right_rounded),
-                        label: Text(manualChapters[idx - 1].label, overflow: TextOverflow.ellipsis),
-                      ),
-                    const Spacer(),
-                    if (idx < manualChapters.length - 1)
-                      TextButton.icon(
-                        onPressed: () => _open(manualChapters[idx + 1].id),
-                        icon: const Icon(Icons.chevron_left_rounded),
-                        label: Text(manualChapters[idx + 1].label, overflow: TextOverflow.ellipsis),
-                      ),
+                    Expanded(
+                      child: idx > 0
+                          ? Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton.icon(
+                                onPressed: () => _open(manualChapters[idx - 1].id),
+                                icon: const Icon(Icons.chevron_right_rounded),
+                                label: Text(manualChapters[idx - 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: idx < manualChapters.length - 1
+                          ? Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: TextButton.icon(
+                                onPressed: () => _open(manualChapters[idx + 1].id),
+                                icon: const Icon(Icons.chevron_left_rounded),
+                                label: Text(manualChapters[idx + 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ]),
                 ],
               );
