@@ -9,7 +9,7 @@ const path = require('path');
   await p.goto('file://' + path.join(__dirname, 'build', 'index.html'));
   await p.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))); });
   const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', '30', '-c:v', 'mjpeg', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', '30', '-g', '60', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p', '-r', '30', '-g', '60', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
   for (let i = a; i < b; i++) {
     await p.evaluate(t => window.render(t), i / 30);

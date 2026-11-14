@@ -320,7 +320,7 @@ tA, tE = scene_in[k], scene_out[k]
 tM, tN = at(k, 'ودليلُ', 0.5), at(k, 'ويتجدد', 0.4)
 parts.append(scene(k, text_panel(k, 'المعرفة والمساعدة', SC['manual'], 'spark', 'مساعد ذكي<br>ودليل مدمج', '',
     points=[('يجيب', 'يجيب من بيانات المنظومة'), ('ولا ينفِّذ', 'لا ينفّذ إلا بموافقة المدير'), ('يُفتح', 'دليل يُفتح من أي صفحة'), ('ويتجدد', 'يتجدد مع كل إصدار')]) +
-    window('50_assistant_light.png', MX, MY, MW, MH, tA + 0.2, tM, pan=(0, 0.5)) +
+    window('50_assistant_crop.png', MX, 255, MW, 548, tA + 0.2, tM, pan=(0, 0), zoom=(1.0, 1.06)) +
     window('a6_manual_light_desktop.png', MX, MY, MW, MH, tM, tE, pan=(0, 0.3), anim='fade') +
     window('a9_whats_new_light.png', 40, 560, 580, 370, tN, tE, pan=(0, 0.25), anim='slideL', cls='float') + demo_note(k), glow=SC['manual']))
 
