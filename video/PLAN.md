@@ -15,10 +15,10 @@
 ## خطوات الإكمال
 1. ولّد المقاطع الستة (creative_generate_speech، flow أعلاه، الصوت والنموذج أعلاه).
 2. قِس مدتها في صندوق ElevenLabs (ffprobe) وضعها في durs.json (احذف "est").
-3. `python3 build.py` ثم صيّر على عمليتين: `node render.js 0 N1 a.mp4` و`node render.js N1 N b.mp4` (N = TOTAL×30)، ثم ffmpeg concat (-c copy).
+3. `python3 build.py` ثم `./render_all.sh final_video.mp4` (Bash بخيار run_in_background؛ نحو 8 دقائق).
 4. `python3 music.py TOTAL 11.6 <start s13+0.2> music.wav` ثم flac.
 5. الجسر: ادفع video.mp4 وmusic.flac إلى فرع `video-assets-tmp` في dc-app (رسالة الإيداع فيها [skip ci])، واطلب download_url من contents API (صالح 5 دقائق)، ثم creative_attach_reference_file إلى الـflow.
-6. اخلط في الصندوق: الصوت بـadelay عند start[k] من timeline.json، والموسيقى مخفّضة تحت الصوت (sidechaincompress)، وإخراج AAC 192k مع نسخ الفيديو.
+6. `python3 mixcmd.py` يطبع أمر الصندوق كاملاً (يكتب الناتج في $OUT). مدخلات الصندوق: video.mp4 وmusic.flac (عقد المرفقات) وsNN.mp3 (generation_id لكل مقطع). جُرّب على نسخة اختبار: الصوت ≈ -16 LUFS والموسيقى ≈ -26 في الفواصل.
 7. افحص: المدة ≤ 4:00، الجهارة ≈ -16 LUFS، إطارات عيّنة، ونسخ الصوت.
 8. سلّم بـcreative_show_flow_results، واحذف فرع video-assets-tmp.
 
