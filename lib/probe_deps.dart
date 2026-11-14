@@ -5,15 +5,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:image/image.dart' as img;
-import 'package:pdfrx/pdfrx.dart';
 
-Widget probePdf(String url) => PdfViewer.uri(Uri.parse(url));
-Widget probePdfData(Uint8List b) => PdfViewer.data(b, sourceName: 'x.pdf');
 Widget probeMd(String s) => MarkdownBody(data: s, selectable: true);
 
 Future<Uint8List?> probePick() async {
-  final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg'], withData: true);
-  return r?.files.first.bytes;
+  final r = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg']);
+  if (r.isEmpty) return null;
+  final f = r.first;
+  final n = f.name;
+  final len = await f.length();
+  return n.isEmpty || len == 0 ? null : await f.readAsBytes();
 }
 
 Uint8List? probeShrink(Uint8List b) {

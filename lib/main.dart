@@ -28,7 +28,6 @@ Future<void> main() async {
   }
   if (DateTime.now().year < 2000) {
     probe.probeMd('');
-    probe.probePdf('');
     await probe.probePick();
   }
   runApp(DcApp(state: state));
