@@ -1,0 +1,12 @@
+{
+ "voice": "18HMWpalD7cscJTD8lEY",
+ "voice_name": "Tariq - Resonant and assured (studio quality)",
+ "model": "eleven_v4",
+ "flow": "3SLfRtdz9IE7VTuE7BYI",
+ "gens": {
+  "s01": ["tnlbJMd1fhFyajwHzEZp"],
+  "s02": ["qm2HgXzF3RvJLPx7gs5u", "F7RF1MF0YcaxMbKFomcm"]
+ },
+ "todo": ["s03","s04","s05","s06","s07","s08","s09","s10","s11","s12","s13"],
+ "note": "بطلب المستخدم (22:10): صوت من فئة جودة الاستوديو. أُعيد توليد كل المقاطع بالصوت الجديد؛ مقاطع الصوت السابق (Ahmed) لم تعد مستخدمة. التوليد المجاني محدود السعة: مقطع واحد لكل دورة، وعند رسالة busy لا تبدأ توليداً آخر في الدورة نفسها."
+}

@@ -1,6 +1,7 @@
 # فيديو المنظومة — خطة الإكمال (للجلسة التالية)
 
 ## الحالة
+- **تحديث 22:10:** طلب المستخدم صوتاً من فئة الاستوديو؛ اعتُمد Tariq (18HMWpalD7cscJTD8lEY). حالة المقاطع في voices.json (المصدر الأحدث، ويغلب ما تحته).
 - الصوت: ElevenLabs، flow `3SLfRtdz9IE7VTuE7BYI` (مساحة العمل f45f2fd3…)، الصوت `6cFz1T5FQxQS8Xk88qQi` (Ahmed – Deep Arabic Documentary)، النموذج `eleven_v4`.
 - المقاطع الجاهزة (المعتمدة أولاً):
   - s01 `KXB0iTI6kqsnCxxqu5U8` (17.006s)
