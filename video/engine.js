@@ -10,9 +10,9 @@ const A = [...document.querySelectorAll('[data-a]')].map(el => ({
 const P = [...document.querySelectorAll('[data-pan]')].map(el => {
   const [y0, y1, t0, t1, z0, z1] = el.dataset.pan.split(',').map(Number); return { el, y0, y1, t0, t1, z0, z1 };
 });
-const N = [...document.querySelectorAll('[data-count]')].map(el => ({ el, n: +el.dataset.count, t0: +el.dataset.t0, d: +el.dataset.d }));
+const N = [...document.querySelectorAll('[data-count]')].map(el => ({ el, n: +el.dataset.count, t0: +el.dataset.t0, d: +el.dataset.d, dec: +(el.dataset.dec || 0), sep: el.dataset.sep === '1', suf: el.dataset.suf || '' }));
 const W = [...document.querySelectorAll('[data-draw]')].map(el => {
-  const [t0, d] = el.dataset.draw.split(',').map(Number); el.style.strokeDasharray = '1'; return { el, t0, d };
+  const [t0, d, f] = el.dataset.draw.split(',').map(Number); el.style.strokeDasharray = '1'; return { el, t0, d, f: isNaN(f) ? 1 : f };
 });
 const bar = document.getElementById('bar'), bg = document.getElementById('bg');
 window.render = function (t) {
@@ -37,8 +37,13 @@ window.render = function (t) {
     const k = eio((t - p.t0) / (p.t1 - p.t0));
     p.el.style.transform = `translateY(${(-(p.y0 + (p.y1 - p.y0) * k)).toFixed(2)}px) scale(${(p.z0 + (p.z1 - p.z0) * k).toFixed(4)})`;
   }
-  for (const c of N) c.el.textContent = Math.round(c.n * eo((t - c.t0) / c.d));
-  for (const w of W) w.el.style.strokeDashoffset = (1 - eo((t - w.t0) / w.d)).toFixed(4);
+  for (const c of N) {
+    const v = c.n * eo((t - c.t0) / c.d);
+    let s = c.sep ? v.toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec }) : v.toFixed(c.dec);
+    if (v < 0) s = '−' + s.replace('-', '');
+    c.el.textContent = s + c.suf;
+  }
+  for (const w of W) w.el.style.strokeDashoffset = (1 - w.f * eo((t - w.t0) / w.d)).toFixed(4);
   if (bar) bar.style.width = (cl((t - C0) / (C1 - C0)) * 100).toFixed(3) + '%';
   bg.style.backgroundPosition = `0 0, 0 0, ${(Math.sin(t / 23) * 40).toFixed(2)}px ${(t * 3).toFixed(2)}px, 0 0`;
 };

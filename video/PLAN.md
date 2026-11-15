@@ -25,3 +25,10 @@
 
 ## المصادر
 - اللقطات: فرع `visual-shots` في dc-app. الشعار والشريط: assets/brand في main.
+
+## نسخة «رصد» (2026-11-15)
+- الاسم في الفيديو «منظومة رَصْد»، أمثلة تطبيقية بعد الأقسام (e03…e12)، المدة ≤ 6:30، شاشات أكبر.
+- التقدم في voices2.json، والنصوص الجديدة في new_texts.json، والمدد في durs2.json (المقاطع غير المذكورة في new_texts تبقى من نسخة طارق السابقة: voices2.keep).
+- البناء: `python3 build2.py` (يستخدم examples.py وstyle_ex.css)، ثم `./render_all.sh rasd_video.mp4`.
+- الخلط: مثل mixcmd.py لكن بترتيب ORDER في build2 وtimeline2.json؛ الكسب لكل مقطع = -16.5 - lufs.
+- التسليم: مخرج الصندوق → asset → preview_url (mono 128k) يُنزَّل عبر المتصفح المدمج إلى التنزيلات (وافق المستخدم مسبقاً) → stage → دمج مع الفيديو المحلي (+3.4dB) → SendUserFile + device_commit_files.

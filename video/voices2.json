@@ -1,0 +1,79 @@
+{
+ "voice": "18HMWpalD7cscJTD8lEY",
+ "model": "eleven_v4",
+ "flow": "3SLfRtdz9IE7VTuE7BYI",
+ "keep": {
+  "s02": {
+   "gen": "qm2HgXzF3RvJLPx7gs5u",
+   "dur": 16.431,
+   "lufs": -27.0
+  },
+  "s03": {
+   "gen": "SpY9WkXehW5e4v8sNzMw",
+   "dur": 19.409,
+   "lufs": -27.2
+  },
+  "s04": {
+   "gen": "hWuJMC61rzAW9nLYsh9A",
+   "dur": 13.636,
+   "lufs": -26.9
+  },
+  "s05": {
+   "gen": "OPMgtix0wq2bi3pCwHPg",
+   "dur": 18.286,
+   "lufs": -27.6
+  },
+  "s06": {
+   "gen": "G6vQbKcy4EQZGOJ5zq16",
+   "dur": 14.602,
+   "lufs": -27.0
+  },
+  "s07": {
+   "gen": "6ufEAFzgVqyd4Vtth4k5",
+   "dur": 13.636,
+   "lufs": -27.6
+  },
+  "s08": {
+   "gen": "ldResYtW4czBYI38qwhi",
+   "dur": 16.509,
+   "lufs": -26.6
+  },
+  "s09": {
+   "gen": "kZCvgaXEBC7mA8aJ5zSW",
+   "dur": 15.647,
+   "lufs": -27.1
+  },
+  "s10": {
+   "gen": "iEvojIb74vUpPt5WMjyD",
+   "dur": 20.689,
+   "lufs": -27.5
+  },
+  "s11": {
+   "gen": "1KMFUKEuGfUAmXifUQ8x",
+   "dur": 20.036,
+   "lufs": -27.0
+  },
+  "s12": {
+   "gen": "TPMrP8Tk1Hx8POqRInzD",
+   "dur": 15.151,
+   "lufs": -27.2
+  }
+ },
+ "gens": {},
+ "todo": [
+  "s01",
+  "e03",
+  "e04",
+  "e05",
+  "e05r",
+  "e06",
+  "e07",
+  "e08",
+  "e09",
+  "e10",
+  "e11",
+  "e12",
+  "s13"
+ ],
+ "note": "نسخة «رصد» الموسعة (طلب 2026-11-15 08:57): الاسم «منظومة رصد»، أمثلة بسيطة بعد كل قسم، مدة حتى 6:30، تكبير شاشات العرض. النصوص في new_texts.json."
+}
