@@ -222,8 +222,7 @@ class StatCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.bodySmall?.copyWith(color: sem.muted)),
-                    Text(value,
-                        style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+                    _value(t),
                     if (sub != null) Text(sub!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.labelSmall?.copyWith(color: sem.muted)),
                   ],
                 ),
@@ -234,6 +233,15 @@ class StatCard extends StatelessWidget {
       ),
     );
     return onTap == null ? card : HoverLift(child: card);
+  }
+
+  /// القيمة الواحدة بلا مسافات (رقم، تاريخ، نسبة) تُصغَّر لتبقى في سطر واحد بدل أن تنكسر في البطاقات الضيقة؛
+  /// والنص الطويل ذو الكلمات (كالأسماء) يلتف كما هو.
+  Widget _value(TextTheme t) {
+    final text = Text(value,
+        style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()]));
+    if (value.trim().contains(' ')) return text;
+    return FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: text);
   }
 }
 
