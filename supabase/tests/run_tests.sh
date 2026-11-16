@@ -64,3 +64,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261114000021_unit_sections.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261114000021_unit_sections.sql"
 $P -d dctest -f "$DIR/migrations/20261114000021_unit_sections.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261114000021_unit_sections.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/95_unit_sections_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# الشؤون الفنية ونقل السجلات، والفيديو، وقوالب الطباعة وسجل التصدير (الترحيل 22)
+$P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql"
+$P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/96_print_center_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

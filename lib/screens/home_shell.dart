@@ -8,6 +8,8 @@ import '../app_state.dart';
 import '../config.dart';
 import '../manual.dart' show manualAnchorForTab;
 import '../models.dart';
+import '../print/export_dialog.dart' show showExportDialog;
+import '../print/sources.dart' show exportSourceForTab;
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/update.dart';
@@ -34,6 +36,7 @@ import 'pm_projects.dart';
 import 'pm_registers.dart';
 import 'pm_report.dart';
 import 'pm_settings.dart';
+import 'print_center.dart';
 import 'risks.dart';
 import 'supervision.dart';
 import 'swot.dart';
@@ -79,11 +82,12 @@ class Tabs {
   static const swotMethod = 36;
   static const swotPresentation = 37;
 
-  // المستندات الفنية
+  // الشؤون الفنية
   static const docsBoq = 60;
   static const docsLetters = 61;
   static const docsDesigns = 62;
   static const docsStorage = 63;
+  static const docsMaterials = 64;
 
   // الإشراف
   static const supReports = 70;
@@ -114,6 +118,11 @@ class Tabs {
   static const accOverview = 120;
   static const accReceiving = 121;
   static const accQuality = 122;
+
+  // الطباعة والتصدير
+  static const printCenter = 130;
+  static const printDesigner = 131;
+  static const printMedia = 132;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -209,6 +218,9 @@ List<_Dest> _destinations(AppState app) {
       const _Dest(Tabs.docsBoq, 'المقايسات', Icons.request_quote_outlined, Icons.request_quote_rounded),
       _Dest(Tabs.docsLetters, 'المراسلات', Icons.mark_email_read_outlined, Icons.mark_email_read_rounded, badge: late),
       const _Dest(Tabs.docsDesigns, 'التصاميم', Icons.architecture_outlined, Icons.architecture_rounded),
+      if (app.v9Ready)
+        _Dest(Tabs.docsMaterials, 'اعتماد المواد', Icons.inventory_2_outlined, Icons.inventory_2_rounded,
+            badge: UnitStats(app.units, _unitToday()).overdueMaterials),
       if (app.canAudit || app.role == AppRole.officeStaff)
         const _Dest(Tabs.docsStorage, 'مساحة التخزين', Icons.cloud_outlined, Icons.cloud_rounded),
       ..._adminDests(app, 60),
@@ -238,7 +250,7 @@ List<_Dest> _destinations(AppState app) {
     return [
       const _Dest(Tabs.pqOverview, 'لوحة المكتب', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
       _Dest(Tabs.pqPlanning, 'قسم التخطيط', Icons.flag_outlined, Icons.flag_rounded, badge: s.overduePlans),
-      _Dest(Tabs.pqQuality, 'قسم ضمان الجودة', Icons.verified_outlined, Icons.verified_rounded, badge: s.overdueNcr),
+      _Dest(Tabs.pqQuality, 'قسم ضمان الجودة', Icons.verified_outlined, Icons.verified_rounded, badge: s.auditsOpen),
       _Dest(Tabs.pqFollowUp, 'قسم المتابعة', Icons.track_changes_outlined, Icons.track_changes_rounded, badge: s.overdueTasks),
       ..._adminDests(app, 100),
     ];
@@ -261,8 +273,16 @@ List<_Dest> _destinations(AppState app) {
     return [
       const _Dest(Tabs.accOverview, 'لوحة القسم', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
       _Dest(Tabs.accReceiving, 'وحدة الاستلام', Icons.handshake_outlined, Icons.handshake_rounded, badge: s.overduePunch),
-      _Dest(Tabs.accQuality, 'وحدة ضبط الجودة', Icons.science_outlined, Icons.science_rounded, badge: s.overdueMaterials),
+      _Dest(Tabs.accQuality, 'وحدة ضبط الجودة', Icons.science_outlined, Icons.science_rounded, badge: s.overdueNcr),
       ..._adminDests(app, 120),
+    ];
+  }
+  if (app.section == 'print') {
+    return [
+      const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      const _Dest(Tabs.printDesigner, 'مصمم الصفحة', Icons.design_services_outlined, Icons.design_services_rounded),
+      const _Dest(Tabs.printMedia, 'مكتبة الوسائط', Icons.perm_media_outlined, Icons.perm_media_rounded),
+      ..._adminDests(app, 130),
     ];
   }
   if (app.section == 'manual') {
@@ -326,8 +346,8 @@ Widget _page(int id) => switch (id) {
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 => const AssistantPage(),
       Tabs.heritageOverview => const UnitOverviewPage(key: ValueKey('ov-heritage'), section: 'heritage'),
       Tabs.heritageBuildings =>
         const UnitRecordsPage(key: ValueKey('heritage_building'), unit: 'heritage', kinds: ['heritage_building']),
@@ -345,8 +365,12 @@ Widget _page(int id) => switch (id) {
       Tabs.safetyViolations => const UnitRecordsPage(key: ValueKey('safety_violation'), unit: 'safety', kinds: ['safety_violation']),
       Tabs.accOverview => const UnitOverviewPage(key: ValueKey('ov-acceptance'), section: 'acceptance'),
       Tabs.accReceiving => const UnitRecordsPage(key: ValueKey('receiving'), unit: 'receiving', kinds: ['handover', 'punch_item']),
-      Tabs.accQuality =>
-        const UnitRecordsPage(key: ValueKey('quality_control'), unit: 'quality_control', kinds: ['qc_test', 'material_approval']),
+      Tabs.accQuality => const UnitRecordsPage(key: ValueKey('quality_control'), unit: 'quality_control', kinds: ['qc_test', 'ncr']),
+      Tabs.docsMaterials =>
+        const UnitRecordsPage(key: ValueKey('material_approval'), unit: 'technical', kinds: ['material_approval'], title: 'اعتماد المواد'),
+      Tabs.printCenter => const PrintCenterPage(),
+      Tabs.printDesigner => const PrintDesignerPage(),
+      Tabs.printMedia => const MediaLibraryPage(),
       Tabs.docsBoq => const DocsPage(key: ValueKey('boq'), kind: 'boq'),
       Tabs.docsLetters => const DocsPage(key: ValueKey('letter'), kind: 'letter'),
       Tabs.docsDesigns => const DocsPage(key: ValueKey('design'), kind: 'design'),
@@ -879,6 +903,12 @@ class _TopBar extends StatelessWidget {
                       tooltip: 'شرح هذه الصفحة في دليل الاستخدام',
                       onPressed: () => app.openManual(manualAnchorForTab(app.tab)),
                       icon: const Icon(Icons.help_outline_rounded),
+                    ),
+                  if (!hub)
+                    IconButton(
+                      tooltip: 'تصدير وطباعة',
+                      onPressed: () => showExportDialog(context, sourceId: exportSourceForTab(app.tab)),
+                      icon: const Icon(Icons.print_outlined),
                     ),
                   IconButton(tooltip: 'تحديث البيانات', onPressed: app.loadAll, icon: const Icon(Icons.refresh_rounded)),
                   IconButton(

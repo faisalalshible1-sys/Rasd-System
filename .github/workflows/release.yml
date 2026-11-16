@@ -22,7 +22,7 @@ on:
         default: false
         type: boolean
       version:
-        description: 'رقم الإصدار الظاهر (مثل 2.1.0). يُترك فارغاً ليكون 2.0.<رقم التشغيل>'
+        description: 'رقم الإصدار الظاهر (مثل 1.0.0). يُترك فارغاً ليكون 1.0.<رقم التشغيل>'
         required: false
         default: ''
         type: string
@@ -33,7 +33,7 @@ concurrency:
 
 env:
   # رقم البناء يزيد دائماً مع كل إصدار، وعليه يعتمد التطبيق في معرفة وجود تحديث؛ رقم الإصدار للعرض فقط
-  VERSION: ${{ inputs.version != '' && inputs.version || format('2.0.{0}', github.run_number) }}
+  VERSION: ${{ inputs.version != '' && inputs.version || format('1.0.{0}', github.run_number) }}
   BUILD: ${{ github.run_number }}
 
 jobs:
@@ -68,7 +68,7 @@ jobs:
           fi
           case "$SERVICE" in sb_publishable_*) echo "::error title=SUPABASE_SERVICE_KEY::هذا هو المفتاح العام. ضع المفتاح السري sb_secret_..."; exit 1;; esac
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error title=رقم الإصدار::«$VERSION» غير صالح؛ الصيغة المطلوبة مثل 2.1.0"; exit 1
+            echo "::error title=رقم الإصدار::«$VERSION» غير صالح؛ الصيغة المطلوبة مثل 1.0.0"; exit 1
           fi
           echo "::notice title=الإصدار $VERSION::$NOTES"
 

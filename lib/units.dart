@@ -1,6 +1,6 @@
 // =====================================================================
 // أقسام الوحدات (الترحيل 21): الترميم والمباني التاريخية، مكتب التخطيط وضمان الجودة،
-// مكتب السلامة المهنية، المطابقة والاستلام.
+// مكتب السلامة المهنية، المطابقة والاستلام؛ ووحدة الشؤون الفنية لاعتماد المواد (الترحيل 22).
 // مواصفات أنواع السجلات الثلاثة عشر وتسمياتها ونموذجها وفهرسها. الحساب والعرض فقط؛
 // الصلاحيات والتحقق الفعلي في قاعدة البيانات (unit_kind_spec وsave_unit_record).
 // =====================================================================
@@ -25,7 +25,7 @@ String _iso(DateTime? d) =>
 const List<String> unitSections = ['heritage', 'planning_qa', 'safety', 'acceptance'];
 
 /// الوحدات السبع بالترتيب (تطابق جدول org_units).
-const List<String> unitKeys = ['heritage', 'planning', 'quality_assurance', 'follow_up', 'safety', 'receiving', 'quality_control'];
+const List<String> unitKeys = ['heritage', 'planning', 'quality_assurance', 'follow_up', 'safety', 'receiving', 'quality_control', 'technical'];
 
 const Map<String, String> unitNames = {
   'heritage': 'الترميم والمباني التاريخية',
@@ -35,8 +35,10 @@ const Map<String, String> unitNames = {
   'safety': 'مكتب السلامة المهنية',
   'receiving': 'وحدة الاستلام',
   'quality_control': 'وحدة ضبط الجودة',
+  'technical': 'قسم الشؤون الفنية',
 };
 
+/// قسم كل وحدة. وحدة الشؤون الفنية تظهر داخل قسم «الشؤون الفنية» (مفتاحه في الشاشة الرئيسية docs).
 const Map<String, String> unitSectionOf = {
   'heritage': 'heritage',
   'planning': 'planning_qa',
@@ -45,6 +47,7 @@ const Map<String, String> unitSectionOf = {
   'safety': 'safety',
   'receiving': 'acceptance',
   'quality_control': 'acceptance',
+  'technical': 'technical',
 };
 
 /// أسماء الأقسام كما تظهر في الشاشة الرئيسية.
@@ -53,6 +56,7 @@ const Map<String, String> unitSectionNames = {
   'planning_qa': 'مكتب التخطيط وضمان الجودة',
   'safety': 'مكتب السلامة المهنية',
   'acceptance': 'المطابقة والاستلام',
+  'technical': 'الشؤون الفنية',
 };
 
 List<String> unitsOfSection(String section) => [for (final u in unitKeys) if (unitSectionOf[u] == section) u];
@@ -61,11 +65,12 @@ List<String> unitsOfSection(String section) => [for (final u in unitKeys) if (un
 const Map<String, List<String>> unitKindsOf = {
   'heritage': ['heritage_building', 'heritage_assessment'],
   'planning': ['plan'],
-  'quality_assurance': ['qa_audit', 'ncr'],
+  'quality_assurance': ['qa_audit'],
   'follow_up': ['followup_task'],
   'safety': ['safety_inspection', 'safety_incident', 'safety_violation'],
   'receiving': ['handover', 'punch_item'],
-  'quality_control': ['qc_test', 'material_approval'],
+  'quality_control': ['qc_test', 'ncr'],
+  'technical': ['material_approval'],
 };
 
 // ---------------------------------------------------------------------
@@ -284,7 +289,7 @@ const Map<String, UnitKind> unitKinds = {
   ),
   'ncr': UnitKind(
     key: 'ncr',
-    unit: 'quality_assurance',
+    unit: 'quality_control',
     label: 'حالات عدم المطابقة',
     single: 'حالة عدم مطابقة',
     titleLabel: 'وصف عدم المطابقة',
@@ -295,7 +300,7 @@ const Map<String, UnitKind> unitKinds = {
     levels: [('minor', 'بسيطة'), ('major', 'جسيمة'), ('critical', 'حرجة')],
     levelLabel: 'الدرجة',
     levelTones: {'minor': UnitTone.info, 'major': UnitTone.wip, 'critical': UnitTone.danger},
-    parent: 'qa_audit',
+    parent: 'qc_test',
     dueLabel: 'موعد الإجراء التصحيحي',
     ownerLabel: 'المسؤول عن المعالجة',
     fields: [
@@ -466,7 +471,7 @@ const Map<String, UnitKind> unitKinds = {
   ),
   'material_approval': UnitKind(
     key: 'material_approval',
-    unit: 'quality_control',
+    unit: 'technical',
     label: 'اعتماد المواد',
     single: 'طلب اعتماد مادة',
     titleLabel: 'المادة',
@@ -702,6 +707,12 @@ class UnitStats {
 
   // ------------------------------------------------ قسم ضمان الجودة
   int get auditsThisYear => _count('qa_audit', (r) => _thisYear(r.recDate) && r.status != 'cancelled');
+
+  /// التدقيقات المخططة أو الجارية.
+  int get auditsOpen => _count('qa_audit', (r) => r.status == 'planned' || r.status == 'in_progress');
+
+  /// تدقيقات هذا العام بنتيجة «غير مرضية».
+  int get unsatisfactoryAudits => _count('qa_audit', (r) => _thisYear(r.recDate) && r.level == 'unsatisfactory');
   int get openNcr => index.openOf('ncr');
 
   /// حالات عدم مطابقة مفتوحة درجتها «جسيمة» أو «حرجة».
@@ -766,7 +777,13 @@ class UnitStats {
     return passed + failed == 0 ? null : passed / (passed + failed);
   }
 
+  // ------------------------------------------------ الشؤون الفنية: اعتماد المواد
   int get materialsUnderReview => _count('material_approval', (r) => r.status == 'under_review');
+
+  /// المواد المعتمدة (بملاحظات أو دونها) هذا العام.
+  int get materialsApprovedThisYear =>
+      _count('material_approval', (r) => _thisYear(r.recDate) && (r.status == 'approved' || r.status == 'approved_notes'));
+  int get materialsRejectedThisYear => _count('material_approval', (r) => _thisYear(r.recDate) && r.status == 'rejected');
   int get overdueMaterials => index.overdueOf('material_approval', today);
 
   /// كل السجلات المتأخرة في قسم، من الأقدم موعداً.

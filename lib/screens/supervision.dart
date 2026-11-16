@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../docs.dart';
 import '../models.dart';
 import '../pm.dart';
+import '../print/export_dialog.dart' show ExportButton;
 import '../ui/motion.dart';
 import '../ui/slideshow.dart';
 import '../ui/theme.dart';
@@ -218,6 +219,7 @@ class _SiteReportsPageState extends State<SiteReportsPage> {
       subtitle: '${all.length} تقرير · $week في آخر 7 أيام${app.isDirector ? ' · $unreviewed بانتظار اطلاعك' : ''}',
       icon: Icons.assignment_rounded,
       actions: [
+        ExportButton(sourceId: 'supervision:reports', items: list),
         if (app.canAddReport)
           FilledButton.icon(
             onPressed: () => showReportEditor(context, projectId: _project.isEmpty ? null : _project),

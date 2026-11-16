@@ -8,6 +8,11 @@ import 'package:dc_app/app_state.dart';
 import 'package:dc_app/docs.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
+import 'package:dc_app/print/export_dialog.dart';
+import 'package:dc_app/print/exporter.dart';
+import 'package:dc_app/print/model.dart';
+import 'package:dc_app/print/preview.dart';
+import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/auth.dart';
@@ -30,6 +35,7 @@ import 'package:dc_app/screens/pm_projects.dart';
 import 'package:dc_app/screens/pm_registers.dart';
 import 'package:dc_app/screens/pm_report.dart';
 import 'package:dc_app/screens/pm_settings.dart';
+import 'package:dc_app/screens/print_center.dart';
 import 'package:dc_app/screens/risks.dart';
 import 'package:dc_app/screens/supervision.dart';
 import 'package:dc_app/screens/swot.dart';
@@ -307,6 +313,16 @@ AppState _sampleState() {
   _tracking(app);
   _documents(app);
   _units(app);
+  // قوالب الطباعة (الترحيل 22)
+  app.v10Ready = true;
+  app.printTemplates = [
+    PrintTemplate(id: 'pt1', name: 'القالب الرسمي للمكتب', isDefault: true, config: PrintConfig()),
+    PrintTemplate(
+        id: 'pt2',
+        name: 'تقارير اللجنة (أفقي)',
+        config: PrintConfig(orientation: 'landscape', accent: 0xFF1F3A5F, watermark: 'للاستخدام الداخلي', showSignatures: true)),
+    PrintTemplate(id: 'pt3', name: 'قالبي للمستخلصات', ownerId: 'u-dir', config: PrintConfig(paper: 'A3', font: 'sans')),
+  ];
   app.settings = LiveSettings({
     'ai.enabled': true,
     'ai.model': 'claude-sonnet-5-5',
@@ -714,9 +730,9 @@ void _units(AppState app) {
   rec('qa1', 'qa_audit', 'تدقيق ملف الجودة – واجهات شارع عمر المختار', project: 'p-003', ago: 12, status: 'done', level: 'needs_improvement',
       owner: 'م. سارة المغربي', closedAgo: 10, data: {'auditee': 'قسم الإشراف والتنسيق', 'findings': 'غياب سجلات المعايرة، ونقص توثيق استلام المواد.'});
   rec('qa2', 'qa_audit', 'تدقيق إجراءات المستخلصات', ago: 2, status: 'in_progress', owner: 'م. سارة المغربي', data: {'auditee': 'مكتب العقود'});
-  rec('nc1', 'ncr', 'غياب سجل معايرة أجهزة الموقع', parent: 'qa1', project: 'p-003', ago: 12, due: -3, level: 'major', owner: 'المقاول',
-      data: {'requirement': 'البند 8.2 من خطة الجودة', 'corrective_action': 'معايرة الأجهزة لدى جهة معتمدة وتقديم الشهادات.'});
-  rec('nc2', 'ncr', 'عدم توثيق استلام المواد في الموقع', parent: 'qa1', project: 'p-003', ago: 12, due: 7, status: 'in_progress', level: 'minor',
+  rec('nc1', 'ncr', 'شد حديد التسليح أقل من المطلوب – الدفعة 3', parent: 'qc3', project: 'p-003', ago: 5, due: -1, level: 'major', owner: 'المقاول',
+      data: {'requirement': 'المواصفة BS 4449 – إجهاد الخضوع 420 MPa', 'corrective_action': 'رفض الدفعة وإعادة الاختبار على عينات جديدة.'});
+  rec('nc2', 'ncr', 'عدم توثيق استلام المواد في الموقع', project: 'p-003', ago: 12, due: 7, status: 'in_progress', level: 'minor',
       owner: 'مهندس الموقع');
   rec('nc3', 'ncr', 'تجاوز نسبة الهالك في حديد التسليح', project: 'p-001', ago: 40, due: -20, status: 'closed', level: 'critical', closedAgo: 25);
   rec('ft1', 'followup_task', 'تسليم تقرير الإنجاز الشهري لشهر أكتوبر', ago: 14, due: -4, level: 'high', owner: 'قسم الإشراف والتنسيق',
@@ -769,6 +785,10 @@ void _units(AppState app) {
   rec('ma3', 'material_approval', 'مواسير HDPE قطر 200 مم', project: 'p-005', ago: 40, due: -30, status: 'approved', closedAgo: 33);
   pdf('ho1', 'محضر الاستلام الموقّع.pdf');
   photo('ho1', 'المنارة بعد الترميم.jpg');
+  // فيديو في سجل عدم المطابقة (الترحيل 22)
+  n++;
+  files.add(DocFile.fromMap({'id': 'uf$n', 'record_id': 'nc1', 'path': 'unit/nc1/v$n', 'name': 'اختبار الشد في الموقع.mp4', 'mime': 'video/mp4',
+    'size_bytes': 18400000, 'sort': n, 'created_by': 'u-4', 'created_at': _iso(4)}));
 
   app.units = UnitIndex(recs);
   app.docs = DocIndex(items: app.docs.items, revisions: app.docs.revisions, files: files, reports: app.docs.reports);
@@ -1039,4 +1059,85 @@ void main() {
     app.manualAnchor = '21_safety';
     await _shot(tester, 'd6_manual_safety_light', app, _scaffold(const ManualPage()), size: const Size(1440, 4400));
   });
+
+  testWidgets('print center', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    app.showHub = true;
+    await _shot(tester, 'e0_hub_eleven_sections_light', app, const HomeShell(), size: const Size(1440, 2100));
+    app.showHub = false;
+    app.tab = 130;
+    await _shot(tester, 'e1_print_center_light', app, const HomeShell(), size: const Size(1440, 2000));
+    app.tab = 131;
+    await _shot(tester, 'e2_print_designer_light', app, const HomeShell(), size: const Size(1600, 1500));
+    await _shot(tester, 'e3_print_designer_mobile', app, _scaffold(const PrintDesignerPage()), size: const Size(400, 3000));
+    app.tab = 132;
+    await _shot(tester, 'e4_media_library_light', app, const HomeShell(), size: const Size(1440, 1700));
+    app.tab = 64;
+    await _shot(tester, 'e5_technical_materials_light', app, const HomeShell(), size: const Size(1440, 1300));
+    app.tab = 122;
+    await _shot(tester, 'e6_quality_control_ncr_light', app,
+        _scaffold(const UnitRecordsPage(unit: 'quality_control', kinds: ['ncr', 'qc_test'])), size: const Size(1440, 1300));
+    await _shot(tester, 'e7_ncr_detail_light', app, const UnitRecordDetailPage(recordId: 'nc1'), size: const Size(1200, 2200));
+    app.tab = 1;
+    await _shot(tester, 'e8_export_dialog_light', app, const _OpenExport(sourceId: 'cycle:contracts'), size: const Size(1440, 1300));
+    await _shot(tester, 'e9_export_dialog_mobile', app, const _OpenExport(sourceId: 'unit:ncr'), size: const Size(400, 2000));
+    // معاينة صفحة بقالب مخصص (غلاف، علامة مائية، توقيعات، تجميع)
+    final ctx = PrintContext(printedBy: 'م. فيصل الشبلي', orgName: 'مكتب الشؤون الهندسية', at: DateTime(2026, 11, 16, 19, 45, 30));
+    final fancy = PrintConfig(watermark: 'مسودة', showSignatures: true, groupBy: 'project', accent: 0xFF0B6E99, logoPos: 'center', cover: true);
+    final ncr = exportSource(app, 'unit:ncr')!;
+    final ncrTable = ncr.build(app, const ExportQuery()).select([for (final c in ncr.columns) if (c.on) c.key]);
+    await _shot(tester, 'f0_page_preview_fancy', app,
+        _scaffold(Center(child: SizedBox(width: 900, child: PagePreview(config: fancy, table: ncrTable, context0: ctx)))),
+        size: const Size(1000, 1300));
+    await _shot(tester, 'f1_page_preview_cover', app,
+        _scaffold(Center(child: SizedBox(width: 700, child: PagePreview(config: fancy, table: ncrTable, context0: ctx, cover: true)))),
+        size: const Size(800, 1100));
+
+    // ملفات تجريبية بكل الصيغ للتدقيق (تُنشر مع اللقطات في visual-shots/exports)
+    await tester.runAsync(() async {
+      final dir = Directory('visual_test/goldens/exports')..createSync(recursive: true);
+      Future<void> write(String name, String sourceId, PrintConfig c, ExportFormat f) async {
+        final s = exportSource(app, sourceId)!;
+        final t = s.build(app, const ExportQuery()).select([for (final col in s.columns) if (col.on) col.key]);
+        final b = await renderExport(f, t, c, ctx);
+        File('${dir.path}/$name.${f.ext}').writeAsBytesSync(b);
+      }
+
+      for (final f in ExportFormat.values) {
+        await write('contracts', 'cycle:contracts', PrintConfig(), f);
+      }
+      await write('extracts_auto_landscape', 'cycle:extracts', PrintConfig(), ExportFormat.pdf);
+      await write('ncr_fancy', 'unit:ncr', fancy, ExportFormat.pdf);
+      await write('ncr_fancy', 'unit:ncr', fancy, ExportFormat.docx);
+      await write('ncr_fancy', 'unit:ncr', fancy, ExportFormat.html);
+      await write('reports_kufi_eastern', 'supervision:reports', PrintConfig(font: 'kufi', eastern: true, logo: 'banner', zebra: false),
+          ExportFormat.pdf);
+      await write('materials_sans', 'unit:material_approval', PrintConfig(font: 'sans', headerFill: 'gray', borders: 'horizontal'),
+          ExportFormat.pdf);
+    });
+  });
+}
+
+/// يفتح نافذة التصدير بعد أول إطار (للقطات).
+class _OpenExport extends StatefulWidget {
+  const _OpenExport({required this.sourceId});
+
+  final String sourceId;
+
+  @override
+  State<_OpenExport> createState() => _OpenExportState();
+}
+
+class _OpenExportState extends State<_OpenExport> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showExportDialog(context, sourceId: widget.sourceId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox());
 }

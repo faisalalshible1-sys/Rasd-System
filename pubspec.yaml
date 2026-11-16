@@ -1,7 +1,7 @@
 name: dc_app
 description: منظومة متابعة نماذج الدورة المستندية للمشاريع — مكتب الشؤون الهندسية.
 publish_to: 'none'
-version: 2.0.0+1
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -20,6 +20,10 @@ dependencies:
   shared_preferences: ^2.3.2
   file_picker: ^13.0.0
   image: ^4.0.0
+  # الطباعة والتصدير: PDF بخطوط عربية مضمّنة، وحزم Word وZIP، وفتح الملف للطباعة في المتصفح
+  pdf: ^3.11.0
+  archive: ^3.6.1
+  web: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +35,24 @@ flutter:
   assets:
     - assets/brand/
     - assets/manual/
+    - assets/fonts/
+  # خطوط صفحة الطباعة (المعاينة داخل المنظومة تطابق ملف PDF)
+  fonts:
+    - family: PrintNaskh
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-Regular.ttf
+        - asset: assets/fonts/NotoNaskhArabic-Bold.ttf
+          weight: 700
+    - family: PrintKufi
+      fonts:
+        - asset: assets/fonts/NotoKufiArabic-Regular.ttf
+        - asset: assets/fonts/NotoKufiArabic-Bold.ttf
+          weight: 700
+    - family: PrintSans
+      fonts:
+        - asset: assets/fonts/ArLatSans-Regular.ttf
+        - asset: assets/fonts/ArLatSans-Bold.ttf
+          weight: 700
 
 # أيقونة التطبيق من ختم المؤسسة لكل المنصات (تُولَّد في tool/prepare_platforms.sh)
 flutter_launcher_icons:

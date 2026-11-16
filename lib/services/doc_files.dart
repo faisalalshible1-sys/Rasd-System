@@ -17,6 +17,11 @@ const String docsBucket = 'docs';
 /// الحد الأعلى لحجم الملف بعد الضغط (يطابق حد الحاوية).
 const int maxDocBytes = 20 * 1024 * 1024;
 
+/// الحد الأعلى لحجم الفيديو (الترحيل 22).
+const int maxVideoBytes = 50 * 1024 * 1024;
+
+const List<String> videoExts = ['mp4', 'mov', 'webm'];
+
 /// الصور الأكبر من هذا البعد تُصغَّر، والأكبر من هذا الحجم تُضغط.
 const int _maxSide = 2400;
 const int _keepBytes = 1536 * 1024;
@@ -32,6 +37,7 @@ class PickedDoc {
   final int? height;
 
   bool get isImage => mime.startsWith('image/');
+  bool get isVideo => mime.startsWith('video/');
 }
 
 String mimeOfExt(String ext) => switch (ext) {
@@ -39,6 +45,9 @@ String mimeOfExt(String ext) => switch (ext) {
       'png' => 'image/png',
       'webp' => 'image/webp',
       'gif' => 'image/gif',
+      'mp4' => 'video/mp4',
+      'mov' => 'video/quicktime',
+      'webm' => 'video/webm',
       _ => 'image/jpeg',
     };
 
@@ -67,10 +76,10 @@ String extOf(String name) {
   return (out, 'jpg', resized.width, resized.height);
 }
 
-/// يختار المستخدم ملفاً أو أكثر. [pdf] و[images] يحددان الأنواع المسموحة.
-/// الصور تُضغط وتُصغَّر تلقائياً؛ وما تجاوز 20 ميجابايت يُرفض برسالة.
-Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true}) async {
-  final exts = <String>[if (pdf) 'pdf', if (images) ...['jpg', 'jpeg', 'png', 'webp', 'gif']];
+/// يختار المستخدم ملفاً أو أكثر. [pdf] و[images] و[videos] تحدد الأنواع المسموحة.
+/// الصور تُضغط وتُصغَّر تلقائياً؛ وما تجاوز 20 ميجابايت يُرفض برسالة، والفيديو حتى 50 ميجابايت دون ضغط.
+Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true, bool videos = false}) async {
+  final exts = <String>[if (pdf) 'pdf', if (images) ...['jpg', 'jpeg', 'png', 'webp', 'gif'], if (videos) ...videoExts];
   final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: exts);
   final out = <PickedDoc>[];
   for (final f in picked) {
@@ -81,6 +90,13 @@ Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true}) asyn
     }
     var bytes = await f.readAsBytes();
     int? w, h;
+    if (videoExts.contains(ext)) {
+      if (bytes.length > maxVideoBytes) {
+        throw StateError('الفيديو «${f.name}» أكبر من 50 ميجابايت. قصّره أو اضغطه بجودة أقل ثم أعد المحاولة.');
+      }
+      out.add(PickedDoc(name: f.name, bytes: bytes, ext: ext, mime: mimeOfExt(ext)));
+      continue;
+    }
     if (ext != 'pdf') {
       final r = await compute(_shrink, (bytes, ext));
       bytes = r.$1;
@@ -170,11 +186,13 @@ Future<String?> saveDocCopy(SupabaseClient client, String path, String name, Str
     'pdf' => MimeType.pdf,
     'png' => MimeType.png,
     'gif' => MimeType.gif,
-    _ => MimeType.jpeg,
+    'jpg' || 'jpeg' => MimeType.jpeg,
+    _ => MimeType.custom,
   };
+  final custom = type == MimeType.custom ? (mime.isNotEmpty ? mime : mimeOfExt(ext)) : null;
   final mobile = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
   if (mobile) {
-    return FileSaver.instance.saveAs(name: base, bytes: bytes, ext: ext, mimeType: type);
+    return FileSaver.instance.saveAs(name: base, bytes: bytes, ext: ext, mimeType: type, customMimeType: custom);
   }
-  return FileSaver.instance.saveFile(name: base, bytes: bytes, ext: ext, mimeType: type);
+  return FileSaver.instance.saveFile(name: base, bytes: bytes, ext: ext, mimeType: type, customMimeType: custom);
 }

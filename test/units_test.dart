@@ -27,6 +27,12 @@ void main() {
     }
     expect(unitsOfSection('planning_qa'), ['planning', 'quality_assurance', 'follow_up']);
     expect(unitsOfSection('acceptance'), ['receiving', 'quality_control']);
+    expect(unitsOfSection('technical'), ['technical']);
+    // عدم المطابقة في ضبط الجودة وتتبع الاختبار، واعتماد المواد في الشؤون الفنية
+    expect(unitKinds['ncr']!.unit, 'quality_control');
+    expect(unitKinds['ncr']!.parent, 'qc_test');
+    expect(unitKinds['material_approval']!.unit, 'technical');
+    expect(unitKindsOf['quality_assurance'], ['qa_audit']);
     expect(unitKinds['handover']!.children.map((k) => k.key), ['punch_item']);
     expect(unitKinds['punch_item']!.hasLevels, isFalse);
     expect(unitKinds['qa_audit']!.defaultLevel, '');

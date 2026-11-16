@@ -1111,6 +1111,11 @@ const Map<String, String> auditActionLabels = {
   'unit.file_add': 'أرفق ملفاً بسجل وحدة',
   'unit.file_delete': 'أزال ملفاً من سجل وحدة',
   'user.unit': 'أسند مستخدماً إلى وحدة',
+  'print.template_save': 'حفظ قالب طباعة',
+  'print.template_delete': 'حذف قالب طباعة',
+  'export.file': 'استخرج ملفاً من المنظومة',
+  'export.print': 'طبع من المنظومة',
+  'export.media': 'نزّل حزمة وسائط',
 };
 
 const Map<String, String> projectFieldLabels = {

@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../config.dart';
 import '../manual.dart';
 import '../models.dart';
+import '../print/sources.dart';
 import '../registers.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
@@ -21,8 +22,8 @@ const List<(String, String, String, IconData)> appSections = [
       Icons.warning_amber_rounded),
   ('swot', 'تحليل SWOT', 'عوامل القوة والضعف والفرص والتهديدات، والتقييم المرجح، واستراتيجيات TOWS وخطة التنفيذ.',
       Icons.grid_view_rounded),
-  ('docs', 'المستندات الفنية',
-      'المقايسات والمراسلات بصيغة PDF، والتصاميم بعرض صور متحرك يتوقف عند التأشير، مع مسار تطوير كل مستند بإصداراته.',
+  ('docs', 'الشؤون الفنية',
+      'المقايسات والمراسلات بصيغة PDF، والتصاميم بعرض صور متحرك ومسار تطوير كل مستند بإصداراته، واعتماد المواد.',
       Icons.folder_copy_rounded),
   ('supervision', 'الإشراف',
       'التقارير اليومية للمواقع: الأعمال المنفذة والعمالة والمعدات والمعوقات والسلامة، مع صور الموقع ومتابعة التغطية.',
@@ -31,13 +32,16 @@ const List<(String, String, String, IconData)> appSections = [
       'سجل المباني التاريخية ببطاقة لكل مبنى وحالته الإنشائية وصوره، وتقييمات الحالة، وأعمال الترميم المرتبطة بالعقود.',
       Icons.museum_rounded),
   ('planning_qa', 'مكتب التخطيط وضمان الجودة',
-      'قسم التخطيط بالخطط ونسب إنجازها، وقسم ضمان الجودة بالتدقيقات وحالات عدم المطابقة، وقسم المتابعة بالتكليفات ومواعيدها.',
+      'قسم التخطيط بالخطط ونسب إنجازها، وقسم ضمان الجودة بالتدقيقات ونتائجها، وقسم المتابعة بالتكليفات ومواعيدها.',
       Icons.query_stats_rounded),
   ('safety', 'مكتب السلامة المهنية', 'جولات التفتيش ونسبة الالتزام، والحوادث وأيام العمل الضائعة، والمخالفات ومعالجتها في مواقع العقود.',
       Icons.health_and_safety_rounded),
   ('acceptance', 'المطابقة والاستلام',
-      'وحدة الاستلام بمحاضر الاستلام وقوائم الملاحظات، ووحدة ضبط الجودة بالاختبارات ونسبة المطابقة واعتماد المواد.',
+      'وحدة الاستلام بمحاضر الاستلام وقوائم الملاحظات، ووحدة ضبط الجودة بالاختبارات ونسبة المطابقة وحالات عدم المطابقة.',
       Icons.verified_rounded),
+  ('print', 'الطباعة والتصدير',
+      'استخراج أي سجل في المنظومة إلى PDF وWord وExcel وغيرها، ومصمم صفحة الطباعة بقوالبه، ومكتبة الصور والفيديو والملفات وتنزيلها.',
+      Icons.print_rounded),
   ('manual', 'دليل الاستخدام', 'شرح كامل لكل أقسام المنظومة وإجراءاتها وطريقة كل حساب، ويُحدَّث مع كل إصدار جديد.',
       Icons.menu_book_rounded),
 ];
@@ -47,18 +51,20 @@ const Map<String, String> sectionShortNames = {
   'cycle': 'الدورة',
   'risks': 'المخاطر',
   'swot': 'SWOT',
-  'docs': 'المستندات',
+  'docs': 'الفنية',
   'supervision': 'الإشراف',
   'heritage': 'الترميم',
   'planning_qa': 'التخطيط',
   'safety': 'السلامة',
   'acceptance': 'الاستلام',
+  'print': 'الطباعة',
   'manual': 'الدليل',
 };
 
-/// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والمستندات والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
+/// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والشؤون الفنية والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
+/// الطباعة والتصدير متاحة دائماً؛ قوالبها المحفوظة وسجلها تعمل بعد الترحيل 22.
 bool sectionEnabled(AppState app, String key) => switch (key) {
-      'cycle' || 'manual' => true,
+      'cycle' || 'manual' || 'print' => true,
       'docs' || 'supervision' => app.v8Ready,
       'heritage' || 'planning_qa' || 'safety' || 'acceptance' => app.v9Ready,
       _ => app.v6Ready,
@@ -71,15 +77,16 @@ IconData sectionIcon(String key) => appSections.firstWhere((s) => s.$1 == key, o
 Color sectionColor(BuildContext context, String key) {
   final dark = Theme.of(context).brightness == Brightness.dark;
   return switch (key) {
-    'risks' => dark ? const Color(0xFFF08A5D) : const Color(0xFFB4441C),
+    'risks' => dark ? const Color(0xFFF2D04B) : const Color(0xFF9C7C00),
     'swot' => dark ? const Color(0xFF7FB2F0) : const Color(0xFF2B62A8),
     'docs' => dark ? const Color(0xFF5EC4B6) : const Color(0xFF0F766E),
     'supervision' => dark ? const Color(0xFFB39DFF) : const Color(0xFF6D3FB2),
     'manual' => dark ? const Color(0xFFB8C2CE) : const Color(0xFF4F5B69),
     'heritage' => dark ? const Color(0xFFD9A066) : const Color(0xFF8A5A2B),
     'planning_qa' => dark ? const Color(0xFF9FA8FF) : const Color(0xFF3949AB),
-    'safety' => dark ? const Color(0xFFE8B931) : const Color(0xFF8A6100),
-    'acceptance' => dark ? const Color(0xFFF07FB8) : const Color(0xFFA3246B),
+    'safety' => dark ? const Color(0xFFF2726F) : const Color(0xFFC62828),
+    'acceptance' => dark ? const Color(0xFF6FCF8E) : const Color(0xFF2E7D32),
+    'print' => dark ? const Color(0xFF7FC8E8) : const Color(0xFF0B6E99),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -132,7 +139,7 @@ class SectionHub extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(top: 16),
             child: InfoBanner(
-              text: 'المستندات الفنية والإشراف يعملان بعد تحديث قاعدة البيانات بالملف 20261114000020_documents_supervision.sql.',
+              text: 'الشؤون الفنية والإشراف يعملان بعد تحديث قاعدة البيانات بالملف 20261114000020_documents_supervision.sql.',
               level: 'warning',
             ),
           ),
@@ -176,10 +183,14 @@ class _SectionCard extends StatelessWidget {
         final letters = app.docs.ofKind('letter');
         final open = letters.where((l) => l.status == 'open').length;
         final late = letters.where((l) => l.overdue(today)).length;
+        final mats = app.v9Ready ? UnitStats(app.units, today).materialsUnderReview : 0;
         return [
           ('${app.docs.ofKind('boq').length}', 'مقايسة', null),
           ('$open', late > 0 ? 'مراسلة ($late متأخرة)' : 'مراسلة بانتظار رد', late > 0 ? sem.danger : (open > 0 ? sem.wip : null)),
-          ('${app.docs.ofKind('design').length}', 'تصميماً', null),
+          if (app.v9Ready)
+            ('$mats', 'مادة قيد الاعتماد', mats > 0 ? sem.wip : null)
+          else
+            ('${app.docs.ofKind('design').length}', 'تصميماً', null),
         ];
       case 'supervision':
         if (!app.v8Ready) return const [];
@@ -211,7 +222,7 @@ class _SectionCard extends StatelessWidget {
         final s = UnitStats(app.units, DateTime.now());
         return [
           ('${s.activePlans}', 'خطة قيد التنفيذ', null),
-          ('${s.openNcr}', 'عدم مطابقة مفتوحة', s.openNcr > 0 ? sem.danger : null),
+          ('${s.auditsThisYear}', 'تدقيقاً هذا العام', null),
           ('${s.overdueTasks}', 'تكليف متأخر', s.overdueTasks > 0 ? sem.wip : null),
         ];
       case 'safety':
@@ -228,7 +239,14 @@ class _SectionCard extends StatelessWidget {
         return [
           ('${s.openPunch}', 'ملاحظة استلام قائمة', s.openPunch > 0 ? sem.wip : null),
           ('${s.pendingTests}', 'اختبار بانتظار النتيجة', null),
-          ('${s.materialsUnderReview}', 'مادة قيد المراجعة', s.materialsUnderReview > 0 ? sem.wip : null),
+          ('${s.openNcr}', 'عدم مطابقة مفتوحة', s.openNcr > 0 ? sem.danger : null),
+        ];
+      case 'print':
+        final media = app.v8Ready ? app.docs.files.where((f) => f.isImage || f.isVideo).length : 0;
+        return [
+          ('${exportSources(app).length}', 'سجلاً قابلاً للتصدير', null),
+          ('${app.printTemplates.length}', 'قالب طباعة', null),
+          ('$media', 'صورة وفيديو', null),
         ];
       case 'manual':
         return [

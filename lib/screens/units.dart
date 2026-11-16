@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../pm.dart';
+import '../print/export_dialog.dart' show ExportButton;
 import '../ui/slideshow.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -72,6 +73,7 @@ IconData unitIcon(String unit) => switch (unit) {
       'safety' => Icons.health_and_safety_outlined,
       'receiving' => Icons.handshake_outlined,
       'quality_control' => Icons.science_outlined,
+      'technical' => Icons.inventory_2_outlined,
       _ => Icons.apartment_rounded,
     };
 
@@ -231,6 +233,7 @@ class _UnitRecordsPageState extends State<UnitRecordsPage> {
       subtitle: widget.kinds.length == 1 ? unitNames[widget.unit] : null,
       icon: unitKindIcon(_kind),
       actions: [
+        ExportButton(sourceId: 'unit:$_kind', items: list),
         if (canAdd)
           FilledButton.icon(
             onPressed: () => showUnitRecordEditor(context, _kind),
@@ -615,9 +618,8 @@ class UnitOverviewPage extends StatelessWidget {
         ],
       'quality_assurance' => [
           ('تدقيقات هذا العام', '${s.auditsThisYear}', null, UnitTone.info, Icons.manage_search_rounded),
-          ('عدم مطابقة مفتوحة', '${s.openNcr}', '${s.seriousOpenNcr} جسيمة أو حرجة', bad(s.openNcr, UnitTone.wip),
-              Icons.report_gmailerrorred_outlined),
-          ('إجراءات متأخرة', '${s.overdueNcr}', 'تجاوزت موعد الإجراء التصحيحي', bad(s.overdueNcr), Icons.schedule_rounded),
+          ('مخططة أو جارية', '${s.auditsOpen}', null, UnitTone.wip, Icons.pending_actions_rounded),
+          ('نتيجة غير مرضية', '${s.unsatisfactoryAudits}', 'من تدقيقات هذا العام', bad(s.unsatisfactoryAudits), Icons.thumb_down_alt_outlined),
         ],
       'follow_up' => [
           ('تكليفات قيد المتابعة', '${s.openTasks}', null, UnitTone.info, Icons.assignment_turned_in_outlined),
@@ -643,8 +645,16 @@ class UnitOverviewPage extends StatelessWidget {
       'quality_control' => [
           ('اختبارات هذا الشهر', '${s.testsThisMonth}', '${s.pendingTests} بانتظار النتيجة', UnitTone.info, Icons.science_outlined),
           ('نسبة المطابقة', rate(s.passRate), 'من الاختبارات ذات النتيجة', UnitTone.ok, Icons.verified_outlined),
+          ('عدم مطابقة مفتوحة', '${s.openNcr}', '${s.seriousOpenNcr} جسيمة أو حرجة', bad(s.openNcr, UnitTone.wip),
+              Icons.report_gmailerrorred_outlined),
+          ('إجراءات متأخرة', '${s.overdueNcr}', 'تجاوزت موعد الإجراء التصحيحي', bad(s.overdueNcr), Icons.schedule_rounded),
+        ],
+      'technical' => [
           ('مواد قيد المراجعة', '${s.materialsUnderReview}', '${s.overdueMaterials} تجاوزت موعد الرد',
               bad(s.overdueMaterials, UnitTone.wip), Icons.inventory_2_outlined),
+          ('معتمدة هذا العام', '${s.materialsApprovedThisYear}', 'بملاحظات أو دونها', UnitTone.ok, Icons.task_alt_rounded),
+          ('مرفوضة هذا العام', '${s.materialsRejectedThisYear}', null, bad(s.materialsRejectedThisYear, UnitTone.wip),
+              Icons.block_rounded),
         ],
       _ => const [],
     };
@@ -659,6 +669,7 @@ class UnitOverviewPage extends StatelessWidget {
         'safety' => 111,
         'receiving' => 121,
         'quality_control' => 122,
+        'technical' => 64,
         _ => 0,
       };
 

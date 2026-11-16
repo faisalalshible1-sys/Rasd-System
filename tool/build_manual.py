@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """يبني نسخة PDF من دليل الاستخدام من المصدر نفسه الذي يعرضه التطبيق (assets/manual/*.md).
 
-الاستخدام:  python3 tool/build_manual.py --version 2.2.0 --out manual.pdf [--chrome /path/to/chrome]
+الاستخدام:  python3 tool/build_manual.py --version 1.0.0 --out manual.pdf [--chrome /path/to/chrome]
 
 - ترتيب الفصول وأرقامها من lib/manual.dart.
 - الجداول الحية (النماذج، مستويات الخطر، المصفوفة) من config/live-settings.json كما في يوم البناء.

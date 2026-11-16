@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../docs.dart';
 import '../models.dart';
 import '../pm.dart';
+import '../print/export_dialog.dart' show ExportButton;
 import '../services/doc_files.dart';
 import '../ui/motion.dart';
 import '../ui/slideshow.dart';
@@ -40,7 +41,9 @@ IconData docKindIcon(String kind) => switch (kind) {
     };
 
 /// أنواع الملفات المسموحة لكل نوع: المقايسات والمراسلات PDF، والتصاميم صور ومعها PDF.
-({bool pdf, bool images}) docAllowedFiles(String kind) => kind == 'design' ? (pdf: true, images: true) : (pdf: true, images: false);
+/// الأنواع المسموحة لكل مستند: المقايسات والمراسلات PDF، والتصاميم PDF وصور وفيديو (الفيديو بعد الترحيل 22).
+({bool pdf, bool images, bool videos}) docAllowedFiles(String kind, {bool videos = false}) =>
+    kind == 'design' ? (pdf: true, images: true, videos: videos) : (pdf: true, images: false, videos: false);
 
 Color docStatusColor(Sem sem, DocItem i, DateTime today) {
   if (i.isLetter) {
@@ -160,11 +163,11 @@ Future<void> showDocEditor(BuildContext context, String kind, {DocItem? item, St
 /// اختيار الملفات ورفعها مع نافذة تقدّم.
 Future<void> pickAndAttach(BuildContext context, String scope, String ownerId, {String kind = 'report'}) async {
   final app = AppScope.read(context);
-  // المستندات حسب نوعها؛ والتقارير اليومية وسجلات الوحدات تقبل PDF والصور معاً
-  final allowed = scope == 'doc' ? docAllowedFiles(kind) : (pdf: true, images: true);
+  // المستندات حسب نوعها؛ والتقارير اليومية وسجلات الوحدات تقبل PDF والصور والفيديو
+  final allowed = scope == 'doc' ? docAllowedFiles(kind, videos: app.v10Ready) : (pdf: true, images: true, videos: app.v10Ready);
   List<PickedDoc> files;
   try {
-    files = await pickDocFiles(pdf: allowed.pdf, images: allowed.images);
+    files = await pickDocFiles(pdf: allowed.pdf, images: allowed.images, videos: allowed.videos);
   } catch (e) {
     if (context.mounted) showToast(context, friendlyError(e), error: true);
     return;
@@ -326,7 +329,8 @@ class _DocsPageState extends State<DocsPage> {
             (v) => setState(() => _direction = v)),
     ];
 
-    final actions = [
+    final actions = <Widget>[
+      ExportButton(sourceId: 'docs:$kind', items: list),
       if (app.canAddDoc(kind))
         FilledButton.icon(
           onPressed: () => showDocEditor(context, kind, projectId: _project.isNotEmpty && _project != '-' ? _project : null),
@@ -854,10 +858,11 @@ class DocFileTile extends StatelessWidget {
       dense: true,
       contentPadding: EdgeInsets.zero,
       visualDensity: dense ? VisualDensity.compact : null,
-      leading: Icon(file.isPdf ? Icons.picture_as_pdf_rounded : Icons.image_outlined, color: file.isPdf ? sem.danger : sem.muted),
+      leading: Icon(file.isPdf ? Icons.picture_as_pdf_rounded : (file.isVideo ? Icons.movie_rounded : Icons.image_outlined),
+          color: file.isPdf ? sem.danger : (file.isVideo ? sem.wip : sem.muted)),
       title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('${fmtBytes(file.sizeBytes)} · ${app.people[file.createdBy]?.displayName ?? ''}'),
-      onTap: file.isPdf
+      onTap: file.isPdf || file.isVideo
           ? () async {
               try {
                 await openDocExternally(await app.signedUrls.of(file.path));

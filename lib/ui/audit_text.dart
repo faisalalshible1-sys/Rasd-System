@@ -1,4 +1,5 @@
 import '../app_state.dart';
+import '../docs.dart' show fmtBytes;
 import '../models.dart';
 import '../registers.dart';
 import '../units.dart';
@@ -298,6 +299,18 @@ String auditDescription(AppState app, AuditEntry e) {
       return to.isEmpty
           ? 'أزال ${e.projectLabel} من ${from.isEmpty ? 'وحدته' : from}'
           : 'أسند ${e.projectLabel} إلى $to${head ? ' رئيساً لها' : ''}';
+    case 'print.template_save':
+      final kind = d['shared'] == true ? (d['default'] == true ? 'القالب العام الافتراضي' : 'القالب العام') : 'القالب الخاص';
+      return '${d['created'] == true ? 'أنشأ' : 'عدّل'} $kind «${text(d['name'])}»';
+    case 'print.template_delete':
+      return 'حذف ${d['shared'] == true ? 'القالب العام' : 'القالب الخاص'} «${text(d['name'])}»';
+    case 'export.file':
+    case 'export.print':
+      final rows = (d['rows'] as num?)?.toInt() ?? 0;
+      return '${e.action == 'export.print' ? 'طبع' : 'استخرج'} «${text(d['title'])}» بصيغة ${text(d['format']).toUpperCase()} ($rows سجل)';
+    case 'export.media':
+      final n = (d['rows'] as num?)?.toInt() ?? 0;
+      return 'نزّل حزمة ZIP من $n ملفاً (${fmtBytes(d['bytes'] as num?)})';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }

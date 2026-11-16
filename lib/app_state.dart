@@ -12,6 +12,7 @@ import 'models.dart';
 import 'pm.dart';
 import 'registers.dart';
 import 'services/doc_files.dart';
+import 'print/model.dart';
 import 'units.dart';
 import 'ui/appearance.dart';
 
@@ -89,6 +90,10 @@ class AppState extends ChangeNotifier {
   // الترحيل 21: أقسام الوحدات (الترميم والمباني التاريخية، التخطيط وضمان الجودة، السلامة المهنية، المطابقة والاستلام)
   UnitIndex units = UnitIndex.empty();
   bool v9Ready = false;
+
+  // الترحيل 22: الشؤون الفنية، والفيديو، وقوالب الطباعة وسجل التصدير
+  List<PrintTemplate> printTemplates = [];
+  bool v10Ready = false;
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -586,6 +591,7 @@ class AppState extends ChangeNotifier {
       await _loadV7();
       await _loadV8();
       await _loadV9();
+      await _loadV10();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -830,6 +836,65 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
+  /// قوالب الطباعة (الترحيل 22)؛ دونها تعمل الطباعة بالقالب الافتراضي ولا يُحفظ قالب ولا يُرفع فيديو.
+  Future<void> _loadV10() async {
+    try {
+      final r = await client.from('print_templates').select().order('name');
+      printTemplates = r.map(PrintTemplate.fromMap).toList();
+      v10Ready = true;
+    } catch (_) {
+      printTemplates = [];
+      v10Ready = false;
+    }
+  }
+
+  /// القالب الافتراضي العام، أو null.
+  PrintTemplate? get defaultPrintTemplate {
+    for (final t in printTemplates) {
+      if (t.isDefault) return t;
+    }
+    return null;
+  }
+
+  /// القوالب العامة يحفظها ويعدّلها المدير وموظفو مكتبه؛ والخاصة لكل مستخدم.
+  bool get canShareTemplates => role == AppRole.director || role == AppRole.officeStaff;
+
+  bool canEditTemplate(PrintTemplate t) => t.shared ? canShareTemplates && !frozenForMe : t.ownerId == me?.id;
+
+  Future<String> savePrintTemplate(String? id, String name, PrintConfig config, {bool shared = false, bool isDefault = false}) async {
+    final res = await client.rpc('save_print_template', params: {
+      'p_id': id,
+      'p_name': name,
+      'p_config': config.toJson(),
+      'p_shared': shared,
+      'p_default': isDefault,
+    });
+    await _loadV10();
+    _notify();
+    return res.toString();
+  }
+
+  Future<void> deletePrintTemplate(String id) async {
+    await client.rpc('delete_print_template', params: {'p_id': id});
+    await _loadV10();
+    _notify();
+  }
+
+  /// تسجيل ما استُخرج من المنظومة في التدقيق ([kind]: file أو print أو media). لا يوقف التصدير إن فشل.
+  Future<void> logExport({required String kind, required String source, required String title, required String format, int rows = 0, int bytes = 0}) async {
+    if (!v10Ready) return;
+    try {
+      await client.rpc('log_export', params: {
+        'p_kind': kind,
+        'p_source': source,
+        'p_title': title,
+        'p_format': format,
+        'p_rows': rows,
+        'p_bytes': bytes,
+      });
+    } catch (_) {}
+  }
+
   void _clearV7() {
     schedules = {};
     measurements = [];
@@ -994,6 +1059,8 @@ class AppState extends ChangeNotifier {
     _channel9 = null;
     units = UnitIndex.empty();
     v9Ready = false;
+    printTemplates = [];
+    v10Ready = false;
     signedUrls.clear();
     _clearV7();
     risks = [];
@@ -1089,9 +1156,11 @@ class AppState extends ChangeNotifier {
   }
 
   /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39)،
-  /// المستندات الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89)، الترميم والمباني التاريخية (90–99)،
-  /// مكتب التخطيط وضمان الجودة (100–109)، مكتب السلامة المهنية (110–119)، المطابقة والاستلام (120–129).
+  /// الشؤون الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89)، الترميم والمباني التاريخية (90–99)،
+  /// مكتب التخطيط وضمان الجودة (100–109)، مكتب السلامة المهنية (110–119)، المطابقة والاستلام (120–129)،
+  /// الطباعة والتصدير (130–139).
   static String sectionOf(int t) => switch (t) {
+        >= 130 && < 140 => 'print',
         >= 120 && < 130 => 'acceptance',
         >= 110 && < 120 => 'safety',
         >= 100 && < 110 => 'planning_qa',
@@ -1116,6 +1185,7 @@ class AppState extends ChangeNotifier {
     'planning_qa': 100,
     'safety': 110,
     'acceptance': 120,
+    'print': 130,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
@@ -1805,7 +1875,7 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------
   /// هل يكتب المستخدم في هذه الوحدة؟ (للعرض فقط؛ القاعدة تتحقق في unit_can_edit)
   /// المدير وموظفو مكتبه، ومستخدمو الوحدة المُسنَدون إليها، ورئيس الترميم لسجل المباني التاريخية،
-  /// ورئيس المطابقة والاستلام لوحدتيه، ودور مكتب التخطيط وضمان الجودة لأقسامه الثلاثة.
+  /// ورئيس المطابقة والاستلام لوحدتيه، ورئيس الشؤون الفنية لاعتماد المواد، ودور مكتب التخطيط وضمان الجودة لأقسامه الثلاثة.
   bool canEditUnit(String unit) {
     final r = role;
     if (!v9Ready || r == null || r == AppRole.securityAuditor) return false;
@@ -1831,6 +1901,7 @@ class AppState extends ChangeNotifier {
     return switch (unitSectionOf[unit]) {
       'heritage' => r == AppRole.deptHead && dep == 'restoration',
       'acceptance' => r == AppRole.deptHead && dep == 'acceptance',
+      'technical' => r == AppRole.deptHead && dep == 'technical',
       'planning_qa' => r == AppRole.planningQa,
       _ => false,
     };

@@ -259,6 +259,7 @@ class DocFile {
       );
 
   bool get isImage => mime.startsWith('image/');
+  bool get isVideo => mime.startsWith('video/');
   bool get isPdf => mime == 'application/pdf';
 }
 

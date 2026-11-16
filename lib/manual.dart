@@ -37,7 +37,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('14_contractors', 14, 'تقييم الشركات المنفذة'),
   ManualChapter('15_pm_dashboard', 15, 'لوحة القيادة والتنبيهات والتقرير الدوري'),
   ManualChapter('16_swot', 16, 'تحليل SWOT'),
-  ManualChapter('17_docs', 17, 'المستندات الفنية: المقايسات والمراسلات والتصاميم'),
+  ManualChapter('17_docs', 17, 'الشؤون الفنية: المقايسات والمراسلات والتصاميم واعتماد المواد'),
   ManualChapter('18_supervision', 18, 'الإشراف: التقارير اليومية ومتابعة التغطية'),
   ManualChapter('19_heritage', 19, 'الترميم والمباني التاريخية'),
   ManualChapter('20_planning_qa', 20, 'مكتب التخطيط وضمان الجودة'),
@@ -45,13 +45,14 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('22_acceptance', 22, 'المطابقة والاستلام'),
   ManualChapter('23_admin', 23, 'الإدارة والتدقيق والمساعد'),
   ManualChapter('24_manual', 24, 'دليل الاستخدام داخل المنظومة'),
+  ManualChapter('25_print', 25, 'الطباعة والتصدير ومكتبة الوسائط'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/14';
+const String manualUpdated = '2026/11/16';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -101,11 +102,12 @@ const Map<int, String> manualTabAnchors = {
   37: '16_swot',
   38: '23_admin',
   39: '23_admin',
-  // المستندات الفنية
+  // الشؤون الفنية
   60: '17_docs',
   61: '17_docs',
   62: '17_docs',
   63: '17_docs',
+  64: '17_docs',
   68: '23_admin',
   69: '23_admin',
   // الإشراف
@@ -144,6 +146,12 @@ const Map<int, String> manualTabAnchors = {
   122: '22_acceptance',
   128: '23_admin',
   129: '23_admin',
+  // الطباعة والتصدير
+  130: '25_print',
+  131: '25_print',
+  132: '25_print',
+  138: '23_admin',
+  139: '23_admin',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).
@@ -157,6 +165,7 @@ const Map<String, String> manualSectionAnchors = {
   'planning_qa': '20_planning_qa',
   'safety': '21_safety',
   'acceptance': '22_acceptance',
+  'print': '25_print',
   'manual': '24_manual',
 };
 
