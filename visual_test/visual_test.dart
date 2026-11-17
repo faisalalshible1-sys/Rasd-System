@@ -10,7 +10,6 @@ import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
 import 'package:dc_app/print/export_dialog.dart';
 import 'package:dc_app/print/exporter.dart';
-import 'package:dc_app/print/assets.dart';
 import 'package:dc_app/print/model.dart';
 import 'package:dc_app/print/preview.dart';
 import 'package:dc_app/print/sources.dart';
@@ -48,8 +47,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _desktop = Size(1440, 2600);
@@ -1131,51 +1128,18 @@ void main() {
           ExportFormat.pdf);
       await write('materials_sans', 'unit:material_approval', PrintConfig(font: 'sans', headerFill: 'gray', borders: 'horizontal'),
           ExportFormat.pdf);
-      // مؤقت: فحص ترتيب الأرقام داخل النص العربي في محرك PDF
-      final reg = pw.Font.ttf(ByteData.sublistView(await assetBytes('assets/fonts/NotoNaskhArabic-Regular.ttf')));
-      final lat = pw.Font.ttf(ByteData.sublistView(await assetBytes(latinRegular)));
-      const lrm = '\u200E', rlm = '\u200F', lri = '\u2066', pdi = '\u2069';
-      final probes = <(String, String, bool)>[
-        ('A raw date', 'التاريخ: 2026/11/16', true),
-        ('B LRM date', 'التاريخ: ${lrm}2026/11/16$lrm', true),
-        ('C LRI date', 'التاريخ: ${lri}2026/11/16$pdi', true),
-        ('D raw ref', 'الرقم: م.ش.هـ/2026/1116-194530', true),
-        ('E LRM ref', 'الرقم: م.ش.هـ/${lrm}2026/1116-194530$lrm', true),
-        ('F date alone rtl', '2026/11/16', true),
-        ('G date alone ltr', '2026/11/16', false),
-        ('H pct rtl', '7.7%', true),
-        ('I pct LRM rtl', '${lrm}7.7%$lrm', true),
-        ('J contract rtl', 'ع-2026/11', true),
-        ('K contract LRM', 'ع-${lrm}2026/11$lrm', true),
-        ('L contract RLM', '${rlm}ع-2026/11', true),
-        ('M footer raw', 'طبعه: م. فيصل الشبلي · 2026/11/16 19:45', true),
-        ('N footer LRM', 'طبعه: م. فيصل الشبلي · ${lrm}2026/11/16 19:45$lrm', true),
-        ('O sentence pct raw', 'نسبة 7.7% من القيمة', true),
-        ('P sentence pct LRM', 'نسبة ${lrm}7.7%$lrm من القيمة', true),
-        ('Q dash raw', 'السبب: 1116-194530', true),
-        ('R two dates raw', 'من 2026/11/01 إلى 2026/11/16', true),
-        ('S two dates LRM', 'من ${lrm}2026/11/01$lrm إلى ${lrm}2026/11/16$lrm', true),
-        ('T latin mix', 'المواصفة BS 4449 – إجهاد 420 MPa', true),
-      ];
-      final probe = pw.Document(theme: pw.ThemeData.withFont(base: reg, fontFallback: [lat]));
-      probe.addPage(pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (_) => pw.Column(children: [
-          for (final p in probes)
-            pw.Container(
-              padding: const pw.EdgeInsets.symmetric(vertical: 4),
-              decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: .3))),
-              child: pw.Row(children: [
-                pw.SizedBox(width: 130, child: pw.Text(p.$1, style: pw.TextStyle(font: lat, fontSize: 10))),
-                pw.Expanded(
-                  child: pw.Text(p.$2,
-                      textDirection: p.$3 ? pw.TextDirection.rtl : pw.TextDirection.ltr, textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 14)),
-                ),
-              ]),
-            ),
-        ]),
-      ));
-      File('${dir.path}/bidi_probe.pdf').writeAsBytesSync(await probe.save());
+      // أرقام وتواريخ ونِسب داخل نص عربي (العنوان الفرعي والملاحظات والتجميع)
+      await write(
+          'contracts_mixed',
+          'cycle:contracts',
+          PrintConfig(
+            subtitle: 'كشف شهر 11/2026 حتى 2026/11/16',
+            notes: 'اعتُمد الكشف بتاريخ 2026/11/16 الساعة 19:45، ونسبة الإنجاز 47.5% وفق المواصفة BS 4449 للعقد ع-2026/13.',
+            groupBy: 'stage',
+            cover: true,
+            eastern: false,
+          ),
+          ExportFormat.pdf);
     });
   });
 }

@@ -33,10 +33,10 @@ void main() {
   final ctx = PrintContext(printedBy: 'م. فيصل', orgName: 'مكتب الشؤون الهندسية', at: DateTime(2026, 11, 16, 19, 45, 30));
 
   test('الرقم المرجعي ونص التحقق', () {
-    expect(ctx.ref, '2026/1116-194530');
+    expect(ctx.ref, '2026/1116/194530');
     final c = PrintConfig();
-    expect('${c.refPrefix}/${ctx.ref}', 'م.ش.هـ/2026/1116-194530');
-    expect(verifyText(table, c, ctx), 'سجل المستخلصات | م.ش.هـ/2026/1116-194530 | 2026/11/16 19:45 | 2 سجل | م. فيصل');
+    expect('${c.refPrefix}/${ctx.ref}', 'م.ش.هـ/2026/1116/194530');
+    expect(verifyText(table, c, ctx), 'سجل المستخلصات | م.ش.هـ/2026/1116/194530 | 2026/11/16 19:45 | 2 سجل | م. فيصل');
   });
 
   test('الاتجاه التلقائي: أفقي إذا زادت الأعمدة على 6', () {
@@ -82,6 +82,33 @@ void main() {
     expect(odd.watermarkOpacity, 0.4);
   });
 
+  test('PDF: الأرقام داخل النص العربي تُفصل لتُرسم من اليسار', () {
+    expect(bidiWords('التاريخ: 2026/11/16'), [
+      [('التاريخ:', false)],
+      [('2026/11/16', true)],
+    ]);
+    expect(bidiWords('ع-2026/11'), [
+      [('ع-', false), ('2026/11', true)],
+    ]);
+    expect(bidiWords('الرقم: م.ش.هـ/2026/1116/194530'), [
+      [('الرقم:', false)],
+      [('م.ش.هـ/', false), ('2026/1116/194530', true)],
+    ]);
+    expect(bidiWords('نسبة 7.7% من (3) MPa BS'), [
+      [('نسبة', false)],
+      [('7.7%', true)],
+      [('من', false)],
+      [('(3)', true)],
+      [('MPa BS', true)],
+    ]);
+    expect(bidiWords('٢٠٢٦/١١/١٦، تم'), [
+      [('٢٠٢٦/١١/١٦', true), ('،', false)],
+      [('تم', false)],
+    ]);
+    expect(hasArabic('2026/11/16 19:45'), isFalse);
+    expect(hasLtr('حالات عدم المطابقة'), isFalse);
+  });
+
   test('CSV بعلامة UTF-8 واقتباس القيم', () {
     final bytes = buildCsv(table, PrintConfig());
     // علامة UTF-8 (EF BB BF) في أول الملف حتى يقرأ Excel العربية سليمة؛ utf8.decode يحذفها عند القراءة
@@ -94,7 +121,7 @@ void main() {
 
   test('JSON بالأعمدة والصفوف', () {
     final m = jsonDecode(utf8.decode(buildJson(table, PrintConfig(), ctx))) as Map<String, dynamic>;
-    expect(m['reference'], 'م.ش.هـ/2026/1116-194530');
+    expect(m['reference'], 'م.ش.هـ/2026/1116/194530');
     expect((m['rows'] as List).first['date'], '2026-11-03');
     expect((m['columns'] as List).length, 5);
   });
@@ -119,6 +146,8 @@ void main() {
   test('Excel: ملف صالح', () {
     final bytes = buildXlsx(table, PrintConfig(), ctx);
     expect(bytes.sublist(0, 2), [0x50, 0x4B]);
+    final sheet = ZipDecoder().decodeBytes(bytes).files.firstWhere((f) => f.name.startsWith('xl/worksheets/sheet'));
+    expect(utf8.decode(sheet.content as List<int>), contains('rightToLeft="1"'));
   });
 
   test('HTML: صفحة مستقلة من اليمين', () async {

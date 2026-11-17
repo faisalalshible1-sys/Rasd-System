@@ -82,6 +82,13 @@ class ExportColumn {
   final bool on;
 
   bool get numeric => type == ColType.number || type == ColType.money || type == ColType.percent;
+
+  /// الوزن الفعلي في عرض الجدول: النص الطويل أعرض، والتاريخ والمبلغ لا يضيقان عن سطر واحد.
+  double get weight => switch (type) {
+        ColType.long => flex * 1.8,
+        ColType.date || ColType.money => flex < 1.25 ? 1.25 : flex,
+        _ => flex,
+      };
 }
 
 /// بيانات مستخرجة جاهزة للكتابة بأي صيغة. القيم: نص، أو رقم، أو تاريخ، أو null.
@@ -154,6 +161,59 @@ class ExportTable {
 // تنسيق القيم
 // ---------------------------------------------------------------------
 const _eastern = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+
+// ------------------------------------------------------------- اتجاه الأرقام داخل النص العربي
+// محرك PDF لا يطبّق خوارزمية الاتجاه كاملة: يقلب ترتيب أجزاء الرقم المفصولة بـ / أو - أو : (فيظهر 2026/11/16
+// كأنه 16/11/2026). لذلك يُقسَّم النص إلى كلمات، وكل جزء من أرقام أو حروف لاتينية يُرسم وحده من اليسار.
+
+const _arabicLetters = r'؀-ٟ٭-ۯۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
+const _ltrChars = r'0-9A-Za-zÀ-ɏ٠-٩۰-۹';
+final _arabicRe = RegExp('[$_arabicLetters]');
+final _ltrRe = RegExp('[$_ltrChars]');
+final _latinRe = RegExp(r'[A-Za-zÀ-ɏ]');
+final _ltrSpanRe = RegExp('[$_ltrChars](?:[^\\s$_arabicLetters]*[$_ltrChars%٪])?');
+
+/// هل في النص حرف عربي؟
+bool hasArabic(String s) => _arabicRe.hasMatch(s);
+
+/// هل في النص رقم أو حرف لاتيني؟
+bool hasLtr(String s) => _ltrRe.hasMatch(s);
+
+/// يقسم النص إلى كلمات بالترتيب المنطقي، وكل كلمة أجزاء (النص، ومن اليسار؟). الكلمة الخالية من الحروف العربية
+/// جزء واحد من اليسار (2026/11/16، 7.7%، (3))، والكلمات اللاتينية المتتالية تُجمع (Hello World)، والكلمة
+/// المختلطة تُقسم (ع-2026/11 ← «ع-» من اليمين و«2026/11» من اليسار).
+List<List<(String, bool)>> bidiWords(String s) {
+  final out = <List<(String, bool)>>[];
+  for (final w in s.split(RegExp(r'\s+'))) {
+    if (w.isEmpty) continue;
+    final ar = hasArabic(w);
+    if (!ar && hasLtr(w)) {
+      // كلمات لاتينية متتالية تبقى عبارة واحدة من اليسار كما في Word والمتصفح
+      final prev = out.isEmpty ? null : out.last;
+      if (prev != null && prev.length == 1 && prev.first.$2 && _latinRe.hasMatch(prev.first.$1) && _latinRe.hasMatch(w)) {
+        out[out.length - 1] = [('${prev.first.$1} $w', true)];
+      } else {
+        out.add([(w, true)]);
+      }
+      continue;
+    }
+    if (!ar || !hasLtr(w)) {
+      out.add([(w, false)]);
+      continue;
+    }
+    final parts = <(String, bool)>[];
+    var i = 0;
+    for (final m in _ltrSpanRe.allMatches(w)) {
+      if (m.start > i) parts.add((w.substring(i, m.start), false));
+      parts.add((m.group(0)!, true));
+      i = m.end;
+    }
+    if (i < w.length) parts.add((w.substring(i), false));
+    out.add(parts);
+  }
+  return out;
+}
+
 
 /// تحويل الأرقام الغربية إلى المشرقية (٠١٢…) إن طُلب.
 String digitsOf(String s, bool eastern) {
@@ -543,7 +603,7 @@ class PrintContext {
   final String ref;
 
   static String _autoRef(DateTime t) =>
-      '${t.year}/${_two(t.month)}${_two(t.day)}-${_two(t.hour)}${_two(t.minute)}${_two(t.second)}';
+      '${t.year}/${_two(t.month)}${_two(t.day)}/${_two(t.hour)}${_two(t.minute)}${_two(t.second)}';
 }
 
 /// العنوان الظاهر للمستند.

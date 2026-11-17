@@ -249,7 +249,7 @@ Future<Uint8List> buildDocx(ExportTable table, PrintConfig c, PrintContext ctx) 
   }
 
   // الجدول: أعمدة بعرض نسبي
-  final flex = <double>[if (c.rowNumbers) 0.35, for (final col in cols) col.type == ColType.long ? col.flex * 1.8 : col.flex];
+  final flex = <double>[if (c.rowNumbers) 0.35, for (final col in cols) col.weight];
   final sumFlex = flex.fold<double>(0, (s, f) => s + f);
   final widths = [for (final f in flex) (usable * f / sumFlex).floor()];
   final headFill = switch (c.headerFill) { 'gray' => 'E4E7EB', 'none' => null, _ => accent };

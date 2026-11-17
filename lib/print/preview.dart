@@ -245,7 +245,7 @@ class PagePreview extends StatelessWidget {
     final widths = <int, TableColumnWidth>{
       if (c.rowNumbers) 0: const FlexColumnWidth(0.35),
       for (var j = 0; j < cols.length; j++)
-        j + (c.rowNumbers ? 1 : 0): FlexColumnWidth(cols[j].type == ColType.long ? cols[j].flex * 1.8 : cols[j].flex),
+        j + (c.rowNumbers ? 1 : 0): FlexColumnWidth(cols[j].weight),
     };
     Widget cell(String s, {bool head = false, bool center = false, bool bold = false}) => Padding(
           padding: EdgeInsets.symmetric(horizontal: c.cellPadding + 1, vertical: c.cellPadding),

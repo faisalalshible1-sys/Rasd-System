@@ -28,6 +28,35 @@ PdfPageFormat pageFormatOf(PrintConfig c, int columns) {
   return f.copyWith(marginLeft: m, marginRight: m, marginTop: m, marginBottom: m);
 }
 
+/// نص عربي قد يحوي أرقاماً أو حروفاً لاتينية: كل رقم يُرسم وحده من اليسار حتى لا يقلب المحرك أجزاءه
+/// (انظر [bidiWords]). [wrap] للخلايا والفقرات، وبدونه سطر واحد (الترويسة والتذييل).
+pw.Widget _tx(String s, pw.TextStyle style, {pw.TextAlign align = pw.TextAlign.right, bool wrap = true}) {
+  if (!hasLtr(s)) return pw.Text(s, style: style, textAlign: align, textDirection: pw.TextDirection.rtl);
+  if (!hasArabic(s)) return pw.Text(s, style: style, textAlign: align, textDirection: pw.TextDirection.ltr);
+  final words = bidiWords(s);
+  pw.Widget piece((String, bool) p) =>
+      pw.Text(p.$1, style: style, textDirection: p.$2 ? pw.TextDirection.ltr : pw.TextDirection.rtl);
+  pw.Widget word(List<(String, bool)> w) =>
+      w.length == 1 ? piece(w.first) : pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [for (final p in w) piece(p)]);
+  final gap = (style.fontSize ?? 10) * 0.27;
+  if (!wrap) {
+    return pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+      for (var i = 0; i < words.length; i++) ...[if (i > 0) pw.SizedBox(width: gap), word(words[i])],
+    ]);
+  }
+  final center = align == pw.TextAlign.center;
+  return pw.Align(
+    alignment: center ? pw.Alignment.center : (align == pw.TextAlign.left ? pw.Alignment.centerLeft : pw.Alignment.centerRight),
+    child: pw.Wrap(
+      spacing: gap,
+      runSpacing: 1,
+      crossAxisAlignment: pw.WrapCrossAlignment.center,
+      alignment: center ? pw.WrapAlignment.center : pw.WrapAlignment.start,
+      children: [for (final w in words) word(w)],
+    ),
+  );
+}
+
 /// مزج اللون مع الأبيض بنسبة [t] (0 أبيض، 1 اللون نفسه).
 PdfColor _tint(PdfColor c, double t) =>
     PdfColor(1 - (1 - c.red) * t, 1 - (1 - c.green) * t, 1 - (1 - c.blue) * t);
@@ -92,7 +121,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
       mainAxisSize: pw.MainAxisSize.min,
       children: [
         for (var i = 0; i < lines.length; i++)
-          pw.Text(lines[i], style: st(size: i == 0 ? fs + 2 : fs, b: i == 0 || i == lines.length - 1, color: i == 0 ? ink : muted)),
+          _tx(lines[i], st(size: i == 0 ? fs + 2 : fs, b: i == 0 || i == lines.length - 1, color: i == 0 ? ink : muted), wrap: false),
       ],
     );
     final metaLines = <String>[
@@ -102,7 +131,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
     final meta = pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       mainAxisSize: pw.MainAxisSize.min,
-      children: [for (final m in metaLines) pw.Text(m, style: st(size: fs - 0.5, color: muted))],
+      children: [for (final m in metaLines) _tx(m, st(size: fs - 0.5, color: muted), wrap: false)],
     );
     final row = pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
       if (c.logoPos == 'right' && logo != null) ...[logoBox(c.logoSize), pw.SizedBox(width: 10)],
@@ -128,12 +157,12 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
   pw.Widget footer(pw.Context context) {
     final left = <pw.Widget>[
       if (c.showPrintedBy)
-        pw.Text('طبعه: ${ctx.printedBy} · ${d(fmtDateBy(ctx.at, c.dateStyle))} ${d('${ctx.at.hour.toString().padLeft(2, '0')}:${ctx.at.minute.toString().padLeft(2, '0')}')}',
-            style: st(size: fs - 2, color: muted)),
+        _tx('طبعه: ${ctx.printedBy} · ${d(fmtDateBy(ctx.at, c.dateStyle))} ${d('${ctx.at.hour.toString().padLeft(2, '0')}:${ctx.at.minute.toString().padLeft(2, '0')}')}',
+            st(size: fs - 2, color: muted), wrap: false),
     ];
     final right = <pw.Widget>[
-      if (c.footerText.trim().isNotEmpty) pw.Text(c.footerText.trim(), style: st(size: fs - 1.5, color: muted)),
-      if (c.confidential.trim().isNotEmpty) pw.Text(c.confidential.trim(), style: st(size: fs - 1.5, b: true, color: accent)),
+      if (c.footerText.trim().isNotEmpty) _tx(c.footerText.trim(), st(size: fs - 1.5, color: muted), wrap: false),
+      if (c.confidential.trim().isNotEmpty) _tx(c.confidential.trim(), st(size: fs - 1.5, b: true, color: accent), wrap: false),
     ];
     return pw.Column(mainAxisSize: pw.MainAxisSize.min, children: [
       pw.Container(height: 0.6, color: rule),
@@ -141,7 +170,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
       pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
         pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: right)),
         if (c.pageNumbers)
-          pw.Text(d('صفحة ${context.pageNumber} من ${context.pagesCount}'), style: st(size: fs - 1, color: muted)),
+          _tx(d('صفحة ${context.pageNumber} من ${context.pagesCount}'), st(size: fs - 1, color: muted), wrap: false),
         pw.Expanded(
           child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
             pw.Flexible(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: left)),
@@ -157,15 +186,15 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
 
   // ------------------------------------------------------------- العنوان والوصف والمؤشرات
   List<pw.Widget> intro() => [
-        pw.Center(child: pw.Text(title, style: st(size: fs + 6, b: true, color: accent), textAlign: pw.TextAlign.center)),
+        pw.Center(child: _tx(title, st(size: fs + 6, b: true, color: accent), align: pw.TextAlign.center)),
         if (c.subtitle.trim().isNotEmpty || (c.showSection && table.section.isNotEmpty))
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 3),
             child: pw.Center(
-              child: pw.Text(
+              child: _tx(
                 [if (c.subtitle.trim().isNotEmpty) c.subtitle.trim(), if (c.showSection && table.section.isNotEmpty) table.section].join(' · '),
-                style: st(size: fs + 0.5, color: muted),
-                textAlign: pw.TextAlign.center,
+                st(size: fs + 0.5, color: muted),
+                align: pw.TextAlign.center,
               ),
             ),
           ),
@@ -176,12 +205,11 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
             decoration: pw.BoxDecoration(color: _tint(accent, 0.06), border: pw.Border.all(color: _tint(accent, 0.35), width: 0.6)),
             child: pw.Wrap(spacing: 18, runSpacing: 3, children: [
               for (final (k, v) in table.meta)
-                pw.RichText(
-                  text: pw.TextSpan(children: [
-                    pw.TextSpan(text: '$k: ', style: st(size: fs - 0.5, b: true)),
-                    pw.TextSpan(text: d(v), style: st(size: fs - 0.5, color: muted)),
-                  ]),
-                ),
+                pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+                  pw.Text('$k:', style: st(size: fs - 0.5, b: true), textDirection: pw.TextDirection.rtl),
+                  pw.SizedBox(width: 3),
+                  _tx(d(v), st(size: fs - 0.5, color: muted), wrap: false),
+                ]),
             ]),
           ),
           pw.SizedBox(height: 8),
@@ -198,8 +226,8 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
                         left: pw.BorderSide(color: rule, width: 0.6), right: pw.BorderSide(color: rule, width: 0.6)),
                   ),
                   child: pw.Column(children: [
-                    pw.Text(d(table.summary[i].$2), style: st(size: fs + 4, b: true, color: accent)),
-                    pw.Text(table.summary[i].$1, style: st(size: fs - 1.5, color: muted), textAlign: pw.TextAlign.center),
+                    _tx(d(table.summary[i].$2), st(size: fs + 4, b: true, color: accent), wrap: false),
+                    _tx(table.summary[i].$1, st(size: fs - 1.5, color: muted), align: pw.TextAlign.center),
                   ]),
                 ),
               ),
@@ -222,11 +250,10 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
 
   pw.Widget cell(String text, {bool head = false, bool numeric = false, bool b = false, PdfColor? color}) => pw.Padding(
         padding: pw.EdgeInsets.symmetric(horizontal: c.cellPadding + 1, vertical: c.cellPadding),
-        child: pw.Text(
+        child: _tx(
           text,
-          style: st(size: head ? fs - 0.5 : fs - 1, b: head || b, color: color ?? (head ? headInk : ink)),
-          textAlign: head || numeric ? pw.TextAlign.center : pw.TextAlign.right,
-          textDirection: pw.TextDirection.rtl,
+          st(size: head ? fs - 0.5 : fs - 1, b: head || b, color: color ?? (head ? headInk : ink)),
+          align: head || numeric ? pw.TextAlign.center : pw.TextAlign.right,
         ),
       );
 
@@ -234,7 +261,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
   pw.Widget tableOf(List<List<Object?>> rows, {int startNo = 1}) {
     final logical = <(String, double, bool)>[
       if (c.rowNumbers) ('ت', 0.35, true),
-      for (final col in cols) (col.label, col.type == ColType.long ? col.flex * 1.8 : col.flex, col.numeric || col.type == ColType.date),
+      for (final col in cols) (col.label, col.weight, col.numeric || col.type == ColType.date),
     ];
     final n = logical.length;
     // الفهرس الفيزيائي p يقابل المنطقي n-1-p
@@ -318,7 +345,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
         margin: const pw.EdgeInsets.only(top: 8, bottom: 3),
         padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(color: accent, width: 3))),
-        child: pw.Text(d('${cols[groupIdx].label}: ${e.key} (${e.value.length})'), style: st(size: fs + 0.5, b: true)),
+        child: _tx(d('${cols[groupIdx].label}: ${e.key} (${e.value.length})'), st(size: fs + 0.5, b: true)),
       ));
       out.add(tableOf(e.value, startNo: no));
       no += e.value.length;
@@ -332,7 +359,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
           pw.SizedBox(height: 12),
           pw.Text('ملاحظات', style: st(size: fs + 0.5, b: true, color: accent)),
           pw.SizedBox(height: 3),
-          pw.Text(c.notes.trim(), style: st(size: fs - 0.5)),
+          _tx(c.notes.trim(), st(size: fs - 0.5)),
         ],
         if (c.showSignatures && c.signatures.isNotEmpty) ...[
           pw.SizedBox(height: 26),
@@ -340,9 +367,9 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
             for (final s in c.signatures)
               pw.Expanded(
                 child: pw.Column(children: [
-                  pw.Text(s.title, style: st(b: true)),
+                  _tx(s.title, st(b: true), wrap: false),
                   pw.SizedBox(height: 4),
-                  pw.Text(s.name.isEmpty ? ' ' : s.name, style: st(color: muted)),
+                  _tx(s.name.isEmpty ? ' ' : s.name, st(color: muted), wrap: false),
                   pw.SizedBox(height: 22),
                   pw.Container(width: 110, height: 0.6, color: ink),
                   pw.SizedBox(height: 2),
@@ -370,38 +397,39 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
         if (logo != null) pw.Center(child: logoBox(c.logoSize * 2)),
         pw.SizedBox(height: 16),
         for (final l in c.orgLines.where((l) => l.trim().isNotEmpty))
-          pw.Center(child: pw.Text(l, style: st(size: fs + 2, color: muted))),
+          pw.Center(child: _tx(l, st(size: fs + 2, color: muted), align: pw.TextAlign.center)),
         pw.SizedBox(height: 28),
-        pw.Center(child: pw.Text(title, style: st(size: fs + 16, b: true, color: accent), textAlign: pw.TextAlign.center)),
+        pw.Center(child: _tx(title, st(size: fs + 16, b: true, color: accent), align: pw.TextAlign.center)),
         if (c.subtitle.trim().isNotEmpty)
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 6),
-            child: pw.Center(child: pw.Text(c.subtitle.trim(), style: st(size: fs + 4, color: ink), textAlign: pw.TextAlign.center)),
+            child: pw.Center(child: _tx(c.subtitle.trim(), st(size: fs + 4, color: ink), align: pw.TextAlign.center)),
           ),
         if (table.section.isNotEmpty)
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 6),
-            child: pw.Center(child: pw.Text(table.section, style: st(size: fs + 2, color: muted))),
+            child: pw.Center(child: _tx(table.section, st(size: fs + 2, color: muted), align: pw.TextAlign.center)),
           ),
         pw.SizedBox(height: 20),
         pw.Center(
-          child: pw.Text(
+          child: _tx(
             d([
               if (c.showRef) 'الرقم: ${c.refPrefix}/${ctx.ref}',
               'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}',
               'عدد السجلات: ${table.rows.length}',
-            ].join('   ·   ')),
-            style: st(color: muted),
+            ].join(' · ')),
+            st(color: muted),
+            align: pw.TextAlign.center,
           ),
         ),
         if (c.coverNote.trim().isNotEmpty)
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 18, left: 40, right: 40),
-            child: pw.Text(c.coverNote.trim(), style: st(size: fs + 1), textAlign: pw.TextAlign.center),
+            child: _tx(c.coverNote.trim(), st(size: fs + 1), align: pw.TextAlign.center),
           ),
         pw.Spacer(flex: 2),
         if (c.confidential.trim().isNotEmpty)
-          pw.Center(child: pw.Text(c.confidential.trim(), style: st(b: true, color: accent))),
+          pw.Center(child: _tx(c.confidential.trim(), st(b: true, color: accent), align: pw.TextAlign.center)),
         pw.SizedBox(height: 8),
         pw.Container(height: 6, color: accent),
       ]),

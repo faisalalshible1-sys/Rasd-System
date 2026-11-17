@@ -1,7 +1,10 @@
 // كاتب Excel: ورقة من اليمين إلى اليسار، بأسطر الجهة والعنوان ووصف ما استُخرج أعلاها،
 // ورأس جدول ملوّن، والأرقام قيماً حقيقية بفواصل الآلاف، وسطر مجاميع بمعادلات SUM.
 
+import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
 
 import 'package:excel/excel.dart';
 
@@ -170,5 +173,22 @@ Uint8List buildXlsx(ExportTable t, PrintConfig c, PrintContext ctx) {
   }
   final bytes = excel.encode();
   if (bytes == null) throw StateError('تعذّر إنشاء ملف Excel');
-  return Uint8List.fromList(bytes);
+  return Uint8List.fromList(_forceRtl(bytes));
+}
+
+/// مكتبة excel لا تكتب اتجاه الورقة من اليمين إذا أُعيدت تسميتها، فيُضاف rightToLeft في ملف الورقة نفسه.
+List<int> _forceRtl(List<int> bytes) {
+  final arc = ZipDecoder().decodeBytes(bytes);
+  final out = Archive();
+  for (final f in arc.files) {
+    if (f.isFile && f.name.startsWith('xl/worksheets/sheet') && f.name.endsWith('.xml')) {
+      var xml = utf8.decode(f.content as List<int>);
+      if (!xml.contains('rightToLeft=')) xml = xml.replaceAll('<sheetView ', '<sheetView rightToLeft="1" ');
+      final data = utf8.encode(xml);
+      out.addFile(ArchiveFile(f.name, data.length, data));
+    } else {
+      out.addFile(f);
+    }
+  }
+  return ZipEncoder().encode(out) ?? bytes;
 }
