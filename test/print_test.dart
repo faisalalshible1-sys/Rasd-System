@@ -83,8 +83,10 @@ void main() {
   });
 
   test('CSV بعلامة UTF-8 واقتباس القيم', () {
-    final s = utf8.decode(buildCsv(table, PrintConfig()));
-    expect(s.startsWith('﻿'), isTrue);
+    final bytes = buildCsv(table, PrintConfig());
+    // علامة UTF-8 (EF BB BF) في أول الملف حتى يقرأ Excel العربية سليمة؛ utf8.decode يحذفها عند القراءة
+    expect(bytes.sublist(0, 3), [0xEF, 0xBB, 0xBF]);
+    final s = utf8.decode(bytes);
     expect(s, contains('"عقد 11 — صيانة مبنى ""القنصلية"""'));
     expect(s, contains('125000.5'));
     expect(s, contains('"سطر أول\nسطر ثانٍ, بفاصلة"'));

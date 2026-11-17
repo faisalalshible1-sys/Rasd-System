@@ -10,7 +10,7 @@ import 'model.dart';
 String _csvCell(String s) => s.contains(RegExp(r'[",\n\r]')) ? '"${s.replaceAll('"', '""')}"' : s;
 
 Uint8List buildCsv(ExportTable t, PrintConfig c) {
-  final b = StringBuffer('﻿');
+  final b = StringBuffer('\uFEFF');
   b.writeln([if (c.rowNumbers) 'ت', for (final col in t.columns) col.label].map(_csvCell).join(','));
   for (var i = 0; i < t.rows.length; i++) {
     final r = t.rows[i];
