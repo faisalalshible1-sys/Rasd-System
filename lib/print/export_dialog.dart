@@ -299,8 +299,9 @@ class _ExportDialogState extends State<_ExportDialog> {
           Tooltip(
             message: f.hint,
             child: ChoiceChip(
+              showCheckmark: false,
               avatar: Icon(f.icon, size: 18),
-              label: Text(f.label),
+              label: Text(f.label, style: _format == f ? const TextStyle(fontWeight: FontWeight.w800) : null),
               selected: _format == f,
               onSelected: (_) => setState(() => _format = f),
             ),

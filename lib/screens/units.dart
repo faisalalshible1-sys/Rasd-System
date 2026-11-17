@@ -445,7 +445,10 @@ class UnitRecordDetailPage extends StatelessWidget {
               icon: Icons.trending_up_rounded,
             ),
           if (k.ownerLabel != null) StatCard(label: k.ownerLabel!, value: r.ownerText.isEmpty ? '—' : r.ownerText, icon: Icons.person_outline_rounded),
-          StatCard(label: 'المرفقات', value: '${files.length}', sub: '${images.length} صورة', icon: Icons.attach_file_rounded),
+          StatCard(label: 'المرفقات', value: '${files.length}', sub: [
+            '${images.length} صورة',
+            if (files.any((f) => f.isVideo)) '${files.where((f) => f.isVideo).length} فيديو',
+          ].join(' · '), icon: Icons.attach_file_rounded),
         ]),
         const SizedBox(height: 14),
         if (parent != null)

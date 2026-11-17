@@ -898,19 +898,52 @@ class _TopBar extends StatelessWidget {
                               label: Text('الأقسام', style: TextStyle(color: sectionColor(context, app.section))),
                             ),
                           ),
-                  if (!hub && app.section != 'manual')
-                    IconButton(
-                      tooltip: 'شرح هذه الصفحة في دليل الاستخدام',
-                      onPressed: () => app.openManual(manualAnchorForTab(app.tab)),
-                      icon: const Icon(Icons.help_outline_rounded),
-                    ),
-                  if (!hub)
-                    IconButton(
-                      tooltip: 'تصدير وطباعة',
-                      onPressed: () => showExportDialog(context, sourceId: exportSourceForTab(app.tab)),
-                      icon: const Icon(Icons.print_outlined),
-                    ),
-                  IconButton(tooltip: 'تحديث البيانات', onPressed: app.loadAll, icon: const Icon(Icons.refresh_rounded)),
+                  // على الهاتف تُجمع أزرار الشرح والطباعة والتحديث في قائمة «⋮» حتى يبقى عنوان الصفحة مقروءاً
+                  if (compact && !hub)
+                    PopupMenuButton<String>(
+                      tooltip: 'المزيد',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (v) {
+                        switch (v) {
+                          case 'help':
+                            app.openManual(manualAnchorForTab(app.tab));
+                          case 'print':
+                            showExportDialog(context, sourceId: exportSourceForTab(app.tab));
+                          case 'refresh':
+                            app.loadAll();
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        if (app.section != 'manual')
+                          const PopupMenuItem(
+                            value: 'help',
+                            child: ListTile(leading: Icon(Icons.help_outline_rounded), title: Text('شرح هذه الصفحة'), dense: true, contentPadding: EdgeInsets.zero),
+                          ),
+                        const PopupMenuItem(
+                          value: 'print',
+                          child: ListTile(leading: Icon(Icons.print_outlined), title: Text('تصدير وطباعة'), dense: true, contentPadding: EdgeInsets.zero),
+                        ),
+                        const PopupMenuItem(
+                          value: 'refresh',
+                          child: ListTile(leading: Icon(Icons.refresh_rounded), title: Text('تحديث البيانات'), dense: true, contentPadding: EdgeInsets.zero),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    if (!hub && app.section != 'manual')
+                      IconButton(
+                        tooltip: 'شرح هذه الصفحة في دليل الاستخدام',
+                        onPressed: () => app.openManual(manualAnchorForTab(app.tab)),
+                        icon: const Icon(Icons.help_outline_rounded),
+                      ),
+                    if (!hub)
+                      IconButton(
+                        tooltip: 'تصدير وطباعة',
+                        onPressed: () => showExportDialog(context, sourceId: exportSourceForTab(app.tab)),
+                        icon: const Icon(Icons.print_outlined),
+                      ),
+                    IconButton(tooltip: 'تحديث البيانات', onPressed: app.loadAll, icon: const Icon(Icons.refresh_rounded)),
+                  ],
                   IconButton(
                     tooltip: 'الإشعارات',
                     onPressed: () => _showNotifications(context),
