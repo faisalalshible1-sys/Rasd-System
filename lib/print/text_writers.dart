@@ -222,7 +222,7 @@ footer{margin-top:22px;padding-top:6px;border-top:1px solid #cbd2d9;color:#66707
 .cover{min-height:92vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;page-break-after:always;text-align:center}
 .cover .bar{align-self:stretch;height:8px;background:$accent}.clogo{height:${c.logoSize * 2}px;margin:24px 0}
 .ct{color:$accent;font-size:2.4em;margin:20px 0 4px}.cs{font-size:1.3em}.cm{color:#66707a;margin-top:12px}.cn{max-width:70%}
-.print{position:fixed;top:12px;left:12px;background:$accent;color:#fff;border:0;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer}
+.print{position:fixed;z-index:10;top:12px;left:12px;background:$accent;color:#fff;border:0;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer}
 @media print{body{background:#fff}.page{box-shadow:none;margin:0;padding:0;max-width:none}.print{display:none}}
 </style></head>
 <body>
