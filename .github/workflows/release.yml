@@ -26,6 +26,11 @@ on:
         required: false
         default: ''
         type: string
+      prune_old:
+        description: 'حذف كل الإصدارات السابقة (ملفاتها وسجلاتها) بعد نشر هذا الإصدار'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release
@@ -246,6 +251,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NOTES: ${{ inputs.notes }}
           MANDATORY: ${{ inputs.mandatory }}
+          PRUNE_OLD: ${{ inputs.prune_old }}
           APK: dist/dc-app-arm64.apk
           APK_ARM32: dist/dc-app-arm32.apk
           WINDOWS_SETUP: dist/dc-app-setup.exe

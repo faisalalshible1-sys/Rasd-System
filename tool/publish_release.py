@@ -36,6 +36,8 @@ APK = os.environ.get("APK", "")
 APK32 = os.environ.get("APK_ARM32", "")
 WIN = os.environ.get("WINDOWS_SETUP", "")
 WEB_URL = os.environ.get("WEB_URL", "").strip()
+# حذف كل الإصدارات السابقة (ملفاتها وسجلاتها) بعد نشر هذا الإصدار بنجاح، فيبقى هو وحده
+PRUNE_OLD = os.environ.get("PRUNE_OLD", "false").lower() == "true"
 
 if KEY.startswith("sb_publishable_"):
     print("::error title=نشر الإصدار::SUPABASE_SERVICE_KEY هو المفتاح العام. ضع المفتاح السري (sb_secret_...) في هذا السرّ.")
@@ -104,6 +106,26 @@ def cleanup(prefix, keep=KEEP):
         print(f"حُذفت ملفات قديمة: {', '.join(old)}")
 
 
+def prune_old():
+    """يحذف ملفات الإصدارات السابقة وسجلاتها، ويبقي ملفات هذا الإصدار وروابط latest. لا يمس أي بيانات أخرى."""
+    for prefix in ("android", "windows"):
+        code, res = request("POST", "/storage/v1/object/list/releases", {"prefix": prefix, "limit": 1000})
+        if code != 200 or not isinstance(res, list):
+            print(f"::warning title=حذف الإصدارات السابقة::تعذّر سرد {prefix}: {code} {res}")
+            continue
+        old = [f"{prefix}/{o['name']}" for o in res
+               if o.get("name") and not o["name"].startswith("latest") and f"-{VERSION}" not in o["name"]]
+        if old:
+            code, res = request("DELETE", "/storage/v1/object/releases", {"prefixes": old})
+            print(f"حُذفت ملفات الإصدارات السابقة ({code}): {', '.join(old)}")
+    code, res = request("DELETE", f"/rest/v1/app_releases?build=lt.{BUILD}", extra={"Prefer": "return=representation"})
+    if code in (200, 204):
+        n = len(res) if isinstance(res, list) else 0
+        print(f"حُذفت سجلات الإصدارات السابقة: {n}")
+    else:
+        print(f"::warning title=حذف الإصدارات السابقة::{code} {res}")
+
+
 def main():
     ensure_bucket()
     rows = []
@@ -132,8 +154,11 @@ def main():
         print(f"::error title=تسجيل الإصدار::HTTP {code}: {res}{hint}")
         sys.exit(1)
 
-    cleanup("android", KEEP * 2)
-    cleanup("windows")
+    if PRUNE_OLD:
+        prune_old()
+    else:
+        cleanup("android", KEEP * 2)
+        cleanup("windows")
 
     lines = [f"## الإصدار {VERSION}{' (إلزامي)' if MANDATORY else ''}", "", NOTES or "—", ""]
     lines += [f"- **{p}**: {u}" for p, u in rows]
