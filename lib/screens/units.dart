@@ -93,8 +93,8 @@ Widget? unitDueBadge(BuildContext context, UnitRecord r, DateTime today) {
 Future<void> showUnitRecordEditor(BuildContext context, String kind, {UnitRecord? record, String? parentId, String? projectId}) async {
   final app = AppScope.read(context);
   final k = unitKinds[kind]!;
-  if (!app.canEditUnit(k.unit)) {
-    showToast(context, 'لا تملك صلاحية الكتابة في ${unitNames[k.unit]}.', error: true);
+  if (!app.canEditUnitKind(kind)) {
+    showToast(context, 'لا تملك صلاحية الكتابة في ${k.label} (${unitNames[k.unit]}).', error: true);
     return;
   }
   final parentKind = k.parent == null ? null : unitKinds[k.parent!];
@@ -226,7 +226,7 @@ class _UnitRecordsPageState extends State<UnitRecordsPage> {
     final overdue = all.where((r) => r.overdue(today)).length;
     final closedMonth = all.where((r) => r.closedAt != null && r.closedAt!.year == today.year && r.closedAt!.month == today.month).length;
     final projects = {for (final r in all) if (r.projectId != null) r.projectId!};
-    final canAdd = app.canEditUnit(k.unit);
+    final canAdd = app.canEditUnitKind(k.key);
 
     return PmListScaffold(
       title: title,
@@ -373,7 +373,7 @@ class UnitRecordDetailPage extends StatelessWidget {
     }
     final k = r.spec!;
     final today = _today();
-    final canEdit = app.canEditUnit(r.unit);
+    final canEdit = app.canEditUnitKind(r.kind);
     final canDelete = app.canDeleteUnitRecord(r);
     final parent = r.parentId == null ? null : app.units.byId(r.parentId!);
     final files = app.docs.filesOfRecord(r.id);
@@ -572,7 +572,7 @@ class _ChildrenCard extends StatelessWidget {
       subtitle: kids.isEmpty ? null : '${kids.length} · منها $open مفتوحة',
       icon: unitKindIcon(kind.key),
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-      trailing: app.canEditUnit(kind.unit)
+      trailing: app.canEditUnitKind(kind.key)
           ? TextButton.icon(
               onPressed: () => showUnitRecordEditor(context, kind.key, parentId: parent.id, projectId: parent.projectId),
               icon: const Icon(Icons.add_rounded),

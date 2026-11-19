@@ -12,7 +12,9 @@ import 'models.dart';
 import 'pm.dart';
 import 'registers.dart';
 import 'services/doc_files.dart';
+import 'chat.dart';
 import 'print/model.dart';
+import 'rasd.dart';
 import 'units.dart';
 import 'ui/appearance.dart';
 
@@ -94,6 +96,18 @@ class AppState extends ChangeNotifier {
   // الترحيل 22: الشؤون الفنية، والفيديو، وقوالب الطباعة وسجل التصدير
   List<PrintTemplate> printTemplates = [];
   bool v10Ready = false;
+
+  // الترحيل 23: «منظومة رصد» — الصلاحيات الدقيقة، والرقم الإشاري الموسّع، وتخصيص الواجهة
+  Map<String, Set<String>> grants = {};
+  List<RefScheme> refSchemes = [];
+  bool v11Ready = false;
+
+  // الترحيل 24: المراسلات الداخلية (لها حالتها وتحديثها اللحظي في ChatController)
+  bool v12Ready = false;
+  late final ChatController chat = ChatController(this);
+
+  // الترحيل 25: مركز الأمن السيبراني الموسّع
+  bool v13Ready = false;
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -257,6 +271,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel7;
   RealtimeChannel? _channel8;
   RealtimeChannel? _channel9;
+  RealtimeChannel? _channel11;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -300,7 +315,21 @@ class AppState extends ChangeNotifier {
     };
   }
 
-  bool canEditForm(Project p, FormDef d) => d.active ? hasToken(p, d.responsible) : isDirector;
+  /// صلاحية دقيقة منحها المدير لهذا المستخدم (نموذج، أو صفحة، أو نوع سجل). التجميد يوقفها.
+  bool hasGrant(String scope) {
+    final r = role;
+    if (!v11Ready || r == null || r == AppRole.director || r == AppRole.securityAuditor || settings.frozen) return false;
+    return grants[me?.id]?.contains(scope) ?? false;
+  }
+
+  /// الصلاحيات الدقيقة لمستخدم.
+  Set<String> grantsOf(String userId) => grants[userId] ?? const {};
+
+  /// تخصيص المدير للأقسام والصفحات.
+  UiLayout get layout => UiLayout.fromJson(settings.raw['ui.layout']);
+
+  bool canEditForm(Project p, FormDef d) =>
+      d.active ? hasToken(p, d.responsible) || hasGrant('form:${d.key}') : isDirector;
 
   bool canEditField(Project p, CustomField f) => f.active && hasToken(p, f.editableBy);
 
@@ -592,6 +621,9 @@ class AppState extends ChangeNotifier {
       await _loadV8();
       await _loadV9();
       await _loadV10();
+      await _loadV11();
+      await _loadV12();
+      await _loadV13();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -848,6 +880,125 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// الصلاحيات الدقيقة وصيغ الأرقام الإشارية (الترحيل 23).
+  Future<void> _loadV11() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('user_grants').select('user_id, scope'),
+        client.from('ref_schemes').select().order('key'),
+      ]);
+      final g = <String, Set<String>>{};
+      for (final row in r[0]) {
+        (g[row['user_id'].toString()] ??= <String>{}).add(row['scope'].toString());
+      }
+      grants = g;
+      refSchemes = r[1].map(RefScheme.fromMap).toList()..sort((a, b) => a.system == b.system ? a.name.compareTo(b.name) : (a.system ? -1 : 1));
+      v11Ready = true;
+    } catch (_) {
+      grants = {};
+      refSchemes = [];
+      v11Ready = false;
+    }
+  }
+
+  /// المراسلات الداخلية (الترحيل 24).
+  Future<void> _loadV12() async {
+    try {
+      await client.from('chat_rooms').select('id').limit(1);
+      final first = !v12Ready;
+      v12Ready = true;
+      if (first) {
+        chat.start();
+      } else {
+        unawaited(chat.refreshRooms());
+      }
+    } catch (_) {
+      v12Ready = false;
+    }
+  }
+
+  /// مركز الأمن السيبراني (الترحيل 25).
+  Future<void> _loadV13() async {
+    try {
+      await client.from('security_incidents').select('id').limit(1);
+      v13Ready = true;
+    } catch (_) {
+      v13Ready = false;
+    }
+  }
+
+  RefScheme? refScheme(String key) {
+    for (final s in refSchemes) {
+      if (s.key == key) return s;
+    }
+    return null;
+  }
+
+  Future<void> setUserGrants(String userId, List<String> scopes) async {
+    await client.rpc('set_user_grants', params: {'p_user': userId, 'p_scopes': scopes});
+    await _loadV11();
+    _notify();
+  }
+
+  Future<int> suspendGrants(String userId, String reason) async {
+    final n = await client.rpc('sec_suspend_grants', params: {'p_user': userId, 'p_reason': reason});
+    await _loadV11();
+    _notify();
+    return (n as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> saveRefScheme(String key, Map<String, dynamic> data) async {
+    await client.rpc('save_ref_scheme', params: {'p_key': key, 'p_data': data});
+    await _loadV11();
+    _notify();
+  }
+
+  Future<void> deleteRefScheme(String key) async {
+    await client.rpc('delete_ref_scheme', params: {'p_key': key});
+    await _loadV11();
+    _notify();
+  }
+
+  Future<void> setRefCounter(String key, int next, {String? section}) async {
+    await client.rpc('set_ref_counter', params: {'p_scheme': key, 'p_next': next, 'p_section': section});
+  }
+
+  /// يصدر رقماً إشارياً من قاعدة البيانات (لا يتكرر). null إن لم يُطبَّق الترحيل أو كانت الصيغة موقوفة.
+  Future<String?> issueRef(String scheme, Map<String, String> ctx) async {
+    if (!v11Ready) return null;
+    final s = refScheme(scheme);
+    if (s == null || !s.active) return null;
+    try {
+      final res = await client.rpc('next_ref', params: {'p_scheme': scheme, 'p_ctx': ctx});
+      if (res is Map && res['ref'] != null) return res['ref'].toString();
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<RefLogEntry>> loadRefLog({String? scheme, int limit = 500}) async {
+    if (!v11Ready) return const [];
+    var q = client.from('ref_log').select();
+    if (scheme != null && scheme.isNotEmpty) q = q.eq('scheme', scheme);
+    final res = await q.order('id', ascending: false).limit(limit);
+    return res.map(RefLogEntry.fromMap).toList();
+  }
+
+  /// آخر رقم صدر لكل صيغة في فترتها الحالية (من العدادات).
+  Future<Map<String, int>> loadRefCounters() async {
+    if (!v11Ready) return const {};
+    final res = await client.from('ref_counters').select();
+    final out = <String, int>{};
+    for (final r in res) {
+      final k = '${r['scheme']}|${r['period']}';
+      out[k] = (r['value'] as num?)?.toInt() ?? 0;
+    }
+    return out;
+  }
+
+  Future<void> saveLayout(UiLayout l) async {
+    await setSetting('ui.layout', l.toJson());
+  }
+
   /// القالب الافتراضي العام، أو null.
   PrintTemplate? get defaultPrintTemplate {
     for (final t in printTemplates) {
@@ -1015,6 +1166,16 @@ class AppState extends ChangeNotifier {
     ch9.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'unit_records', callback: (_) => scheduleReload());
     ch9.subscribe();
     _channel9 = ch9;
+
+    // قناة الترحيلين 23 و25: الصلاحيات الدقيقة وصيغ الأرقام والحوادث الأمنية
+    final old11 = _channel11;
+    if (old11 != null) client.removeChannel(old11);
+    final ch11 = client.channel('dc-v11');
+    for (final t in const ['user_grants', 'ref_schemes', 'security_incidents']) {
+      ch11.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch11.subscribe();
+    _channel11 = ch11;
   }
 
   void scheduleReload() {
@@ -1061,6 +1222,15 @@ class AppState extends ChangeNotifier {
     v9Ready = false;
     printTemplates = [];
     v10Ready = false;
+    final old11 = _channel11;
+    if (old11 != null) client.removeChannel(old11);
+    _channel11 = null;
+    grants = {};
+    refSchemes = [];
+    v11Ready = false;
+    chat.stop();
+    v12Ready = false;
+    v13Ready = false;
     signedUrls.clear();
     _clearV7();
     risks = [];
@@ -1079,7 +1249,10 @@ class AppState extends ChangeNotifier {
       ..['heritage'] = 90
       ..['planning_qa'] = 100
       ..['safety'] = 110
-      ..['acceptance'] = 120;
+      ..['acceptance'] = 120
+      ..['print'] = 130
+      ..['chat'] = 140
+      ..['security'] = 150;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -1120,6 +1293,11 @@ class AppState extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// تغيّرت المراسلات (غير المقروء وآخر رسالة): يحدّث الشارات دون إعادة حساب التحليلات.
+  void chatChanged() {
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -1141,6 +1319,11 @@ class AppState extends ChangeNotifier {
     if (old7 != null) client.removeChannel(old7);
     final old8 = _channel8;
     if (old8 != null) client.removeChannel(old8);
+    final old9 = _channel9;
+    if (old9 != null) client.removeChannel(old9);
+    final old11 = _channel11;
+    if (old11 != null) client.removeChannel(old11);
+    chat.dispose();
     _heartbeat?.cancel();
     super.dispose();
   }
@@ -1158,8 +1341,10 @@ class AppState extends ChangeNotifier {
   /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39)،
   /// الشؤون الفنية (60–69)، الإشراف (70–79)، دليل الاستخدام (80–89)، الترميم والمباني التاريخية (90–99)،
   /// مكتب التخطيط وضمان الجودة (100–109)، مكتب السلامة المهنية (110–119)، المطابقة والاستلام (120–129)،
-  /// الطباعة والتصدير (130–139).
+  /// الطباعة والتصدير (130–139)، المراسلات الداخلية (140–149)، الأمن السيبراني (150–169).
   static String sectionOf(int t) => switch (t) {
+        >= 150 && < 170 => 'security',
+        >= 140 && < 150 => 'chat',
         >= 130 && < 140 => 'print',
         >= 120 && < 130 => 'acceptance',
         >= 110 && < 120 => 'safety',
@@ -1186,6 +1371,8 @@ class AppState extends ChangeNotifier {
     'safety': 110,
     'acceptance': 120,
     'print': 130,
+    'chat': 140,
+    'security': 150,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
@@ -1571,8 +1758,9 @@ class AppState extends ChangeNotifier {
   /// كل عضو عدا CISO يحرر سجل المخاطر؛ الحذف للمدير.
   bool get canEditRisks => v6Ready && role != null && role != AppRole.securityAuditor && !frozenForMe;
 
-  /// تحليل SWOT يحرره المدير وفريق مكتبه.
-  bool get canEditSwot => v6Ready && (role == AppRole.director || role == AppRole.officeStaff) && !frozenForMe;
+  /// تحليل SWOT يحرره المدير وفريق مكتبه، ومن مُنح صلاحية SWOT.
+  bool get canEditSwot =>
+      v6Ready && (role == AppRole.director || role == AppRole.officeStaff || hasGrant('swot')) && !frozenForMe;
 
   /// تحديث تقدم إجراء: محررو SWOT ورئيس القسم المسؤول.
   bool canUpdateSwotAction(String department) {
@@ -1763,6 +1951,7 @@ class AppState extends ChangeNotifier {
     if (frozenForMe) return false;
     final dep = me?.department;
     final p = projectId == null || projectId.isEmpty ? null : project(projectId);
+    if (hasGrant('docs:$kind')) return true;
     return switch (kind) {
       'boq' => r == AppRole.officeStaff || r == AppRole.contracts || (r == AppRole.deptHead && (dep == 'technical' || dep == 'acceptance')),
       'letter' => r != AppRole.securityAuditor,
@@ -1782,7 +1971,7 @@ class AppState extends ChangeNotifier {
     if (!v8Ready || r == null) return false;
     if (r == AppRole.director) return true;
     if (frozenForMe) return false;
-    if (r == AppRole.officeStaff) return true;
+    if (r == AppRole.officeStaff || hasGrant('supervision:reports')) return true;
     final p = project(projectId);
     return r == AppRole.deptHead && p != null && p.department == me?.department;
   }
@@ -1885,6 +2074,14 @@ class AppState extends ChangeNotifier {
     return _parentHeadOf(unit);
   }
 
+  /// الكتابة في نوع سجل بعينه: صلاحية الوحدة كلها، أو صلاحية دقيقة على هذا النوع.
+  bool canEditUnitKind(String kind) {
+    final k = unitKinds[kind];
+    if (k == null) return false;
+    if (canEditUnit(k.unit)) return true;
+    return v9Ready && role != null && role != AppRole.securityAuditor && !frozenForMe && hasGrant('unit:$kind');
+  }
+
   /// رئيس الوحدة (يحذف سجلاتها ومرفقاتها): المدير، ورئيس الوحدة المُسنَد، ورئيس القسم الأم، ودور مكتب التخطيط لأقسامه.
   bool isUnitHead(String unit) {
     final r = role;
@@ -1908,11 +2105,11 @@ class AppState extends ChangeNotifier {
   }
 
   /// حذف سجل: رئيس الوحدة، أو من أضافه خلال 24 ساعة.
-  bool canDeleteUnitRecord(UnitRecord r) => isUnitHead(r.unit) || (canEditUnit(r.unit) && canRemoveOwn(r.createdBy, r.createdAt));
+  bool canDeleteUnitRecord(UnitRecord r) => isUnitHead(r.unit) || (canEditUnitKind(r.kind) && canRemoveOwn(r.createdBy, r.createdAt));
 
   /// إزالة مرفق سجل: المدير ورئيس الوحدة، أو من رفعه خلال 24 ساعة.
   bool canRemoveUnitFile(UnitRecord r, DocFile f) =>
-      isUnitHead(r.unit) || (canEditUnit(r.unit) && canRemoveOwn(f.createdBy, f.createdAt));
+      isUnitHead(r.unit) || (canEditUnitKind(r.kind) && canRemoveOwn(f.createdBy, f.createdAt));
 
   /// مستخدمو الوحدة المُسنَدون إليها (الرئيس أولاً).
   List<Profile> unitMembers(String unit) =>

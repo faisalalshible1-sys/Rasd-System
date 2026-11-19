@@ -1,0 +1,330 @@
+// =====================================================================
+// «منظومة رصد» — الترحيل 23: الصلاحيات الدقيقة، والرقم الإشاري الموسّع، وتخصيص الواجهة.
+// =====================================================================
+
+import 'models.dart';
+import 'units.dart';
+
+// ---------------------------------------------------------------------
+// الصلاحيات الدقيقة
+// ---------------------------------------------------------------------
+
+/// نطاق صلاحية دقيقة: (المفتاح كما يُحفظ، الاسم، المجموعة).
+class GrantScope {
+  const GrantScope(this.key, this.label, this.group, {this.note = ''});
+
+  final String key;
+  final String label;
+  final String group;
+
+  /// ما يترتب على المنح (مثل: «أمر بالتعاقد» يشمل البيانات المالية للعقد).
+  final String note;
+}
+
+const Map<String, String> docKindLabels = {'boq': 'المقايسات', 'letter': 'المراسلات', 'design': 'التصاميم'};
+
+/// كل النطاقات التي يمكن منحها، مجمّعة: نماذج الدورة المستندية، والشؤون الفنية، والإشراف، وسجلات الوحدات، وSWOT.
+List<GrantScope> grantCatalog(List<FormDef> forms, {String contractFormKey = 'f01'}) => [
+      for (final f in forms)
+        if (f.active)
+          GrantScope('form:${f.key}', f.name, 'نماذج الدورة المستندية',
+              note: f.key == contractFormKey ? 'يشمل البيانات المالية للعقد وأعماله' : (f.engineerField != null ? 'يشمل تكليف المهندس المقابل' : '')),
+      for (final e in docKindLabels.entries) GrantScope('docs:${e.key}', e.value, 'الشؤون الفنية'),
+      const GrantScope('supervision:reports', 'التقارير اليومية للمواقع', 'الإشراف'),
+      for (final k in unitKinds.values) GrantScope('unit:${k.key}', k.label, unitNames[k.unit] ?? k.unit),
+      const GrantScope('swot', 'تحليل SWOT', 'التخطيط الاستراتيجي'),
+    ];
+
+String grantLabel(String scope, List<FormDef> forms) {
+  for (final g in grantCatalog(forms)) {
+    if (g.key == scope) return g.label;
+  }
+  if (scope.startsWith('form:')) {
+    for (final f in forms) {
+      if ('form:${f.key}' == scope) return '${f.name} (موقوف)';
+    }
+  }
+  return scope;
+}
+
+// ---------------------------------------------------------------------
+// الرقم الإشاري
+// ---------------------------------------------------------------------
+
+const Map<String, String> refResetLabels = {
+  'yearly': 'يبدأ من جديد كل سنة',
+  'monthly': 'يبدأ من جديد كل شهر',
+  'daily': 'يبدأ من جديد كل يوم',
+  'never': 'تسلسل مستمر لا يُصفَّر',
+};
+
+/// رموز الصيغة وشرحها.
+const List<(String, String)> refTokens = [
+  ('{YYYY}', 'السنة (2026)'),
+  ('{YY}', 'السنة مختصرة (26)'),
+  ('{MM}', 'الشهر (11)'),
+  ('{DD}', 'اليوم (19)'),
+  ('{SEQ}', 'التسلسل بعدد الخانات المحدد'),
+  ('{SEQ:3}', 'التسلسل بثلاث خانات (001)'),
+  ('{SECTION}', 'رمز القسم المصدِر'),
+  ('{DEPT}', 'رمز القسم المشرف على العقد'),
+  ('{CODE}', 'رمز يمرره المصدر (رقم العقد مثلاً)'),
+  ('{KIND}', 'نوع السجل'),
+];
+
+/// أقسام المنظومة التي تُصدِر مطبوعات، لرموز {SECTION}.
+const Map<String, String> refSectionNames = {
+  'cycle': 'الدورة المستندية',
+  'risks': 'المخاطر ومتابعة المشاريع',
+  'swot': 'تحليل SWOT',
+  'docs': 'الشؤون الفنية',
+  'supervision': 'الإشراف',
+  'heritage': 'الترميم والمباني التاريخية',
+  'planning_qa': 'التخطيط وضمان الجودة',
+  'safety': 'السلامة المهنية',
+  'acceptance': 'المطابقة والاستلام',
+  'print': 'الطباعة والتصدير',
+  'manual': 'دليل الاستخدام',
+  'security': 'الأمن السيبراني',
+  'chat': 'المراسلات الداخلية',
+};
+
+class RefScheme {
+  const RefScheme({
+    required this.key,
+    required this.name,
+    required this.pattern,
+    this.reset = 'yearly',
+    this.perSection = false,
+    this.pad = 4,
+    this.startAt = 1,
+    this.codes = const {},
+    this.active = true,
+    this.system = false,
+    this.updatedAt,
+  });
+
+  final String key;
+  final String name;
+  final String pattern;
+  final String reset;
+  final bool perSection;
+  final int pad;
+  final int startAt;
+  final Map<String, String> codes;
+  final bool active;
+  final bool system;
+  final DateTime? updatedAt;
+
+  factory RefScheme.fromMap(Map<String, dynamic> m) => RefScheme(
+        key: m['key'].toString(),
+        name: (m['name'] ?? '').toString(),
+        pattern: (m['pattern'] ?? '').toString(),
+        reset: (m['reset'] ?? 'yearly').toString(),
+        perSection: m['per_section'] == true,
+        pad: (m['pad'] as num?)?.toInt() ?? 4,
+        startAt: (m['start_at'] as num?)?.toInt() ?? 1,
+        codes: m['codes'] is Map ? {for (final e in (m['codes'] as Map).entries) e.key.toString(): e.value.toString()} : const {},
+        active: m['active'] != false,
+        system: m['system'] == true,
+        updatedAt: DateTime.tryParse((m['updated_at'] ?? '').toString())?.toLocal(),
+      );
+
+  Map<String, dynamic> toData() => {
+        'name': name,
+        'pattern': pattern,
+        'reset': reset,
+        'per_section': perSection,
+        'pad': pad,
+        'start_at': startAt,
+        'codes': codes,
+        'active': active,
+      };
+
+  /// معاينة الرقم كما تصدره قاعدة البيانات (ref_format) دون حجز تسلسل.
+  String preview({DateTime? at, int seq = 1, Map<String, String> ctx = const {}}) =>
+      formatRef(pattern, seq: seq, pad: pad, at: at ?? DateTime.now(), ctx: ctx, codes: codes);
+}
+
+String _p2(int n) => n.toString().padLeft(2, '0');
+
+/// المعادلة نفسها في قاعدة البيانات (public.ref_format)؛ اختبار test/rasd_test.dart يطابق بينهما.
+String formatRef(String pattern,
+    {required int seq, required int pad, required DateTime at, Map<String, String> ctx = const {}, Map<String, String> codes = const {}}) {
+  String code(String? k) {
+    final key = k ?? '';
+    final c = codes[key] ?? '';
+    if (c.isNotEmpty) return c;
+    return key.isEmpty ? '-' : key;
+  }
+
+  var r = pattern
+      .replaceAll('{YYYY}', '${at.year}')
+      .replaceAll('{YY}', _p2(at.year % 100))
+      .replaceAll('{MM}', _p2(at.month))
+      .replaceAll('{DD}', _p2(at.day))
+      .replaceAll('{SECTION}', code(ctx['section']))
+      .replaceAll('{DEPT}', code(ctx['dept']));
+  final rawCode = (ctx['code'] ?? '').replaceAll(RegExp(r'[\s/]+'), '-');
+  r = r.replaceAll('{CODE}', rawCode.isEmpty ? '-' : (rawCode.length > 30 ? rawCode.substring(0, 30) : rawCode));
+  r = r.replaceAll('{KIND}', code(ctx['kind']));
+  r = r.replaceAllMapped(RegExp(r'\{SEQ:([1-8])\}'), (m) => seq.toString().padLeft(int.parse(m.group(1)!), '0'));
+  return r.replaceAll('{SEQ}', seq.toString().padLeft(pad, '0'));
+}
+
+class RefLogEntry {
+  const RefLogEntry({
+    required this.id,
+    required this.scheme,
+    required this.ref,
+    required this.seq,
+    required this.period,
+    this.section,
+    this.source,
+    this.title,
+    this.createdBy,
+    this.createdAt,
+  });
+
+  final int id;
+  final String scheme;
+  final String ref;
+  final int seq;
+  final String period;
+  final String? section;
+  final String? source;
+  final String? title;
+  final String? createdBy;
+  final DateTime? createdAt;
+
+  factory RefLogEntry.fromMap(Map<String, dynamic> m) => RefLogEntry(
+        id: (m['id'] as num).toInt(),
+        scheme: m['scheme'].toString(),
+        ref: (m['ref'] ?? '').toString(),
+        seq: (m['seq'] as num?)?.toInt() ?? 0,
+        period: (m['period'] ?? '').toString(),
+        section: m['section'] as String?,
+        source: m['source'] as String?,
+        title: m['title'] as String?,
+        createdBy: m['created_by'] as String?,
+        createdAt: DateTime.tryParse((m['created_at'] ?? '').toString())?.toLocal(),
+      );
+}
+
+// ---------------------------------------------------------------------
+// تخصيص الواجهة (ui.layout)
+// ---------------------------------------------------------------------
+
+class SectionCustom {
+  const SectionCustom({this.name = '', this.desc = '', this.hidden = false});
+
+  final String name;
+  final String desc;
+  final bool hidden;
+
+  bool get isEmpty => name.trim().isEmpty && desc.trim().isEmpty && !hidden;
+
+  Map<String, dynamic> toJson() => {
+        if (name.trim().isNotEmpty) 'name': name.trim(),
+        if (desc.trim().isNotEmpty) 'desc': desc.trim(),
+        if (hidden) 'hidden': true,
+      };
+
+  factory SectionCustom.fromJson(Object? v) {
+    if (v is! Map) return const SectionCustom();
+    return SectionCustom(name: (v['name'] ?? '').toString(), desc: (v['desc'] ?? '').toString(), hidden: v['hidden'] == true);
+  }
+}
+
+class PageCustom {
+  const PageCustom({this.label = '', this.hidden = false});
+
+  final String label;
+  final bool hidden;
+
+  bool get isEmpty => label.trim().isEmpty && !hidden;
+
+  Map<String, dynamic> toJson() => {
+        if (label.trim().isNotEmpty) 'label': label.trim(),
+        if (hidden) 'hidden': true,
+      };
+
+  factory PageCustom.fromJson(Object? v) {
+    if (v is! Map) return const PageCustom();
+    return PageCustom(label: (v['label'] ?? '').toString(), hidden: v['hidden'] == true);
+  }
+}
+
+/// تخصيص المدير لأسماء الأقسام والصفحات وأوصافها وترتيبها وإخفائها، يطبَّق على الجميع فوراً.
+class UiLayout {
+  const UiLayout({this.sections = const {}, this.sectionOrder = const [], this.pages = const {}, this.pageOrder = const {}});
+
+  final Map<String, SectionCustom> sections;
+  final List<String> sectionOrder;
+  final Map<int, PageCustom> pages;
+  final Map<String, List<int>> pageOrder;
+
+  static const empty = UiLayout();
+
+  bool get isEmpty => sections.isEmpty && sectionOrder.isEmpty && pages.isEmpty && pageOrder.isEmpty;
+
+  factory UiLayout.fromJson(Object? v) {
+    if (v is! Map) return empty;
+    final s = v['sections'];
+    final p = v['pages'];
+    final so = v['section_order'];
+    final po = v['page_order'];
+    return UiLayout(
+      sections: s is Map ? {for (final e in s.entries) e.key.toString(): SectionCustom.fromJson(e.value)} : const {},
+      sectionOrder: so is List ? [for (final x in so) x.toString()] : const [],
+      pages: p is Map
+          ? {
+              for (final e in p.entries)
+                if (int.tryParse(e.key.toString()) != null) int.parse(e.key.toString()): PageCustom.fromJson(e.value)
+            }
+          : const {},
+      pageOrder: po is Map
+          ? {
+              for (final e in po.entries)
+                if (e.value is List) e.key.toString(): [for (final x in e.value as List) if (x is num) x.toInt()]
+            }
+          : const {},
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final s = {for (final e in sections.entries) if (!e.value.isEmpty) e.key: e.value.toJson()};
+    final p = {for (final e in pages.entries) if (!e.value.isEmpty) '${e.key}': e.value.toJson()};
+    final po = {for (final e in pageOrder.entries) if (e.value.isNotEmpty) e.key: e.value};
+    return {
+      if (s.isNotEmpty) 'sections': s,
+      if (sectionOrder.isNotEmpty) 'section_order': sectionOrder,
+      if (p.isNotEmpty) 'pages': p,
+      if (po.isNotEmpty) 'page_order': po,
+    };
+  }
+
+  UiLayout copyWith({
+    Map<String, SectionCustom>? sections,
+    List<String>? sectionOrder,
+    Map<int, PageCustom>? pages,
+    Map<String, List<int>>? pageOrder,
+  }) =>
+      UiLayout(
+        sections: sections ?? this.sections,
+        sectionOrder: sectionOrder ?? this.sectionOrder,
+        pages: pages ?? this.pages,
+        pageOrder: pageOrder ?? this.pageOrder,
+      );
+
+  /// يرتب عناصر حسب قائمة مفاتيح: المرتبة أولاً بترتيبها، والباقي بترتيبه الأصلي بعدها.
+  static List<T> ordered<T, K>(List<T> items, List<K> order, K Function(T) keyOf) {
+    if (order.isEmpty) return items;
+    int rank(T x) {
+      final i = order.indexOf(keyOf(x));
+      return i < 0 ? 1000 + items.indexOf(x) : i;
+    }
+
+    return [...items]..sort((a, b) => rank(a).compareTo(rank(b)));
+  }
+}
