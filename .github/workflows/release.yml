@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      web_only:
+        description: 'نشر الويب وحده (بعد تجديد رمز Netlify مثلاً) دون بناء أندرويد وويندوز ودون تسجيل إصدار جديد'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release
@@ -80,6 +85,7 @@ jobs:
   android:
     name: أندرويد
     needs: checks
+    if: ${{ !inputs.web_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -118,6 +124,7 @@ jobs:
   windows:
     name: ويندوز
     needs: checks
+    if: ${{ !inputs.web_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -178,6 +185,7 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          WEB_ONLY: ${{ inputs.web_only }}
         shell: bash
         run: |
           if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
@@ -191,6 +199,8 @@ jobs:
             cat deploy.err
             reason=$(grep -m1 -E "Error|Forbidden|Unauthorized" deploy.err | sed 's/^[^A-Za-z]*//' | cut -c1-160)
             echo "::warning title=الويب لم يُنشر::تعذّر النشر على Netlify ($reason). جدّد رمز NETLIFY_AUTH_TOKEN في أسرار GitHub ثم أعد نشر الويب؛ نسخة الويب متاحة في ملفات التشغيل (release-web)."
+            # عند نشر الويب وحده يُعدّ الفشل فشلاً حتى يظهر بوضوح
+            [ "$WEB_ONLY" = "true" ] && exit 1
             exit 0
           fi
           url=$(python3 -c "import json; d=json.load(open('deploy.json')); print(d.get('url') or d.get('deploy_url') or '')")
@@ -200,6 +210,7 @@ jobs:
   manual:
     name: دليل الاستخدام PDF
     needs: checks
+    if: ${{ !inputs.web_only }}
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -234,6 +245,7 @@ jobs:
   publish:
     name: نشر الإصدار
     needs: [android, windows, web]
+    if: ${{ !inputs.web_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
