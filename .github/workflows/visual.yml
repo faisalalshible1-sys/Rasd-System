@@ -14,8 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # مرآة Ubuntu تتعثر أحياناً: ثلاث محاولات قبل الفشل
       - name: خطوط عربية
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-core fonts-dejavu-core > /dev/null
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update -qq || true
+            sudo apt-get install -y -qq --fix-missing fonts-noto-core fonts-dejavu-core > /dev/null && exit 0
+            sleep 20
+          done
+          exit 1
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
