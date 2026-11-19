@@ -180,12 +180,14 @@ jobs:
         with:
           name: release-web
           path: build/web
-      # نسخة GitHub Pages: العنوان faisalalshible1-sys.github.io/dc-app، فالمسار الأساسي /dc-app/
+      # نسخة GitHub Pages: العنوان <المالك>.github.io/<اسم المستودع>/، فالمسار الأساسي اسم المستودع
       - name: نسخة GitHub Pages
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           rm -rf build/pages && cp -r build/web build/pages
-          sed -i 's|<base href="/">|<base href="/dc-app/">|' build/pages/index.html
-          grep -q '<base href="/dc-app/">' build/pages/index.html
+          sed -i "s|<base href=\"/\">|<base href=\"/$REPO_NAME/\">|" build/pages/index.html
+          grep -q "<base href=\"/$REPO_NAME/\">" build/pages/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/pages
