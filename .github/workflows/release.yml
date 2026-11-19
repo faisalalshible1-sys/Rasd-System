@@ -198,6 +198,33 @@ jobs:
             # تعذّر النشر على Netlify (رمز منتهٍ أو مرفوض مثلاً): لا يوقف إصدار أندرويد وويندوز، ويبقى الويب على نسخته السابقة
             cat deploy.err
             reason=$(grep -m1 -E "Error|Forbidden|Unauthorized" deploy.err | sed 's/^[^A-Za-z]*//' | cut -c1-160)
+            # تشخيص دون كشف أي سرّ (السجل عام): هل الرمز صالح؟ هل يصل إلى الموقع؟ هل الحساب أو الموقع موقوف؟
+            diag=$(python3 - <<'PY'
+          import json, os, re, urllib.request, urllib.error
+          tok, site = os.environ["NETLIFY_AUTH_TOKEN"], os.environ["NETLIFY_SITE_ID"]
+          def get(path):
+              req = urllib.request.Request("https://api.netlify.com/api/v1/" + path, headers={"Authorization": "Bearer " + tok})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return r.status, json.loads(r.read() or b"null")
+              except urllib.error.HTTPError as e:
+                  return e.code, None
+          flag = re.compile(r"disabl|pause|suspend|lock|limit|credit|exceed|block", re.I)
+          def flags(o):
+              return {k: v for k, v in (o or {}).items() if flag.search(k) and isinstance(v, (bool, int, str)) and len(str(v)) < 60}
+          out = []
+          c, _ = get("user"); out.append(f"الرمز HTTP {c}")
+          c, s = get("sites/" + site)
+          out.append(f"الموقع HTTP {c}")
+          if s:
+              out.append(f"{s.get('name')} · الحالة {s.get('state')} · الخطة {s.get('account_type')} {flags(s)}")
+          c, accts = get("accounts")
+          for a in accts or []:
+              out.append(f"حساب {a.get('slug')} · {a.get('type_name')} {flags(a)}")
+          print(" | ".join(out)[:900])
+          PY
+            )
+            echo "::warning title=تشخيص Netlify::$diag"
             echo "::warning title=الويب لم يُنشر::تعذّر النشر على Netlify ($reason). جدّد رمز NETLIFY_AUTH_TOKEN في أسرار GitHub ثم أعد نشر الويب؛ نسخة الويب متاحة في ملفات التشغيل (release-web)."
             # عند نشر الويب وحده يُعدّ الفشل فشلاً حتى يظهر بوضوح
             [ "$WEB_ONLY" = "true" ] && exit 1
