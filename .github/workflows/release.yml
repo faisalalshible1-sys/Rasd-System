@@ -163,6 +163,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       url: ${{ steps.deploy.outputs.url }}
+      pages_url: ${{ steps.pages.outputs.url }}
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
@@ -180,14 +181,28 @@ jobs:
         with:
           name: release-web
           path: build/web
-      # نسخة GitHub Pages: العنوان <المالك>.github.io/<اسم المستودع>/، فالمسار الأساسي اسم المستودع
+      # نسخة GitHub Pages على نطاق المكتب rasd-system.rbcs.ly متى وُجّه إليها (سجل CNAME إلى <المالك>.github.io)،
+      # وإلا فعلى العنوان المؤقت <المالك>.github.io/<اسم المستودع>/
       - name: نسخة GitHub Pages
+        id: pages
         env:
           REPO_NAME: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+          PAGES_DOMAIN: rasd-system.rbcs.ly
         run: |
           rm -rf build/pages && cp -r build/web build/pages
-          sed -i "s|<base href=\"/\">|<base href=\"/$REPO_NAME/\">|" build/pages/index.html
-          grep -q "<base href=\"/$REPO_NAME/\">" build/pages/index.html
+          if [ -n "$PAGES_DOMAIN" ] && { dig +short CNAME "$PAGES_DOMAIN" | grep -qi "github.io" \
+               || dig +short A "$PAGES_DOMAIN" | grep -qE '^185\.199\.(108|109|110|111)\.153$'; }; then
+            echo "$PAGES_DOMAIN" > build/pages/CNAME
+            base="/"
+            echo "url=https://$PAGES_DOMAIN/" >> "$GITHUB_OUTPUT"
+          else
+            base="/$REPO_NAME/"
+            echo "url=https://$OWNER.github.io/$REPO_NAME/" >> "$GITHUB_OUTPUT"
+            echo "::warning title=نطاق الويب::لم يُوجَّه $PAGES_DOMAIN بعد إلى $OWNER.github.io (سجل CNAME)، فنُشر الويب على العنوان المؤقت."
+          fi
+          sed -i "s|<base href=\"/\">|<base href=\"$base\">|" build/pages/index.html
+          grep -q "<base href=\"$base\">" build/pages/index.html
       - uses: actions/upload-artifact@v4
         with:
           name: release-pages
@@ -259,7 +274,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          PAGES_URL: ${{ needs.web.outputs.pages_url }}
         run: |
           cd site
           touch .nojekyll
