@@ -221,9 +221,10 @@ class StatCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.bodySmall?.copyWith(color: sem.muted)),
+                    // سطران للعنوان والشرح حتى لا تُقطع العناوين الطويلة في بطاقات الهاتف الضيقة
+                    Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodySmall?.copyWith(color: sem.muted)),
                     _value(t),
-                    if (sub != null) Text(sub!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.labelSmall?.copyWith(color: sem.muted)),
+                    if (sub != null) Text(sub!, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.labelSmall?.copyWith(color: sem.muted)),
                   ],
                 ),
               ),

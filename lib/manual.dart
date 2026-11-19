@@ -52,7 +52,7 @@ const List<ManualChapter> manualChapters = [
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/17';
+const String manualUpdated = '2026/11/19';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {

@@ -231,7 +231,7 @@ class PmSettingsPage extends StatelessWidget {
           listCard('change_reasons', 'أسباب التغيير', c.changeReasons, Icons.help_outline_rounded),
           listCard('lesson_apply', 'آلية تعميم الدرس', c.lessonApply, Icons.campaign_outlined),
           SectionCard(
-            title: 'قوائم ثابتة مستخدمة في الحسابات 🔒',
+            title: 'قوائم ثابتة مستخدمة في الحسابات',
             icon: Icons.lock_outline_rounded,
             subtitle: 'لا تُعدَّل لأن الحسابات تعتمد عليها.',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

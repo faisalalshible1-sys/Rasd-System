@@ -488,12 +488,20 @@ class ManualBlocks extends StatelessWidget {
             .clamp(4, 60)
             .toDouble(),
     ];
+    // العمود القصير النصوص (كأسماء الصفحات) بعرض محتواه حتى لا تنكسر كلماته على الهاتف، والباقي يتقاسم العرض
+    String plain(String x) => x.replaceAll(RegExp(r'[*`]'), '');
+    final short = <bool>[
+      for (var c = 0; c < cols; c++) [for (final r in tb.rows) plain(r[c]).length, plain(tb.header[c]).length].every((n) => n <= 18),
+    ];
+    final anyFlex = short.contains(false);
     return LayoutBuilder(builder: (context, c) {
       final minWidth = cols * 120.0;
       final width = c.maxWidth < minWidth ? minWidth : c.maxWidth;
       final table = Table(
         border: TableBorder.all(color: sem.rule, borderRadius: BorderRadius.circular(10)),
-        columnWidths: {for (var i = 0; i < cols; i++) i: FlexColumnWidth(weights[i])},
+        columnWidths: {
+          for (var i = 0; i < cols; i++) i: anyFlex && short[i] ? const IntrinsicColumnWidth() : FlexColumnWidth(weights[i]),
+        },
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
           if (!tb.headless)
@@ -620,7 +628,8 @@ class _WhatsNewPageState extends State<WhatsNewPage> {
             TextButton.icon(onPressed: () => app.openManual(), icon: const Icon(Icons.menu_book_outlined), label: const Text('فتح الدليل')),
           ]),
           const SizedBox(height: 12),
-          ManualBlocks(blocks: parseManual(text)),
+          // القيم الحية ({{FORMS_COUNT}} وغيرها) تُعوَّض هنا كما في الدليل
+          ManualBlocks(blocks: parseManual(applyManualValues(text, manualValues(app)))),
         ]);
       },
     );

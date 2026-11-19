@@ -705,30 +705,37 @@ class PmTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     if (rows.isEmpty) return Text('لا بيانات بعد.', style: TextStyle(color: sem.muted));
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowHeight: 40,
-        dataRowMinHeight: 38,
-        dataRowMaxHeight: 60,
-        columnSpacing: 18,
-        horizontalMargin: 8,
-        headingTextStyle: TextStyle(fontWeight: FontWeight.w800, color: sem.muted, fontSize: 12.5),
-        columns: [for (final c in columns) DataColumn(label: Text(c))],
-        rows: [
-          for (var i = 0; i < rows.length; i++)
-            DataRow(
-              color: highlight != null && highlight!(i) ? WidgetStatePropertyAll(sem.wipSoft) : null,
-              cells: [
-                for (final v in rows[i])
-                  DataCell(ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Text(v, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
-                  )),
-              ],
-            ),
-        ],
-      ),
-    );
+    return LayoutBuilder(builder: (context, box) {
+      // الجداول النصية القصيرة (عمودان أو ثلاثة) تلتف داخل عرض الهاتف بدل التمرير الأفقي
+      const spacing = 18.0, margin = 8.0;
+      final n = columns.length;
+      final fit = n <= 3 && box.maxWidth.isFinite && box.maxWidth < 280.0 * n + spacing * (n - 1) + margin * 2;
+      final cellMax = fit ? (box.maxWidth - margin * 2 - spacing * (n - 1)) / n : 280.0;
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowHeight: 40,
+          dataRowMinHeight: 38,
+          dataRowMaxHeight: fit ? 92 : 60,
+          columnSpacing: spacing,
+          horizontalMargin: margin,
+          headingTextStyle: TextStyle(fontWeight: FontWeight.w800, color: sem.muted, fontSize: 12.5),
+          columns: [for (final c in columns) DataColumn(label: Text(c))],
+          rows: [
+            for (var i = 0; i < rows.length; i++)
+              DataRow(
+                color: highlight != null && highlight!(i) ? WidgetStatePropertyAll(sem.wipSoft) : null,
+                cells: [
+                  for (final v in rows[i])
+                    DataCell(ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: cellMax),
+                      child: Text(v, maxLines: fit ? 5 : 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                    )),
+                ],
+              ),
+          ],
+        ),
+      );
+    });
   }
 }
