@@ -180,12 +180,20 @@ jobs:
         with:
           name: release-web
           path: build/web
+      # نسخة GitHub Pages: العنوان faisalalshible1-sys.github.io/dc-app، فالمسار الأساسي /dc-app/
+      - name: نسخة GitHub Pages
+        run: |
+          rm -rf build/pages && cp -r build/web build/pages
+          sed -i 's|<base href="/">|<base href="/dc-app/">|' build/pages/index.html
+          grep -q '<base href="/dc-app/">' build/pages/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
       - name: النشر على Netlify
         id: deploy
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          WEB_ONLY: ${{ inputs.web_only }}
         shell: bash
         run: |
           if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
@@ -226,13 +234,30 @@ jobs:
             )
             echo "::warning title=تشخيص Netlify::$diag"
             echo "::warning title=الويب لم يُنشر::تعذّر النشر على Netlify ($reason). جدّد رمز NETLIFY_AUTH_TOKEN في أسرار GitHub ثم أعد نشر الويب؛ نسخة الويب متاحة في ملفات التشغيل (release-web)."
-            # عند نشر الويب وحده يُعدّ الفشل فشلاً حتى يظهر بوضوح
-            [ "$WEB_ONLY" = "true" ] && exit 1
             exit 0
           fi
           url=$(python3 -c "import json; d=json.load(open('deploy.json')); print(d.get('url') or d.get('deploy_url') or '')")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "::notice title=الويب::$url"
+
+  # الويب على GitHub Pages (مجاني دون حدود استهلاك). يلزم مرة واحدة: Settings ← Pages ← Source: GitHub Actions
+  pages:
+    name: الويب على GitHub Pages
+    needs: web
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - if: success()
+        run: echo "::notice title=الويب على GitHub Pages::${{ steps.deployment.outputs.page_url }}"
+      - if: failure()
+        run: echo "::error title=GitHub Pages غير مفعّل::فعّله مرة واحدة من إعدادات المستودع Settings ← Pages ← Source = GitHub Actions، ثم أعد نشر الويب (web_only)."
 
   manual:
     name: دليل الاستخدام PDF
