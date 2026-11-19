@@ -1467,7 +1467,7 @@ class LiveSettings {
     return v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
   }
 
-  String get appTitle => str('brand.app_title', 'منظومة متابعة الدورة المستندية');
+  String get appTitle => str('brand.app_title', 'منظومة رصد');
   String get orgName => str('brand.org_name', 'مكتب الشؤون الهندسية');
   String get orgParent => str('brand.org_parent', 'لجنة إعادة إعمار منطقة الصابري ووسط البلاد');
   String get primaryHex => str('brand.primary_color', '#8A6A1E');

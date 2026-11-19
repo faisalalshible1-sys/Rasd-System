@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="الدورة المستندية"
+APP_NAME="منظومة رصد"
 
 missing=""
 for p in android ios web windows; do

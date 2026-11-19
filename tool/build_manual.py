@@ -284,7 +284,7 @@ cover = f'''<div class="cover">
   <div class="banner"><img src="banner.png"></div>
   <div class="title">
     <div class="kicker">مكتب الشؤون الهندسية</div>
-    <h0>دليل استخدام منظومة<br>متابعة الدورة المستندية</h0>
+    <h0>دليل استخدام<br>منظومة رصد</h0>
     <div class="sub">الدورة المستندية · المخاطر ومتابعة المشاريع · تحليل SWOT<br>المستندات الفنية · الإشراف · الإجراءات والصلاحيات وطرق الحساب</div>
   </div>
   <div class="rule"></div>
@@ -309,10 +309,10 @@ def toc_html(pages):
 
 
 def page(pages, work):
-    css = STYLE.read_text().replace('{{FOOTER}}', f'دليل استخدام منظومة متابعة الدورة المستندية · الإصدار {version}')
+    css = STYLE.read_text().replace('{{FOOTER}}', f'دليل استخدام منظومة رصد · الإصدار {version}')
     for img in ('banner.png', 'emblem.png'):
         shutil.copy(ROOT / 'assets' / 'brand' / img, work / img)
-    return (f'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>دليل استخدام منظومة متابعة الدورة المستندية</title>'
+    return (f'<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>دليل استخدام منظومة رصد</title>'
             f'<style>{css}</style></head><body>{cover}{toc_html(pages)}{body}</body></html>')
 
 

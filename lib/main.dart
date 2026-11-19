@@ -43,7 +43,7 @@ class DcApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = state;
     if (s == null) {
-      return _app(title: 'الدورة المستندية', brand: Brand.goldDeep, mode: ThemeMode.system, home: const SetupMissingScreen());
+      return _app(title: 'منظومة رصد', brand: Brand.goldDeep, mode: ThemeMode.system, home: const SetupMissingScreen());
     }
     return ListenableBuilder(
       listenable: s,

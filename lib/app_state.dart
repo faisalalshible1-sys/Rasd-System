@@ -314,7 +314,7 @@ class AppState extends ChangeNotifier {
 
   String get appTitle => settings.raw.isNotEmpty
       ? settings.appTitle
-      : (publicSettings['brand.app_title'] ?? 'منظومة متابعة الدورة المستندية').toString();
+      : (publicSettings['brand.app_title'] ?? 'منظومة رصد').toString();
 
   String get orgName => settings.raw.isNotEmpty ? settings.orgName : (publicSettings['brand.org_name'] ?? 'مكتب الشؤون الهندسية').toString();
 

@@ -77,6 +77,9 @@ def ensure_bucket():
         print(f"::warning title=حاوية الإصدارات::{code} {res}")
 
 
+UPLOADED = set()
+
+
 def upload(local, remote, ctype):
     with open(local, "rb") as f:
         blob = f.read()
@@ -89,6 +92,7 @@ def upload(local, remote, ctype):
                     "ارفع الحد من Storage ← Settings ← Upload file size limit إلى 50 MB.")
         print(f"::error title=رفع {remote}::HTTP {code}: {res}{hint}")
         sys.exit(1)
+    UPLOADED.add(remote)
     url = f"{URL}/storage/v1/object/public/releases/{remote}"
     print(f"رُفع {remote} ({len(blob) / 1e6:.1f} MB)")
     return url
@@ -114,7 +118,7 @@ def prune_old():
             print(f"::warning title=حذف الإصدارات السابقة::تعذّر سرد {prefix}: {code} {res}")
             continue
         old = [f"{prefix}/{o['name']}" for o in res
-               if o.get("name") and not o["name"].startswith("latest") and f"-{VERSION}" not in o["name"]]
+               if o.get("name") and not o["name"].startswith("latest") and f"{prefix}/{o['name']}" not in UPLOADED]
         if old:
             code, res = request("DELETE", "/storage/v1/object/releases", {"prefixes": old})
             print(f"حُذفت ملفات الإصدارات السابقة ({code}): {', '.join(old)}")
@@ -130,14 +134,14 @@ def main():
     ensure_bucket()
     rows = []
     if APK and os.path.exists(APK):
-        url = upload(APK, f"android/dc-app-{VERSION}-arm64.apk", "application/vnd.android.package-archive")
+        url = upload(APK, f"android/rasd-{VERSION}-arm64.apk", "application/vnd.android.package-archive")
         upload(APK, "android/latest.apk", "application/vnd.android.package-archive")
         if APK32 and os.path.exists(APK32):
-            upload(APK32, f"android/dc-app-{VERSION}-arm32.apk", "application/vnd.android.package-archive")
+            upload(APK32, f"android/rasd-{VERSION}-arm32.apk", "application/vnd.android.package-archive")
             upload(APK32, "android/latest-arm32.apk", "application/vnd.android.package-archive")
         rows.append(("android", url))
     if WIN and os.path.exists(WIN):
-        url = upload(WIN, f"windows/dc-app-setup-{VERSION}.exe", "application/octet-stream")
+        url = upload(WIN, f"windows/rasd-setup-{VERSION}.exe", "application/octet-stream")
         upload(WIN, "windows/latest-setup.exe", "application/octet-stream")
         rows.append(("windows", url))
     if WEB_URL:

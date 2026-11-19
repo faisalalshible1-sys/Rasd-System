@@ -68,3 +68,15 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql"
 $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261116000022_print_center.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/96_print_center_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# «منظومة رصد»: الصلاحيات الدقيقة، والرقم الإشاري الموسّع، وتخصيص الواجهة (الترحيل 23)
+$P -d dctest -f "$DIR/migrations/20261119000023_rasd_grants_refs.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000023_rasd_grants_refs.sql"
+$P -d dctest -f "$DIR/migrations/20261119000023_rasd_grants_refs.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000023_rasd_grants_refs.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/97_rasd_grants_refs_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# المراسلات الداخلية: الخاصة والمجموعات والقنوات والمرفقات وقفل المحادثات (الترحيل 24)
+$P -d dctest -f "$DIR/migrations/20261119000024_chat.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000024_chat.sql"
+$P -d dctest -f "$DIR/migrations/20261119000024_chat.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000024_chat.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/98_chat_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# مركز الأمن السيبراني الموسّع (الترحيل 25)
+$P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql"
+$P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/99_security_center_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

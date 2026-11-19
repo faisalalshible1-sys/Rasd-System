@@ -13,7 +13,7 @@
 #ifndef IconFile
   #define IconFile "..\..\windows\runner\resources\app_icon.ico"
 #endif
-#define AppName "الدورة المستندية"
+#define AppName "منظومة رصد"
 #define AppExe "dc_app.exe"
 
 [Setup]

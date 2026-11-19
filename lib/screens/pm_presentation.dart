@@ -273,7 +273,7 @@ class _PmPresentationPageState extends State<PmPresentationPage> {
           title: 'لوحة العرض – ملخص مشاريع إعادة إعمار منطقة الصابري ووسط البلاد',
           org: '${app.orgName} – ${app.settings.orgParent}',
           date: pmDay(ref),
-          footer: 'المصدر: «المخاطر ومتابعة المشاريع» في منظومة متابعة الدورة المستندية – تتحدث هذه الصفحة تلقائياً من السجلات  |  ${app.orgName}',
+          footer: 'المصدر: «المخاطر ومتابعة المشاريع» في منظومة رصد – تتحدث هذه الصفحة تلقائياً من السجلات  |  ${app.orgName}',
           children: [
             ResponsiveGrid(minItemWidth: wide ? 170 : 150, spacing: 10, children: kpis),
             const SizedBox(height: 14),

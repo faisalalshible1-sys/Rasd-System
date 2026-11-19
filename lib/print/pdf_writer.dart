@@ -86,7 +86,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
     author: ctx.printedBy,
     creator: ctx.orgName,
     subject: table.section,
-    producer: 'منظومة متابعة الدورة المستندية',
+    producer: 'منظومة رصد',
   );
   final format = pageFormatOf(c, table.columns.length + (c.rowNumbers ? 1 : 0));
 
