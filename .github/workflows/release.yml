@@ -188,8 +188,9 @@ jobs:
           rm -rf build/pages && cp -r build/web build/pages
           sed -i "s|<base href=\"/\">|<base href=\"/$REPO_NAME/\">|" build/pages/index.html
           grep -q "<base href=\"/$REPO_NAME/\">" build/pages/index.html
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: release-pages
           path: build/pages
       - name: النشر على Netlify
         id: deploy
@@ -242,24 +243,31 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "::notice title=الويب::$url"
 
-  # الويب على GitHub Pages (مجاني دون حدود استهلاك). يلزم مرة واحدة: Settings ← Pages ← Source: GitHub Actions
+  # الويب على GitHub Pages (مجاني دون حدود استهلاك): تُنشر النسخة في فرع gh-pages فيبنيها GitHub تلقائياً
   pages:
     name: الويب على GitHub Pages
     needs: web
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-      - if: success()
-        run: echo "::notice title=الويب على GitHub Pages::${{ steps.deployment.outputs.page_url }}"
-      - if: failure()
-        run: echo "::error title=GitHub Pages غير مفعّل::فعّله مرة واحدة من إعدادات المستودع Settings ← Pages ← Source = GitHub Actions، ثم أعد نشر الويب (web_only)."
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-pages
+          path: site
+      - name: النشر في فرع gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          cd site
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "الويب $VERSION"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" gh-pages
+          echo "::notice title=الويب على GitHub Pages::$PAGES_URL"
 
   manual:
     name: دليل الاستخدام PDF
