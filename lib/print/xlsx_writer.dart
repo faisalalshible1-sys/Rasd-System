@@ -197,6 +197,7 @@ void _analysisSheet(Excel excel, String dataSheet, ExportTable t, int off, int f
   sh.isRTL = true;
   CellIndex at(int col, int row) => CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row);
   final cell = CellStyle(horizontalAlign: HorizontalAlign.Center, numberFormat: NumFormat.standard_4, leftBorder: thin, rightBorder: thin, topBorder: thin, bottomBorder: thin);
+  final countCell = CellStyle(horizontalAlign: HorizontalAlign.Center, numberFormat: NumFormat.standard_3, leftBorder: thin, rightBorder: thin, topBorder: thin, bottomBorder: thin);
   final label = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Right, leftBorder: thin, rightBorder: thin, topBorder: thin, bottomBorder: thin);
   sh.updateCell(at(0, 0), TextCellValue('المؤشر'), cellStyle: head);
   for (var k = 0; k < numeric.length; k++) {
@@ -219,7 +220,8 @@ void _analysisSheet(Excel excel, String dataSheet, ExportTable t, int off, int f
       final l = _colLetter(numeric[k] + off);
       final range = '$q!\$$l\$${first + 1}:\$$l\$${last + 1}';
       final ok = rows[i].$3 || col.type != ColType.percent;
-      sh.updateCell(at(k + 1, i + 1), ok ? FormulaCellValue('IFERROR(${rows[i].$2}($range),"")') : TextCellValue('—'), cellStyle: cell);
+      sh.updateCell(at(k + 1, i + 1), ok ? FormulaCellValue('IFERROR(${rows[i].$2}($range),"")') : TextCellValue('—'),
+          cellStyle: rows[i].$2 == 'COUNT' ? countCell : cell);
     }
   }
   sh.updateCell(at(0, rows.length + 2),

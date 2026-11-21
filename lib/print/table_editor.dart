@@ -152,7 +152,11 @@ class _TableEditorState extends State<_TableEditor> {
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
             decoration: InputDecoration(
               isDense: true,
+              filled: false,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: cs.primary, width: 2)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               prefixIcon: cols[j].computed ? Tooltip(message: 'عمود محسوب: ${cols[j].formula}', child: const Icon(Icons.functions_rounded, size: 16)) : null,
               prefixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
             ),
@@ -204,7 +208,14 @@ class _TableEditorState extends State<_TableEditor> {
                         minLines: 1,
                         textAlign: cols[j].numeric ? TextAlign.center : TextAlign.start,
                         style: const TextStyle(fontSize: 13),
-                        decoration: const InputDecoration(isDense: true, border: InputBorder.none),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: cs.primary, width: 2)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                        ),
                         onChanged: (v) => _set(i, j, v),
                       ),
               ),
@@ -248,7 +259,7 @@ class _TableEditorState extends State<_TableEditor> {
           TextField(controller: _title, decoration: fieldDeco('عنوان الملف')),
           const SizedBox(height: 6),
           Text(
-            'عدّل أي خلية أو اسم عمود، واسحب ⠿ لترتيب الصفوف. الأعمدة المعلّمة ƒ محسوبة وتتغير وحدها، والمجاميع كذلك، '
+            'عدّل أي خلية أو اسم عمود، واسحب الصف من مقبضه لترتيبه. الأعمدة المعلّمة برمز الدالة محسوبة وتتغير وحدها، والمجاميع كذلك، '
             'وفي Excel تُكتب معادلات حية. التعديل على هذا الملف فقط ولا يغيّر سجلات المنظومة.',
             style: TextStyle(color: sem.muted, fontSize: 12.5),
           ),
@@ -274,7 +285,7 @@ class _TableEditorState extends State<_TableEditor> {
         child: Row(children: [
           TextButton.icon(onPressed: _addRow, icon: const Icon(Icons.add_rounded), label: const Text('صف جديد')),
           const Spacer(),
-          Text('${_t.rows.length} صفاً · $_edits تعديلاً', style: TextStyle(color: sem.muted)),
+          Text('الصفوف: ${_t.rows.length} · التعديلات: $_edits', style: TextStyle(color: sem.muted)),
           const SizedBox(width: 12),
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
           const SizedBox(width: 6),

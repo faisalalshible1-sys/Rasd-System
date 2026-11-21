@@ -108,7 +108,7 @@ class _LayoutEditorState extends State<LayoutEditor> {
     return SectionCard(
       title: 'الأقسام والصفحات',
       icon: Icons.view_quilt_outlined,
-      subtitle: 'اسحب ⠿ لترتيب الأقسام في شاشة الدخول وصفحات كل قسم في قائمته، وغيّر الأسماء والأوصاف، وأخفِ ما لا يحتاجه الموظفون. '
+      subtitle: 'اسحب من المقبض لترتيب الأقسام في شاشة الدخول وصفحات كل قسم في قائمته، وغيّر الأسماء والأوصاف، وأخفِ ما لا يحتاجه الموظفون. '
           'يُطبَّق على الجميع فوراً، وأنت ترى كل شيء دائماً.',
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('الأقسام', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
@@ -139,21 +139,38 @@ class _LayoutEditorState extends State<LayoutEditor> {
                   Icon(meta[_order[i]]!.$4, color: sectionColor(context, _order[i])),
                   const SizedBox(width: 8),
                   Expanded(
-                    flex: 3,
-                    child: TextField(
-                      controller: _name[_order[i]],
-                      maxLength: 40,
-                      decoration: fieldDeco('الاسم', hint: meta[_order[i]]!.$2).copyWith(counterText: ''),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 4,
-                    child: TextField(
-                      controller: _desc[_order[i]],
-                      maxLength: 200,
-                      decoration: fieldDeco('الوصف في شاشة الدخول', hint: meta[_order[i]]!.$3).copyWith(counterText: ''),
-                    ),
+                    child: LayoutBuilder(builder: (context, c) {
+                      final k = _order[i];
+                      final name = TextField(
+                        controller: _name[k],
+                        maxLength: 40,
+                        decoration: fieldDeco('اسم مخصص', hint: 'يبقى الافتراضي إن تُرك فارغاً')
+                            .copyWith(counterText: '', floatingLabelBehavior: FloatingLabelBehavior.always),
+                      );
+                      final desc = TextField(
+                        controller: _desc[k],
+                        maxLength: 200,
+                        decoration: fieldDeco('وصف مخصص في شاشة الدخول', hint: meta[k]!.$3)
+                            .copyWith(counterText: '', floatingLabelBehavior: FloatingLabelBehavior.always),
+                      );
+                      final title = Text(meta[k]!.$2, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700));
+                      if (c.maxWidth < 620) {
+                        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          title,
+                          const SizedBox(height: 8),
+                          name,
+                          const SizedBox(height: 8),
+                          desc,
+                        ]);
+                      }
+                      return Row(children: [
+                        SizedBox(width: 150, child: title),
+                        const SizedBox(width: 8),
+                        Expanded(flex: 3, child: name),
+                        const SizedBox(width: 8),
+                        Expanded(flex: 4, child: desc),
+                      ]);
+                    }),
                   ),
                   if (_order[i] != 'security')
                     IconButton(
@@ -205,10 +222,17 @@ class _LayoutEditorState extends State<LayoutEditor> {
                     Icon(pages[pageIds[i]]!.$3, color: sem.muted),
                     const SizedBox(width: 8),
                     Expanded(
+                      flex: 2,
+                      child: Text(pages[pageIds[i]]!.$2, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 3,
                       child: TextField(
                         controller: _pageLabel[pageIds[i]] ??= TextEditingController(),
                         maxLength: 40,
-                          decoration: fieldDeco('اسم الصفحة في القائمة', hint: pages[pageIds[i]]!.$2).copyWith(counterText: ''),
+                        decoration: fieldDeco('اسم مخصص في القائمة', hint: 'يبقى الافتراضي إن تُرك فارغاً')
+                            .copyWith(counterText: '', floatingLabelBehavior: FloatingLabelBehavior.always),
                       ),
                     ),
                     IconButton(

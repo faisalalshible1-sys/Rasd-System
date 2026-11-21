@@ -214,18 +214,12 @@ class _RefNumbersPageState extends State<RefNumbersPage> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('الرقم التالي', style: TextStyle(color: sem.muted, fontSize: 12)),
                     const SizedBox(height: 2),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(s.preview(seq: _lastSeq(s) + 1, ctx: const {'section': 'cycle', 'code': '990', 'kind': 'ncr'}),
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, fontFeatures: [FontFeature.tabularFigures()])),
-                    ),
+                    Text(s.preview(seq: _lastSeq(s) + 1, ctx: const {'section': 'cycle', 'code': '990', 'kind': 'ncr'}),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, fontFeatures: [FontFeature.tabularFigures()])),
                   ]),
                 ),
                 const SizedBox(height: 8),
-                Directionality(
-                  textDirection: TextDirection.ltr,
-                  child: Text(s.pattern, style: TextStyle(color: sem.muted, fontFamily: 'monospace', fontSize: 12.5)),
-                ),
+                Text('الصيغة: ${s.pattern}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
                 const SizedBox(height: 4),
                 Text('آخر تسلسل في الفترة الحالية: ${_lastSeq(s)}', style: TextStyle(color: sem.muted, fontSize: 12)),
               ]),
@@ -265,26 +259,20 @@ class _RefNumbersPageState extends State<RefNumbersPage> {
         else
           SectionCard(
             title: 'سجل الأرقام (${log.length})',
-            padding: EdgeInsets.zero,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
             child: Column(children: [
               for (final e in log.take(400))
                 ListTile(
                   dense: true,
                   leading: Icon(Icons.tag_rounded, color: sem.muted),
-                  title: Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Align(
-                      alignment: AlignmentDirectional.centerEnd,
-                      child: Text(e.ref, style: const TextStyle(fontWeight: FontWeight.w800, fontFeatures: [FontFeature.tabularFigures()])),
-                    ),
-                  ),
+                  title: Text(e.ref, style: const TextStyle(fontWeight: FontWeight.w800, fontFeatures: [FontFeature.tabularFigures()])),
                   subtitle: Text([
                     app.refScheme(e.scheme)?.name ?? e.scheme,
                     if ((e.title ?? '').isNotEmpty) e.title!,
                     if (e.section != null && e.section!.isNotEmpty) refSectionNames[e.section] ?? e.section!,
                     app.people[e.createdBy]?.displayName ?? '',
                   ].where((x) => x.isNotEmpty).join(' · ')),
-                  trailing: Text('${fmtDate(e.createdAt)} ${e.createdAt == null ? '' : '${two(e.createdAt!.hour)}:${two(e.createdAt!.minute)}'}',
+                  trailing: Text(fmtDate(e.createdAt),
                       style: TextStyle(color: sem.muted, fontSize: 12)),
                 ),
             ]),
@@ -403,7 +391,6 @@ class _RefSchemeDialogState extends State<RefSchemeDialog> {
             const SizedBox(height: 8),
             TextField(
               controller: _pattern,
-              textDirection: TextDirection.ltr,
               onChanged: (_) => setState(() {}),
               decoration: fieldDeco('الصيغة'),
             ),
@@ -420,11 +407,7 @@ class _RefSchemeDialogState extends State<RefSchemeDialog> {
                 const SizedBox(width: 8),
                 const Text('معاينة: '),
                 Expanded(
-                  child: Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text(preview,
-                        textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, fontFeatures: [FontFeature.tabularFigures()])),
-                  ),
+                  child: Text(preview, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, fontFeatures: [FontFeature.tabularFigures()])),
                 ),
               ]),
             ),

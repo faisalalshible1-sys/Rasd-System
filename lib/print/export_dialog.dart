@@ -372,7 +372,7 @@ class _ExportDialogState extends State<_ExportDialog> {
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: InfoBanner(
-            text: '${table.rows.length} سجل · ${table.columns.length} عموداً${table.rows.length > 3000 ? ' · ملف كبير قد يستغرق وقتاً' : ''}',
+            text: 'السجلات: ${table.rows.length} · الأعمدة: ${table.columns.length}${table.rows.length > 3000 ? ' · ملف كبير قد يستغرق وقتاً' : ''}',
             level: table.rows.isEmpty ? 'warning' : 'info',
             icon: Icons.table_rows_outlined,
           ),

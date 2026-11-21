@@ -44,14 +44,26 @@ IconData _roomIcon(ChatRoom r) => switch (r.kind) {
       _ => Icons.person_rounded,
     };
 
+/// اسم الملف دون امتداده، كي لا يقلب اتجاهُ النص العربي الامتدادَ اللاتيني في العرض.
+String fileBaseName(String name) {
+  final i = name.lastIndexOf('.');
+  return i > 0 && name.length - i <= 6 ? name.substring(0, i) : name;
+}
+
+/// الامتداد بأحرف كبيرة (PDF، XLSX…) ليُعرض منفصلاً عن الاسم.
+String fileExtLabel(String name) {
+  final i = name.lastIndexOf('.');
+  return i > 0 && name.length - i <= 6 ? name.substring(i + 1).toUpperCase() : '';
+}
+
 String _preview(AppState app, ChatRoom r) {
   final l = r.last;
   if (l == null) return r.isDm ? 'ابدأ المحادثة' : (r.description.isNotEmpty ? r.description : 'لا رسائل بعد');
   if (l.deleted) return 'حُذفت رسالة';
   final who = l.sender == app.me?.id ? 'أنت' : l.senderName.split(' ').first;
   final body = switch (l.kind) {
-    'file' => '${(l.mime ?? '').startsWith('image/') ? '🖼' : (l.mime ?? '').startsWith('video/') ? '🎬' : '📎'} ${l.text}',
-    'link' => '🔗 ${l.text}',
+    'file' => '${(l.mime ?? '').startsWith('image/') ? 'صورة' : (l.mime ?? '').startsWith('video/') ? 'فيديو' : 'ملف'}: ${fileBaseName(l.text)}',
+    'link' => 'رابط: ${l.text}',
     _ => l.text,
   };
   if (l.kind == 'system' || r.isDm && l.sender != app.me?.id) return body;
@@ -71,7 +83,7 @@ String _audienceText(AppState app, Map<String, dynamic> a) {
     parts.add(unitNames[u] ?? u.toString());
   }
   final users = (a['users'] as List? ?? const []).length;
-  if (users > 0) parts.add('$users شخصاً');
+  if (users > 0) parts.add('أشخاص بالاسم: $users');
   return parts.isEmpty ? '—' : parts.join('، ');
 }
 
@@ -663,7 +675,9 @@ class _ConversationViewState extends State<ConversationView> {
                 InputChip(
                   avatar: Icon(f.mime.startsWith('image/') ? Icons.image_outlined : f.mime.startsWith('video/') ? Icons.movie_outlined : Icons.attach_file_rounded,
                       size: 18),
-                  label: Text('${f.name} · ${fileSizeText(f.bytes.length)}', overflow: TextOverflow.ellipsis),
+                  label: Text(
+                      [fileBaseName(f.name), if (fileExtLabel(f.name).isNotEmpty) fileExtLabel(f.name), fileSizeText(f.bytes.length)].join(' · '),
+                      overflow: TextOverflow.ellipsis),
                   onDeleted: () => setState(() => _files.remove(f)),
                 ),
             ]),
@@ -812,7 +826,7 @@ class _Header extends StatelessWidget {
           room.peer?.role == null ? '' : parseRole(room.peer!.role)?.label ?? '',
           if (room.peer?.active == false) 'غير مفعّل',
         ].where((s) => s.isNotEmpty).join(' · '),
-      'group' => '${room.members ?? 0} عضواً${room.description.isNotEmpty ? ' · ${room.description}' : ''}',
+      'group' => 'الأعضاء: ${room.members ?? 0}${room.description.isNotEmpty ? ' · ${room.description}' : ''}',
       _ => '${_audienceText(app, room.audience)}${room.adminsOnly ? ' · إعلانات' : ''}',
     };
     return Container(
@@ -1043,8 +1057,14 @@ class _FileView extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(m.fileName ?? 'مرفق', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text('${m.isVideo ? 'فيديو' : m.isAudio ? 'تسجيل صوتي' : 'ملف'} · ${fileSizeText(m.fileSize)} · اضغط للفتح',
+              Text(fileBaseName(m.fileName ?? 'مرفق'), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                  [
+                    m.isVideo ? 'فيديو' : m.isAudio ? 'تسجيل صوتي' : 'ملف',
+                    if (fileExtLabel(m.fileName ?? '').isNotEmpty) fileExtLabel(m.fileName ?? ''),
+                    fileSizeText(m.fileSize),
+                    'اضغط للفتح',
+                  ].join(' · '),
                   style: TextStyle(fontSize: 11.5, color: sem.muted)),
             ]),
           ),
@@ -1597,6 +1617,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
           ),
         ]),
       ),
+      const SizedBox(height: 12),
       SectionCard(
         title: 'الحدود',
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1607,6 +1628,7 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
           Slider(value: mins, min: 0, max: 1440, divisions: 96, label: '${mins.round()}', onChanged: (v) => setState(() => cfg['edit_minutes'] = v.round())),
         ]),
       ),
+      const SizedBox(height: 12),
       Align(
         alignment: AlignmentDirectional.centerStart,
         child: FilledButton.icon(onPressed: _busy ? null : _save, icon: const Icon(Icons.save_outlined), label: const Text('حفظ')),

@@ -31,9 +31,12 @@ Map<String, dynamic> _map(Object? v) => v is Map ? Map<String, dynamic>.from(v) 
 List<Map<String, dynamic>> _list(Object? v) => [for (final x in (v is List ? v : const [])) if (x is Map) Map<String, dynamic>.from(x)];
 int _int(Object? v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
 DateTime? _dt(Object? v) => v == null ? null : DateTime.tryParse(v.toString())?.toLocal();
+/// «يوم» أو «7 أيام» أو «30 يوماً» بحسب قاعدة تمييز العدد.
+String _daysText(int d) => d == 1 ? 'يوم' : d == 2 ? 'يومان' : d <= 10 ? '$d أيام' : '$d يوماً';
+
 String _stamp(Object? v) {
   final d = _dt(v);
-  return d == null ? '—' : '${fmtDate(d)} ${two(d.hour)}:${two(d.minute)}';
+  return d == null ? '—' : fmtDate(d);
 }
 
 /// أسماء فئات سجل التدقيق (أول جزء من اسم الإجراء).
@@ -159,7 +162,7 @@ class _SecPageState extends State<_SecPage> {
           if (widget.periods.isNotEmpty)
             SegmentedButton<int>(
               showSelectedIcon: false,
-              segments: [for (final d in widget.periods) ButtonSegment(value: d, label: Text('$d يوماً'))],
+              segments: [for (final d in widget.periods) ButtonSegment(value: d, label: Text(_daysText(d)))],
               selected: {_days},
               onSelectionChanged: (v) {
                 setState(() => _days = v.first);
@@ -174,19 +177,21 @@ class _SecPageState extends State<_SecPage> {
       if (_loading && _data == null)
         const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
       else if (_data != null)
-        ...widget.build(context, _data, _days, _reload),
+        // مسافة موحّدة بين البطاقات؛ فواصل SizedBox الفارغة تُستبدل بها.
+        for (final w in widget.build(context, _data, _days, _reload))
+          if (!(w is SizedBox && w.child == null)) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
     ]);
   }
 }
 
 /// أعمدة بسيطة لسلسلة يومية.
 class _Bars extends StatelessWidget {
-  const _Bars({required this.values, required this.labels, this.overlay, this.height = 150});
+  const _Bars({required this.values, required this.labels, this.overlay});
 
   final List<num> values;
   final List<String> labels;
   final List<num>? overlay;
-  final double height;
+  static const double height = 150;
 
   @override
   Widget build(BuildContext context) {
@@ -284,8 +289,14 @@ class _Heatmap extends StatelessWidget {
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: Row(children: [
-              for (var h = 0; h < 24; h++)
-                Expanded(child: Center(child: Text(h % 3 == 0 ? '$h' : '', style: TextStyle(fontSize: 10, color: sem.muted)))),
+              // كل تسمية تغطي ست ساعات كي لا تنكسر الأرقام على الشاشات الضيقة.
+              for (var h = 0; h < 24; h += 6)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 2, top: 2),
+                    child: Text('${two(h)}:00', maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10, color: sem.muted)),
+                  ),
+                ),
             ]),
           ),
         ),
@@ -312,7 +323,10 @@ Widget _meterRow(BuildContext context, String label, num value, num max, {Color?
         ),
       ),
       const SizedBox(width: 10),
-      SizedBox(width: 74, child: Text(trailing ?? '$value', textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w700))),
+      ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 74),
+        child: Text(trailing ?? '$value', maxLines: 1, softWrap: false, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ),
     ]),
   );
 }
@@ -421,22 +435,22 @@ class SecDashboardPage extends StatelessWidget {
                     ]),
                   ),
                   const SizedBox(height: 10),
-                  Text(failing.isEmpty ? 'كل الفحوص سليمة' : '${failing.length} فحصاً يحتاج معالجة', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(failing.isEmpty ? 'كل الفحوص سليمة' : 'فحوص تحتاج معالجة: ${failing.length}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ]),
               );
               final kpis = ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
-                KpiTile(label: 'حساب مفعّل', value: '$active', sub: '${_int(u['pending'])} بانتظار التفعيل'),
+                KpiTile(label: 'الحسابات المفعّلة', value: '$active', sub: 'بانتظار التفعيل: ${_int(u['pending'])}'),
                 KpiTile(
                     label: 'تغطية التحقق بخطوتين',
                     value: active == 0 ? '—' : '${(100 * mfa / active).round()}%',
-                    sub: '${_int(u['no_mfa_sensitive'])} حساباً حساساً دونه',
+                    sub: 'حسابات حساسة دونه: ${_int(u['no_mfa_sensitive'])}',
                     color: _int(u['no_mfa_sensitive']) > 0 ? sem.wip : sem.ok),
-                KpiTile(label: 'حساب مقفل', value: '${_int(u['locked'])}', color: _int(u['locked']) > 0 ? sem.wip : null),
-                KpiTile(label: 'حساب خامل (60 يوماً)', value: '${_int(u['stale_60'])}', color: _int(u['stale_60']) > 0 ? sem.wip : null),
-                KpiTile(label: 'جلسة مفتوحة', value: d['sessions'] == null ? '—' : '${d['sessions']}'),
-                KpiTile(label: 'جهاز نشط اليوم', value: '${_int(dev['active_24h'])}', sub: '${_int(dev['total'])} جهازاً معروفاً'),
-                KpiTile(label: 'جهاز جديد', value: '${_int(dev['new'])}', sub: 'خلال $days يوماً'),
-                KpiTile(label: 'جهاز محظور', value: '${_int(dev['blocked'])}', color: _int(dev['blocked']) > 0 ? sem.danger : null),
+                KpiTile(label: 'الحسابات المقفلة', value: '${_int(u['locked'])}', color: _int(u['locked']) > 0 ? sem.wip : null),
+                KpiTile(label: 'حسابات خاملة (60 يوماً)', value: '${_int(u['stale_60'])}', color: _int(u['stale_60']) > 0 ? sem.wip : null),
+                KpiTile(label: 'الجلسات المفتوحة', value: d['sessions'] == null ? '—' : '${d['sessions']}'),
+                KpiTile(label: 'أجهزة نشطة اليوم', value: '${_int(dev['active_24h'])}', sub: 'الأجهزة المعروفة: ${_int(dev['total'])}'),
+                KpiTile(label: 'أجهزة جديدة', value: '${_int(dev['new'])}', sub: 'خلال ${_daysText(days)}'),
+                KpiTile(label: 'أجهزة محظورة', value: '${_int(dev['blocked'])}', color: _int(dev['blocked']) > 0 ? sem.danger : null),
               ]);
               return wide
                   ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -448,22 +462,22 @@ class SecDashboardPage extends StatelessWidget {
             }),
             const SizedBox(height: 12),
             ResponsiveGrid(minItemWidth: 165, spacing: 10, children: [
-              KpiTile(label: 'حدث في سجل التدقيق', value: '${_int(au['events'])}', sub: '${_int(au['actors'])} مستخدماً'),
-              KpiTile(label: 'عملية حذف', value: '${_int(au['deletes'])}', color: _int(au['deletes']) > 0 ? sem.wip : null),
-              KpiTile(label: 'ملفاً مستخرجاً', value: '${_int(au['exports'])}'),
+              KpiTile(label: 'أحداث سجل التدقيق', value: '${_int(au['events'])}', sub: 'المستخدمون: ${_int(au['actors'])}'),
+              KpiTile(label: 'عمليات الحذف', value: '${_int(au['deletes'])}', color: _int(au['deletes']) > 0 ? sem.wip : null),
+              KpiTile(label: 'الملفات المستخرجة', value: '${_int(au['exports'])}'),
               KpiTile(label: 'خارج أوقات الدوام', value: '${_int(au['off_hours'])}', color: _int(au['off_hours']) > 0 ? sem.wip : null),
-              KpiTile(label: 'تغيير إعدادات', value: '${_int(au['settings'])}'),
-              KpiTile(label: 'نمط غير معتاد', value: '${anomalies.length}', color: anomalies.isNotEmpty ? sem.danger : sem.ok),
-              KpiTile(label: 'تنبيه أمني', value: '${_int(d['alerts'])}', color: _int(d['alerts']) > 0 ? sem.wip : sem.ok),
+              KpiTile(label: 'تغييرات الإعدادات', value: '${_int(au['settings'])}'),
+              KpiTile(label: 'أنماط غير معتادة', value: '${anomalies.length}', color: anomalies.isNotEmpty ? sem.danger : sem.ok),
+              KpiTile(label: 'التنبيهات الأمنية', value: '${_int(d['alerts'])}', color: _int(d['alerts']) > 0 ? sem.wip : sem.ok),
               KpiTile(
-                  label: 'حادثة مفتوحة',
+                  label: 'الحوادث المفتوحة',
                   value: '${_int(inc['open'])}',
-                  sub: '${_int(inc['critical'])} عالية الخطورة',
+                  sub: 'عالية الخطورة: ${_int(inc['critical'])}',
                   color: _int(inc['critical']) > 0 ? sem.danger : null),
-              KpiTile(label: 'رسالة داخلية', value: '${_int(chat['messages'])}', sub: '${_int(chat['locked_rooms'])} محادثة مقفلة'),
-              KpiTile(label: 'حجم المرفقات', value: fileSizeText(_int(chat['bytes'])), sub: '${_int(chat['files'])} مرفقاً'),
-              KpiTile(label: 'رقماً إشارياً صدر', value: '${_int(refs['issued'])}'),
-              KpiTile(label: 'صلاحية دقيقة', value: '${_int(u['grants'])}', sub: '${_int(u['with_grants'])} مستخدماً'),
+              KpiTile(label: 'الرسائل الداخلية', value: '${_int(chat['messages'])}', sub: 'محادثات مقفلة: ${_int(chat['locked_rooms'])}'),
+              KpiTile(label: 'حجم المرفقات', value: fileSizeText(_int(chat['bytes'])), sub: 'عدد المرفقات: ${_int(chat['files'])}'),
+              KpiTile(label: 'الأرقام الإشارية الصادرة', value: '${_int(refs['issued'])}'),
+              KpiTile(label: 'الصلاحيات الدقيقة', value: '${_int(u['grants'])}', sub: 'لعدد مستخدمين: ${_int(u['with_grants'])}'),
             ]),
             const SizedBox(height: 12),
             SectionCard(
@@ -505,7 +519,7 @@ class SecDashboardPage extends StatelessWidget {
                   return Column(children: [
                     for (final a in actors.take(10))
                       _meterRow(context, '${a['name'] ?? ''}', _int(a['n']), mx,
-                          trailing: '${a['n']}${_int(a['deletes']) > 0 ? ' · ${a['deletes']}✕' : ''}',
+                          trailing: '${a['n']}${_int(a['deletes']) > 0 ? ' · حذف ${a['deletes']}' : ''}',
                           color: _int(a['deletes']) > 5 ? sem.danger : null),
                     if (actors.isEmpty) Text('لا نشاط', style: TextStyle(color: sem.muted)),
                   ]);
@@ -686,7 +700,7 @@ class SecAlertsPage extends StatelessWidget {
             else
               SectionCard(
                 title: 'التنبيهات (${items.length})',
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
                 child: Column(children: [
                   for (final a in items)
                     ListTile(
@@ -856,7 +870,7 @@ class _SecIdentityPageState extends State<SecIdentityPage> {
                     const SizedBox(height: 8),
                     _meterRow(context, 'النماذج التي يكتب فيها', _int(u['forms']), _int(u['forms_total']), trailing: '${u['forms']}/${u['forms_total']}'),
                     const SizedBox(height: 4),
-                    Text('خلال 30 يوماً: ${u['events_30d']} حدثاً · ${u['deletes_30d']} حذفاً · ${u['exports_30d']} تصديراً · ${u['messages_30d']} رسالة',
+                    Text('خلال 30 يوماً: الأحداث ${u['events_30d']} · الحذف ${u['deletes_30d']} · التصدير ${u['exports_30d']} · الرسائل ${u['messages_30d']}',
                         style: TextStyle(fontSize: 12.5, color: sem.muted)),
                     if ((u['grants'] as List? ?? const []).isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -967,7 +981,7 @@ class _SecDataPageState extends State<SecDataPage> {
                     subtitle: Text([
                       '${r['name'] ?? ''}',
                       '${(r['format'] ?? '').toString().toUpperCase()}',
-                      if (r['rows'] != null) '${r['rows']} صفاً',
+                      if (r['rows'] != null) 'الصفوف: ${r['rows']}',
                       if (r['bytes'] != null) fileSizeText(_int(r['bytes'])),
                     ].where((x) => x.isNotEmpty).join(' · ')),
                     trailing: Text(_stamp(r['at']), style: TextStyle(fontSize: 12, color: sem.muted)),
@@ -1003,11 +1017,11 @@ class _SecDataPageState extends State<SecDataPage> {
               };
           return [
             ResponsiveGrid(minItemWidth: 170, children: [
-              KpiTile(label: 'ملفاً مستخرجاً', value: '${_list(d['exports']).length}', sub: fm.entries.map((e) => '${e.key.toUpperCase()} ${e.value}').join(' · ')),
-              KpiTile(label: 'عملية حذف', value: '${_list(d['deletes']).length}'),
-              KpiTile(label: 'رقماً إشارياً', value: '${_list(d['refs']).length}'),
-              KpiTile(label: 'مرفقاً مرفوعاً', value: '${_list(d['uploads']).length}', sub: 'الإجمالي ${_int(up['files'])} · ${fileSizeText(_int(up['bytes']))}'),
-              KpiTile(label: 'تغيير إعدادات', value: '${_list(d['settings']).length}'),
+              KpiTile(label: 'الملفات المستخرجة', value: '${_list(d['exports']).length}', sub: fm.entries.map((e) => '${e.key.toUpperCase()} ${e.value}').join(' · ')),
+              KpiTile(label: 'عمليات الحذف', value: '${_list(d['deletes']).length}'),
+              KpiTile(label: 'الأرقام الإشارية', value: '${_list(d['refs']).length}'),
+              KpiTile(label: 'المرفقات المرفوعة', value: '${_list(d['uploads']).length}', sub: 'الإجمالي ${_int(up['files'])} · ${fileSizeText(_int(up['bytes']))}'),
+              KpiTile(label: 'تغييرات الإعدادات', value: '${_list(d['settings']).length}'),
             ]),
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -1029,7 +1043,7 @@ class _SecDataPageState extends State<SecDataPage> {
             if (rows.isEmpty)
               const EmptyState(icon: Icons.inbox_outlined, title: 'لا شيء في المدة المختارة')
             else
-              SectionCard(title: '${rows.length} عنصراً', padding: EdgeInsets.zero, child: Column(children: [for (final r in rows) tile(r)])),
+              SectionCard(title: 'العناصر (${rows.length})', padding: const EdgeInsets.fromLTRB(14, 14, 14, 6), child: Column(children: [for (final r in rows) tile(r)])),
           ];
         },
       );
@@ -1150,8 +1164,8 @@ class _SecAuditPageState extends State<SecAuditPage> {
         const EmptyState(icon: Icons.manage_search_outlined, title: 'لا نتائج')
       else
         SectionCard(
-          title: '${rows.length} حدثاً',
-          padding: EdgeInsets.zero,
+          title: 'الأحداث (${rows.length})',
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
           child: Column(children: [
             for (final e in rows.take(600))
               ListTile(
@@ -1214,12 +1228,12 @@ class SecChatPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             ResponsiveGrid(minItemWidth: 160, spacing: 10, children: [
-              KpiTile(label: 'رسالة', value: '${_int(t['messages'])}', sub: '${_int(t['senders'])} مرسلاً'),
-              KpiTile(label: 'مرفق', value: '${_int(t['files'])}', sub: fileSizeText(_int(t['bytes']))),
-              KpiTile(label: 'محادثة', value: '${_int(t['rooms'])}', sub: '${_int(t['dm'])} خاصة · ${_int(t['groups'])} مجموعة · ${_int(t['channels'])} قناة'),
-              KpiTile(label: 'مقفلة', value: '${_int(t['locked'])}', color: _int(t['locked']) > 0 ? sem.danger : null),
-              KpiTile(label: 'محذوفة', value: '${_int(t['deleted'])}', sub: '${_int(t['edited'])} معدّلة'),
-              KpiTile(label: 'خارج الدوام', value: '${_int(t['off_hours'])}', color: _int(t['off_hours']) > 0 ? sem.wip : null),
+              KpiTile(label: 'الرسائل', value: '${_int(t['messages'])}', sub: 'المرسلون: ${_int(t['senders'])}'),
+              KpiTile(label: 'المرفقات', value: '${_int(t['files'])}', sub: fileSizeText(_int(t['bytes']))),
+              KpiTile(label: 'المحادثات', value: '${_int(t['rooms'])}', sub: 'خاصة ${_int(t['dm'])} · مجموعات ${_int(t['groups'])} · قنوات ${_int(t['channels'])}'),
+              KpiTile(label: 'المحادثات المقفلة', value: '${_int(t['locked'])}', color: _int(t['locked']) > 0 ? sem.danger : null),
+              KpiTile(label: 'الرسائل المحذوفة', value: '${_int(t['deleted'])}', sub: 'المعدّلة: ${_int(t['edited'])}'),
+              KpiTile(label: 'رسائل خارج الدوام', value: '${_int(t['off_hours'])}', color: _int(t['off_hours']) > 0 ? sem.wip : null),
             ]),
             const SizedBox(height: 12),
             SectionCard(
@@ -1258,7 +1272,7 @@ class SecChatPage extends StatelessWidget {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.east_rounded, size: 18),
-                        title: Text('${x['from']} ← ${x['to']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        title: Text('${x['from']} إلى ${x['to']}', maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: Text('${kinds[x['kind']] ?? ''} · آخرها ${_stamp(x['last_at'])}'),
                         trailing: Text('${x['messages']}', style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
@@ -1287,7 +1301,7 @@ class SecChatPage extends StatelessWidget {
                       ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: Text('${x['sender']} ← ${x['room']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        title: Text('${x['sender']} في ${x['room']}', maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: Text('${x['mime'] ?? ''} · ${_stamp(x['at'])}${x['deleted'] == true ? ' · محذوف' : ''}'),
                         trailing: Text(fileSizeText(_int(x['size'])), style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
@@ -1298,7 +1312,7 @@ class SecChatPage extends StatelessWidget {
             ]),
             SectionCard(
               title: 'المحادثات (${rooms.length})',
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
               child: Column(children: [
                 for (final r in rooms)
                   ListTile(
@@ -1308,8 +1322,8 @@ class SecChatPage extends StatelessWidget {
                     title: Text('${r['title']}', maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text([
                       kinds[r['kind']] ?? '',
-                      '${r['members']} عضواً',
-                      '${r['messages']} رسالة في $days يوماً',
+                      'الأعضاء: ${r['members']}',
+                      'رسائل ${_daysText(days)}: ${r['messages']}',
                       if (_int(r['bytes']) > 0) fileSizeText(_int(r['bytes'])),
                       'آخر نشاط ${_stamp(r['last_at'])}',
                       if (r['locked'] == true) 'مقفلة: ${r['lock_reason']}',
@@ -1367,7 +1381,7 @@ class _RoomLogDialog extends StatelessWidget {
                   }),
                   title: Text('${r['sender'] ?? ''} · ${_stamp(r['at'])}'),
                   subtitle: Text([
-                    if (r['kind'] == 'file') '${r['mime'] ?? ''} ${fileSizeText(_int(r['size']))}' else '${r['length']} حرفاً',
+                    if (r['kind'] == 'file') '${r['mime'] ?? ''} ${fileSizeText(_int(r['size']))}' else 'الطول: ${r['length']} حرف',
                     if (r['reply'] == true) 'رد',
                     if (r['edited'] == true) 'معدّلة',
                     if (r['deleted'] == true) 'محذوفة${r['deleted_by'] != null ? ' بواسطة ${r['deleted_by']}' : ''}',
@@ -1459,9 +1473,6 @@ class _SecIncidentsPageState extends State<SecIncidentsPage> {
                   subtitle: '${incidentCategoryLabels[r['category']] ?? r['category']} · اكتُشفت ${_stamp(r['detected_at'])}'
                       '${r['user_id'] != null ? ' · ${app.people['${r['user_id']}']?.displayName ?? ''}' : ''}',
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    ToneBadge(incidentSeverityLabels[r['severity']] ?? '${r['severity']}', color: _sevColor(context, '${r['severity']}')),
-                    const SizedBox(width: 6),
-                    ToneBadge(incidentStatusLabels[r['status']] ?? '${r['status']}', color: r['status'] == 'closed' ? sem.ok : sem.wip),
                     IconButton(
                       tooltip: 'تعديل',
                       icon: const Icon(Icons.edit_outlined),
@@ -1488,6 +1499,11 @@ class _SecIncidentsPageState extends State<SecIncidentsPage> {
                       ),
                   ]),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      ToneBadge(incidentSeverityLabels[r['severity']] ?? '${r['severity']}', color: _sevColor(context, '${r['severity']}')),
+                      ToneBadge(incidentStatusLabels[r['status']] ?? '${r['status']}', color: r['status'] == 'closed' ? sem.ok : sem.wip),
+                    ]),
+                    const SizedBox(height: 8),
                     if ('${r['details']}'.isNotEmpty) Text('${r['details']}'),
                     if ('${r['actions']}'.isNotEmpty) ...[
                       const SizedBox(height: 6),

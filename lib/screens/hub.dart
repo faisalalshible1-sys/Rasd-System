@@ -64,7 +64,7 @@ const Map<String, String> sectionShortNames = {
   'planning_qa': 'التخطيط',
   'safety': 'السلامة',
   'acceptance': 'الاستلام',
-  'chat': 'المراسلات',
+  'chat': 'الرسائل',
   'security': 'الأمن',
   'print': 'الطباعة',
   'manual': 'الدليل',

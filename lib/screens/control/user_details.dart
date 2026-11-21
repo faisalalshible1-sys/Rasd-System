@@ -818,7 +818,7 @@ class _GrantsDialogState extends State<GrantsDialog> {
         ]),
       ),
       actions: [
-        Text('${_picked.length} صلاحية', style: TextStyle(color: sem.muted)),
+        Text('المختارة: ${_picked.length}', style: TextStyle(color: sem.muted)),
         const SizedBox(width: 12),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
         FilledButton(onPressed: _busy || _picked.length > 80 ? null : _save, child: const Text('حفظ')),
