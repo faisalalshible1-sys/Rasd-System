@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dc_app/app_state.dart';
+import 'package:dc_app/chat.dart';
 import 'package:dc_app/docs.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
@@ -13,8 +14,15 @@ import 'package:dc_app/print/exporter.dart';
 import 'package:dc_app/print/model.dart';
 import 'package:dc_app/print/preview.dart';
 import 'package:dc_app/print/sources.dart';
+import 'package:dc_app/print/table_editor.dart';
+import 'package:dc_app/rasd.dart';
 import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assistant.dart';
+import 'package:dc_app/screens/chat.dart';
+import 'package:dc_app/screens/control/layout_editor.dart';
+import 'package:dc_app/screens/control/user_details.dart';
+import 'package:dc_app/screens/ref_numbers.dart';
+import 'package:dc_app/screens/security_center.dart';
 import 'package:dc_app/screens/auth.dart';
 import 'package:dc_app/screens/contract_finance.dart';
 import 'package:dc_app/screens/cycle_guide.dart';
@@ -1073,6 +1081,57 @@ void main() {
     await _shot(tester, 'd6_manual_safety_light', app, _scaffold(const ManualPage()), size: const Size(1440, 4400));
   });
 
+  testWidgets('rasd', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _rasd(app);
+    app.showHub = true;
+    await _shot(tester, 'g0_hub_thirteen_light', app, const HomeShell(), size: const Size(1440, 2300));
+    await _shot(tester, 'g1_hub_thirteen_dark_mobile', app, const HomeShell(), size: const Size(400, 5000), dark: true);
+    app.showHub = false;
+    app.tab = 140;
+    await _shot(tester, 'g2_chat_list_light', app, const HomeShell(), size: const Size(1440, 1000));
+    await _shot(tester, 'g3_chat_group_light', app, _scaffold(const ChatPage(initialRoom: 'r-grp')), size: const Size(1440, 1000));
+    await _shot(tester, 'g4_chat_dm_dark_mobile', app, const ConversationScreen(roomId: 'r-dm1'), size: const Size(400, 900), dark: true);
+    await _shot(tester, 'g5_chat_list_mobile', app, _scaffold(const ChatPage()), size: const Size(400, 900));
+    await _shot(tester, 'g6_chat_channels_light', app, _scaffold(const ChatPage(channels: true, initialRoom: 'r-ch2')), size: const Size(1440, 900));
+    await _shot(tester, 'g7_chat_locked_light', app, _scaffold(const ConversationView(roomId: 'r-locked', embedded: true)), size: const Size(900, 700));
+    await _shot(tester, 'g8_chat_settings_light', app, _scaffold(const ChatSettingsPage()), size: const Size(1200, 1000));
+    await _shot(tester, 'g9_new_channel_light', app, _OpenDialog(builder: (_) => const ChannelDialog()), size: const Size(1200, 1100));
+    app.tab = 150;
+    await _shot(tester, 'h0_security_dashboard_light', app, const HomeShell(), size: const Size(1440, 3400));
+    await _shot(tester, 'h1_security_dashboard_dark_mobile', app, _scaffold(const SecDashboardPage()), size: const Size(400, 6400), dark: true);
+    await _shot(tester, 'h2_security_posture_light', app, _scaffold(const SecPosturePage()), size: const Size(1200, 2600));
+    await _shot(tester, 'h3_security_alerts_light', app, _scaffold(const SecAlertsPage()), size: const Size(1200, 1300));
+    await _shot(tester, 'h4_security_identity_light', app, _scaffold(const SecIdentityPage()), size: const Size(1440, 1500));
+    await _shot(tester, 'h5_security_data_light', app, _scaffold(const SecDataPage()), size: const Size(1200, 1500));
+    await _shot(tester, 'h6_security_chat_light', app, _scaffold(const SecChatPage()), size: const Size(1440, 2600));
+    await _shot(tester, 'h7_security_incidents_mobile', app, _scaffold(const SecIncidentsPage()), size: const Size(400, 1800));
+    app.tab = 133;
+    await _shot(tester, 'i0_ref_numbers_light', app, const HomeShell(), size: const Size(1440, 1300));
+    await _shot(tester, 'i1_ref_scheme_dialog_light', app, _OpenDialog(builder: (_) => RefSchemeDialog(scheme: app.refScheme('print'))), size: const Size(1200, 1300));
+    await _shot(tester, 'i2_grants_dialog_light', app, _OpenDialog(builder: (_) => const GrantsDialog(userId: 'u-1', name: 'سالم المبروك')),
+        size: const Size(1200, 1000));
+    await _shot(tester, 'i3_layout_editor_light', app, _scaffold(ListView(padding: const EdgeInsets.all(20), children: const [LayoutEditor()])),
+        size: const Size(1300, 1900));
+    final risks = exportSource(app, 'risks:register')!;
+    final rt = risks.build(app, const ExportQuery()).select([for (final c in risks.columns) if (c.on) c.key]);
+    await _shot(tester, 'i4_table_editor_light', app, _OpenEditor(table: rt), size: const Size(1440, 1000));
+    app.tab = 1;
+    await _shot(tester, 'i5_export_dialog_columns_light', app, const _OpenExport(sourceId: 'risks:register'), size: const Size(1440, 1500));
+    // Excel حي وPDF برقم إشاري صادر
+    await tester.runAsync(() async {
+      final dir = Directory('visual_test/goldens/exports')..createSync(recursive: true);
+      final issued = PrintContext(printedBy: 'م. فيصل الشبلي', orgName: 'مكتب الشؤون الهندسية', at: DateTime(2026, 11, 21, 10, 5))
+          .withRef('م.ش.هـ/م.م/2026/0007');
+      File('${dir.path}/risks_live.xlsx').writeAsBytesSync(await renderExport(ExportFormat.xlsx, rt, PrintConfig(), issued));
+      File('${dir.path}/risks_issued_ref.pdf').writeAsBytesSync(await renderExport(ExportFormat.pdf, rt, PrintConfig(), issued));
+      final fin = exportSource(app, 'cycle:finance')!;
+      final ft = fin.build(app, const ExportQuery()).select([for (final c in fin.columns) c.key]);
+      File('${dir.path}/finance_live.xlsx').writeAsBytesSync(await renderExport(ExportFormat.xlsx, ft, PrintConfig(), issued));
+    });
+  });
+
   testWidgets('print center', (tester) async {
     final app = _sampleState();
     await _preload(tester);
@@ -1165,4 +1224,278 @@ class _OpenExportState extends State<_OpenExport> {
 
   @override
   Widget build(BuildContext context) => const Scaffold(body: SizedBox());
+}
+
+/// يفتح نافذة بعد أول إطار (للقطات).
+class _OpenDialog extends StatefulWidget {
+  const _OpenDialog({required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  State<_OpenDialog> createState() => _OpenDialogState();
+}
+
+class _OpenDialogState extends State<_OpenDialog> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showDialog<void>(context: context, builder: widget.builder);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox());
+}
+
+/// يفتح محرر البيانات قبل التصدير (للقطات).
+class _OpenEditor extends StatefulWidget {
+  const _OpenEditor({required this.table});
+
+  final ExportTable table;
+
+  @override
+  State<_OpenEditor> createState() => _OpenEditorState();
+}
+
+class _OpenEditorState extends State<_OpenEditor> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) editExportTable(context, widget.table);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox());
+}
+
+/// بيانات «منظومة رصد»: الصلاحيات الدقيقة والأرقام والمراسلات ومركز الأمن.
+void _rasd(AppState app) {
+  final now = DateTime.now();
+  String ago(int minutes) => now.subtract(Duration(minutes: minutes)).toUtc().toIso8601String();
+  app.v11Ready = true;
+  app.v12Ready = true;
+  app.v13Ready = true;
+  app.grants = {
+    'u-1': {'form:f04', 'unit:ncr', 'docs:design'},
+  };
+  app.refSchemes = [
+    const RefScheme(key: 'print', name: 'المطبوعات والملفات المصدّرة', pattern: 'م.ش.هـ/{SECTION}/{YYYY}/{SEQ}', system: true, codes: {
+      'cycle': 'د.م', 'risks': 'م.م', 'swot': 'ت.س', 'docs': 'ش.ف', 'supervision': 'إش', 'heritage': 'تر', 'planning_qa': 'ت.ج',
+      'safety': 'س.م', 'acceptance': 'م.س', 'print': 'ط', 'manual': 'د',
+    }),
+    const RefScheme(key: 'letter_out', name: 'المراسلات الصادرة', pattern: 'م.ش.هـ/ص/{YYYY}/{SEQ}', system: true),
+    const RefScheme(key: 'letter_in', name: 'المراسلات الواردة', pattern: 'م.ش.هـ/و/{YYYY}/{SEQ}', system: true),
+    const RefScheme(key: 'letter_internal', name: 'المراسلات الداخلية', pattern: 'م.ش.هـ/د/{YYYY}/{SEQ}', system: true),
+    const RefScheme(key: 'contract_mail', name: 'مراسلات العقود', pattern: 'ع/{CODE}/{YY}{MM}/{SEQ:3}', reset: 'monthly', perSection: true, pad: 3),
+  ];
+  app.debugRefCounters = {'print|${now.year}': 186, 'letter_out|${now.year}': 49, 'letter_in|${now.year}': 73, 'contract_mail|${now.year}-${now.month.toString().padLeft(2, '0')}|cycle': 6};
+  app.debugRefLog = [
+    for (var i = 0; i < 9; i++)
+      RefLogEntry(
+        id: 200 - i,
+        scheme: i.isEven ? 'print' : 'letter_out',
+        ref: i.isEven ? 'م.ش.هـ/${['د.م', 'م.م', 'إش', 'م.س', 'ط'][i ~/ 2]}/${now.year}/${(186 - i).toString().padLeft(4, '0')}' : 'م.ش.هـ/ص/${now.year}/${(49 - i).toString().padLeft(4, '0')}',
+        seq: 186 - i,
+        period: '${now.year}',
+        section: i.isEven ? ['cycle', 'risks', 'supervision', 'acceptance', 'print'][i ~/ 2] : null,
+        source: i.isEven ? 'cycle:contracts' : null,
+        title: i.isEven ? ['سجل العقود', 'سجل المخاطر', 'التقارير اليومية', 'حالات عدم المطابقة', 'مكتبة الوسائط'][i ~/ 2] : 'كتاب إلى الشركة المنفذة',
+        createdBy: ['u-dir', 'u-1', 'u-2'][i % 3],
+        createdAt: now.subtract(Duration(hours: i * 5)),
+      ),
+  ];
+  app.settings = LiveSettings({
+    ...app.settings.raw,
+    'chat.config': {'enabled': true, 'groups': true, 'max_file_mb': 50, 'edit_minutes': 60},
+  });
+  ChatMessage m(int id, String room, String? sender, String body, {String kind = 'text', String? file, String? mime, int? size, Map<String, dynamic>? ref, int? reply, int ago = 0, bool edited = false}) =>
+      ChatMessage(
+        id: id,
+        roomId: room,
+        sender: sender,
+        kind: kind,
+        body: body,
+        filePath: file == null ? null : '$room/$id.${file.split('.').last}',
+        fileName: file,
+        fileMime: mime,
+        fileSize: size,
+        ref: ref,
+        replyTo: reply,
+        createdAt: now.subtract(Duration(minutes: ago)),
+        editedAt: edited ? now.subtract(Duration(minutes: ago - 2)) : null,
+      );
+  final grp = [
+    m(1, 'r-grp', 'u-dir', 'أنشأ م. فيصل الشبلي المجموعة', kind: 'system', ago: 2900),
+    m(2, 'r-grp', 'u-dir', 'صباح الخير. نحتاج تقرير الوضع الحالي لعقد 990 قبل اجتماع الأحد 9:00 صباحاً.', ago: 1500),
+    m(3, 'r-grp', 'u-3', 'تم. نسبة الإنجاز الفعلية 47.5% مقابل 52% مخطط، والانحراف −4.5 نقطة بسبب تأخر توريد الحديد.', ago: 1490, edited: true),
+    m(4, 'r-grp', 'u-3', 'جولة الموقع اليوم', kind: 'file', file: 'جولة الموقع 990.mp4', mime: 'video/mp4', size: 23500000, ago: 1480),
+    m(5, 'r-grp', 'u-2', '', kind: 'link', ref: {'type': 'project', 'id': 'p-003', 'label': 'عقد ع-2026/13 — صيانة مدرسة', 'sub': 'شركة البناء الحديث'}, ago: 300),
+    m(6, 'r-grp', 'u-dir', 'ممتاز. أرسلوا محضر الاجتماع بعد الانتهاء.', reply: 3, ago: 120),
+    m(7, 'r-grp', 'u-1', 'المستخلص الثالث جاهز للمراجعة', kind: 'file', file: 'المستخلص الثالث.pdf', mime: 'application/pdf', size: 845000, ago: 25),
+    m(8, 'r-grp', 'u-3', 'سأرفع صور الموقع بعد الظهر', ago: 3),
+  ];
+  final dm = [
+    m(11, 'r-dm1', 'u-1', 'السلام عليكم، هل اعتُمد أمر التغيير رقم 2؟', ago: 200),
+    m(12, 'r-dm1', 'u-dir', 'نعم، اعتمدته صباح اليوم بقيمة 125,000 د.ل', ago: 190),
+    m(13, 'r-dm1', 'u-1', 'تم استلام المستخلص الثالث', ago: 60),
+    m(14, 'r-dm1', 'u-dir', '', kind: 'text', ago: 30),
+  ]..removeLast();
+  final ch = [
+    m(21, 'r-ch2', 'u-dir', 'أنشأ م. فيصل الشبلي القناة', kind: 'system', ago: 4000),
+    m(22, 'r-ch2', 'u-dir', 'تُسلَّم التقارير اليومية قبل الثانية ظهراً، مع صور الموقع.', ago: 600),
+    m(23, 'r-ch2', 'u-3', 'تم التعميم على مهندسي الإشراف.', ago: 500),
+  ];
+  final locked = [
+    m(31, 'r-locked', 'u-1', 'الملفات المطلوبة مرفقة', kind: 'file', file: 'بيانات.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size: 380000, ago: 900),
+    m(32, 'r-locked', 'u-dir', 'قُفلت المحادثة: مراجعة أمنية لتصدير بيانات', kind: 'system', ago: 800),
+  ];
+  ChatPreview p(ChatMessage x, String name) => ChatPreview(id: x.id, kind: x.kind, sender: x.sender, senderName: name, at: x.createdAt, text: x.kind == 'file' ? (x.fileName ?? '') : (x.kind == 'link' ? (x.ref?['label'] ?? '').toString() : x.body), mime: x.fileMime);
+  app.chat.debugSeed([
+    ChatRoom(id: 'r-grp', kind: 'group', title: 'فريق عقد 990 – الإشراف', description: 'متابعة يومية للموقع', myRole: 'owner', unread: 3, members: 4, lastMessageAt: grp.last.createdAt, last: p(grp.last, 'أحمد الفيتوري'), createdAt: now.subtract(const Duration(days: 2))),
+    ChatRoom(id: 'r-dm1', kind: 'dm', pinned: true, peer: const ChatPeer(id: 'u-1', name: 'سالم المبروك', role: 'contracts'), lastMessageAt: dm.last.createdAt, last: p(dm.last, 'سالم المبروك'), members: 2),
+    ChatRoom(id: generalChannelId, kind: 'channel', title: 'المكتب – عام', description: 'قناة يراها كل مستخدمي المنظومة', audience: const {'all': true}, myRole: 'admin', unread: 2, lastMessageAt: now.subtract(const Duration(minutes: 45)), last: ChatPreview(id: 40, kind: 'text', sender: 'u-2', senderName: 'هدى العبيدي', at: now.subtract(const Duration(minutes: 45)), text: 'تذكير: اجتماع المكتب الأسبوعي غداً 10:00')),
+    ChatRoom(id: 'r-ch2', kind: 'channel', title: 'قسم الإشراف', description: 'تعليمات القسم', audience: const {'departments': ['supervision']}, adminsOnly: true, myRole: 'admin', lastMessageAt: ch.last.createdAt, last: p(ch.last, 'أحمد الفيتوري')),
+    ChatRoom(id: 'r-dm2', kind: 'dm', peer: const ChatPeer(id: 'u-3', name: 'أحمد الفيتوري', role: 'dept_head'), unread: 1, lastMessageAt: now.subtract(const Duration(hours: 26)), last: ChatPreview(id: 50, kind: 'file', sender: 'u-3', senderName: 'أحمد الفيتوري', at: now.subtract(const Duration(hours: 26)), text: 'صورة الأعمدة.jpg', mime: 'image/jpeg')),
+    ChatRoom(id: 'r-locked', kind: 'group', title: 'تصدير بيانات العقود', locked: true, lockReason: 'مراجعة أمنية لتصدير بيانات', myRole: 'member', members: 3, lastMessageAt: locked.last.createdAt, last: p(locked.last, '')),
+  ], {
+    'r-grp': grp,
+    'r-dm1': dm,
+    'r-ch2': ch,
+    'r-locked': locked,
+  });
+
+  final days = [for (var i = 29; i >= 0; i--) DateTime(now.year, now.month, now.day).subtract(Duration(days: i))];
+  String d0(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  secFixtures = {
+    'sec_dashboard': {
+      'days': 30,
+      'generated_at': now.toUtc().toIso8601String(),
+      'viewer': 'director',
+      'freeze': false,
+      'users': {'total': 19, 'active': 15, 'pending': 2, 'disabled': 2, 'locked': 1, 'mfa': 11, 'no_mfa_sensitive': 1, 'stale_60': 2,
+        'by_role': {'director': 1, 'office_staff': 3, 'dept_head': 4, 'contracts': 3, 'planning_qa': 2, 'security_auditor': 1, 'pending': 2}, 'with_grants': 1, 'grants': 3},
+      'sessions': 14,
+      'devices': {'total': 31, 'trusted': 22, 'blocked': 1, 'new': 4, 'active_24h': 12, 'platforms': {'android': 14, 'windows': 9, 'web': 8}},
+      'audit': {'events': 1842, 'writes': 1210, 'deletes': 37, 'exports': 96, 'security': 41, 'settings': 9, 'off_hours': 63, 'actors': 14},
+      'categories': [
+        {'key': 'form', 'n': 512}, {'key': 'unit', 'n': 388}, {'key': 'report', 'n': 260}, {'key': 'finance', 'n': 205}, {'key': 'export', 'n': 96},
+        {'key': 'risk', 'n': 88}, {'key': 'doc', 'n': 74}, {'key': 'chat', 'n': 31}, {'key': 'user', 'n': 25}, {'key': 'security', 'n': 16},
+      ],
+      'daily': [for (var i = 0; i < days.length; i++) {'day': d0(days[i]), 'events': 30 + (i * 37) % 70 + (days[i].weekday >= 5 && days[i].weekday <= 6 ? -25 : 0), 'deletes': i % 7 == 3 ? 9 : i % 3, 'security': i % 4}],
+      'heatmap': [for (var d = 1; d <= 7; d++) for (var h = 6; h <= 22; h++) [d, h, (d == 5 || d == 6) ? (h % 5 == 0 ? 2 : 0) : ((h >= 8 && h <= 15) ? 18 + (d * h) % 22 : (h % 4 == 0 ? 3 : 1))]],
+      'actors': [
+        {'name': 'هدى العبيدي', 'n': 412, 'deletes': 3, 'exports': 21},
+        {'name': 'سالم المبروك', 'n': 366, 'deletes': 12, 'exports': 38},
+        {'name': 'أحمد الفيتوري', 'n': 298, 'deletes': 1, 'exports': 9},
+        {'name': 'م. فيصل الشبلي', 'n': 241, 'deletes': 15, 'exports': 12},
+        {'name': 'مهندس الجودة', 'n': 133, 'deletes': 0, 'exports': 4},
+      ],
+      'logins': [],
+      'storage': [
+        {'bucket': 'docs', 'files': 1284, 'bytes': 2830000000, 'new': 210},
+        {'bucket': 'chat', 'files': 96, 'bytes': 412000000, 'new': 96},
+        {'bucket': 'releases', 'files': 6, 'bytes': 198000000, 'new': 3},
+      ],
+      'chat': {'messages': 1263, 'files': 96, 'bytes': 412000000, 'senders': 13, 'locked_rooms': 1},
+      'refs': {'issued': 187, 'schemes': 3},
+      'incidents': {'open': 2, 'critical': 1, 'total': 5},
+      'alerts': 3,
+    },
+    'sec_posture': [
+      {'key': 'rls', 'group': 'قاعدة البيانات', 'title': 'حماية مستوى الصفوف على كل الجداول', 'ok': true, 'severity': 'high', 'count': 0, 'items': [], 'detail': 'كل جداول المنظومة محمية بسياسات قراءة.'},
+      {'key': 'search_path', 'group': 'قاعدة البيانات', 'title': 'مسار بحث ثابت لكل دالة بصلاحية المالك', 'ok': true, 'severity': 'high', 'count': 0, 'items': [], 'detail': 'يمنع تمرير دوال مزيّفة إلى الدوال التي تعمل بصلاحية المالك.'},
+      {'key': 'anon_write', 'group': 'قاعدة البيانات', 'title': 'لا كتابة لغير المسجّلين', 'ok': true, 'severity': 'high', 'count': 0, 'items': [], 'detail': 'صلاحيات كتابة ممنوحة للدور anon.'},
+      {'key': 'direct_write', 'group': 'قاعدة البيانات', 'title': 'الكتابة عبر الدوال المدققة فقط', 'ok': true, 'severity': 'medium', 'count': 0, 'items': [], 'detail': 'جداول يكتب فيها المستخدمون مباشرة.'},
+      {'key': 'buckets', 'group': 'التخزين', 'title': 'حاويات الملفات خاصة', 'ok': true, 'severity': 'high', 'count': 0, 'items': [], 'detail': 'المستندات والمرفقات والمراسلات لا تُقرأ إلا بصلاحية؛ حاوية الإصدارات وحدها عامة لتنزيل التطبيق.'},
+      {'key': 'director_mfa', 'group': 'الهوية', 'title': 'مدير المكتب يستخدم التحقق بخطوتين', 'ok': true, 'severity': 'high', 'detail': 'أهم حساب في المنظومة.'},
+      {'key': 'mfa_sensitive', 'group': 'الهوية', 'title': 'الحسابات الحساسة تستخدم التحقق بخطوتين', 'ok': false, 'severity': 'medium', 'count': 1, 'items': ['هدى العبيدي'], 'detail': 'مسؤول الأمن وموظفو المكتب.'},
+      {'key': 'stale', 'group': 'الهوية', 'title': 'لا حسابات خاملة مفعّلة', 'ok': false, 'severity': 'medium', 'count': 2, 'items': ['مهندس الحصر 2', 'مراقب الموقع'], 'detail': 'حسابات مفعّلة لم تُستخدم منذ 60 يوماً.'},
+      {'key': 'pending', 'group': 'الهوية', 'title': 'لا طلبات تسجيل معلّقة قديمة', 'ok': true, 'severity': 'low', 'count': 0, 'items': [], 'detail': 'طلبات تسجيل مضى عليها أكثر من أسبوع.'},
+      {'key': 'mfa_director_policy', 'group': 'السياسات', 'title': 'فرض التحقق بخطوتين على المدير', 'ok': true, 'severity': 'medium', 'detail': 'من مركز الأمان في لوحة التحكم.'},
+      {'key': 'mfa_all_policy', 'group': 'السياسات', 'title': 'فرض التحقق بخطوتين على كل المستخدمين', 'ok': false, 'severity': 'low', 'detail': 'يُنصح به عند اكتمال تفعيل الهواتف.'},
+      {'key': 'signups', 'group': 'السياسات', 'title': 'التسجيل الجديد مغلق عند عدم الحاجة', 'ok': true, 'severity': 'low', 'detail': ''},
+      {'key': 'idle', 'group': 'السياسات', 'title': 'قفل الجلسة بعد خمول لا يتجاوز ساعة', 'ok': true, 'severity': 'medium', 'detail': 'الخروج التلقائي من الأجهزة المتروكة.'},
+      {'key': 'freeze', 'group': 'السياسات', 'title': 'المنظومة غير مجمّدة', 'ok': true, 'severity': 'low', 'detail': 'التجميد إجراء طوارئ مؤقت.'},
+      {'key': 'grants_excess', 'group': 'الصلاحيات', 'title': 'لا صلاحيات دقيقة مفرطة', 'ok': true, 'severity': 'low', 'count': 0, 'items': [], 'detail': ''},
+      {'key': 'grants_inactive', 'group': 'الصلاحيات', 'title': 'لا صلاحيات لحسابات موقوفة أو مقفلة', 'ok': true, 'severity': 'medium', 'count': 0, 'items': [], 'detail': ''},
+      {'key': 'one_director', 'group': 'الصلاحيات', 'title': 'مدير مكتب واحد', 'ok': true, 'severity': 'high', 'count': 1, 'detail': 'لا يُمنح دور المدير من التطبيق.'},
+      {'key': 'ciso', 'group': 'الصلاحيات', 'title': 'مسؤول أمن سيبراني مفعّل', 'ok': true, 'severity': 'low', 'count': 1, 'detail': 'فصل المهام: من يراقب غير من يدير.'},
+      {'key': 'blocked_active', 'group': 'الأجهزة', 'title': 'لا نشاط من أجهزة محظورة', 'ok': true, 'severity': 'high', 'count': 0, 'detail': ''},
+      {'key': 'incidents', 'group': 'الحوادث', 'title': 'لا حوادث عالية الخطورة مفتوحة', 'ok': false, 'severity': 'high', 'count': 1, 'detail': 'من سجل الحوادث الأمنية.'},
+    ],
+    'sec_anomalies': [
+      {'kind': 'mass_delete', 'severity': 'high', 'user_id': 'u-1', 'name': 'سالم المبروك', 'title': 'حذف 12 عنصراً خلال ساعة', 'at': ago(180), 'count': 12},
+      {'kind': 'mass_export', 'severity': 'medium', 'user_id': 'u-1', 'name': 'سالم المبروك', 'title': 'استخرج 31 ملفاً في يوم واحد', 'at': ago(1500), 'count': 31},
+      {'kind': 'off_hours', 'severity': 'low', 'user_id': 'u-3', 'name': 'أحمد الفيتوري', 'title': '9 تعديلاً خارج أوقات الدوام', 'at': ago(2900), 'count': 9},
+      {'kind': 'privilege', 'severity': 'medium', 'user_id': 'u-dir', 'name': 'م. فيصل الشبلي', 'title': 'تعديل صلاحيات دقيقة: سالم المبروك', 'at': ago(4000), 'count': 1},
+      {'kind': 'new_device', 'severity': 'medium', 'user_id': 'u-2', 'name': 'هدى العبيدي', 'title': 'جهاز جديد لحساب موظف المكتب: Windows', 'at': ago(5200), 'count': 1},
+    ],
+    'security_alerts': [
+      {'kind': 'mfa_missing', 'level': 'warning', 'title': 'حساب حساس دون تحقق بخطوتين: هدى العبيدي', 'user_id': 'u-2', 'at': ago(60)},
+      {'kind': 'off_hours_login', 'level': 'info', 'title': 'دخول خارج ساعات العمل: أحمد الفيتوري', 'user_id': 'u-3', 'at': ago(700)},
+    ],
+    'sec_access_matrix': [
+      for (final u in [
+        ('u-dir', 'م. فيصل الشبلي', 'director', null, true, 2, 26, 26, <String>[], 241, 15, 12, 88),
+        ('u-2', 'هدى العبيدي', 'office_staff', null, false, 3, 20, 26, <String>[], 412, 3, 21, 301),
+        ('u-1', 'سالم المبروك', 'contracts', null, true, 2, 9, 26, ['docs:design', 'form:f04', 'unit:ncr'], 366, 12, 38, 154),
+        ('u-3', 'أحمد الفيتوري', 'dept_head', 'supervision', true, 4, 7, 26, <String>[], 298, 1, 9, 410),
+      ])
+        {
+          'id': u.$1, 'name': u.$2, 'email': '${u.$1}@office.ly', 'role': u.$3, 'department': u.$4, 'unit': u.$1 == 'u-1' ? 'quality_control' : null,
+          'unit_head': false, 'active': true, 'locked': false, 'mfa': u.$5, 'last_seen': ago(u.$6 * 37), 'devices': u.$6, 'forms': u.$7,
+          'forms_total': u.$8, 'grants': u.$9, 'events_30d': u.$10, 'deletes_30d': u.$11, 'exports_30d': u.$12, 'messages_30d': u.$13,
+        },
+    ],
+    'sec_data_activity': {
+      'days': 30,
+      'exports': [
+        for (var i = 0; i < 8; i++)
+          {'at': ago(i * 95), 'name': ['سالم المبروك', 'هدى العبيدي', 'أحمد الفيتوري'][i % 3], 'kind': i.isEven ? 'file' : 'print',
+            'source': 'cycle:finance', 'title': ['المالية', 'سجل العقود', 'سجل المخاطر', 'التقارير اليومية'][i % 4], 'format': ['xlsx', 'pdf', 'docx'][i % 3], 'rows': 12 + i * 7, 'bytes': 84000 + i * 21000},
+      ],
+      'export_formats': {'pdf': 51, 'xlsx': 33, 'docx': 12},
+      'deletes': [{'at': ago(180), 'name': 'سالم المبروك', 'action': 'unit.delete', 'label': 'وحدة ضبط الجودة'}],
+      'refs': [{'at': ago(30), 'ref': 'م.ش.هـ/د.م/${now.year}/0186', 'scheme': 'المطبوعات والملفات المصدّرة', 'by': 'م. فيصل الشبلي', 'title': 'سجل العقود'}],
+      'uploads': [{'at': ago(70), 'by': 'أحمد الفيتوري', 'name': 'صور الموقع 990.jpg', 'mime': 'image/jpeg', 'size': 1450000, 'where': 'تقرير إشراف'}],
+      'uploads_total': {'files': 1284, 'bytes': 2830000000},
+      'settings': [{'at': ago(4000), 'name': 'م. فيصل الشبلي', 'key': 'ui.layout', 'action': 'setting.update'}],
+    },
+    'sec_chat_overview': {
+      'days': 30,
+      'totals': {'rooms': 23, 'dm': 15, 'groups': 6, 'channels': 2, 'locked': 1, 'messages': 1263, 'files': 96, 'bytes': 412000000, 'deleted': 7, 'edited': 22, 'senders': 13, 'off_hours': 58},
+      'rooms': [
+        {'id': 'r-grp', 'kind': 'group', 'title': 'فريق عقد 990 – الإشراف', 'locked': false, 'members': 4, 'messages': 312, 'files': 28, 'bytes': 186000000, 'last_at': ago(3)},
+        {'id': 'r-dm1', 'kind': 'dm', 'title': 'م. فيصل الشبلي ↔ سالم المبروك', 'locked': false, 'members': 2, 'messages': 88, 'files': 3, 'bytes': 2400000, 'last_at': ago(60)},
+        {'id': 'r-locked', 'kind': 'group', 'title': 'تصدير بيانات العقود', 'locked': true, 'lock_reason': 'مراجعة أمنية لتصدير بيانات', 'members': 3, 'messages': 14, 'files': 6, 'bytes': 9800000, 'last_at': ago(800)},
+      ],
+      'senders': [
+        {'name': 'أحمد الفيتوري', 'messages': 410, 'files': 41, 'bytes': 220000000},
+        {'name': 'هدى العبيدي', 'messages': 301, 'files': 9, 'bytes': 12000000},
+        {'name': 'سالم المبروك', 'messages': 154, 'files': 18, 'bytes': 64000000},
+      ],
+      'pairs': [
+        {'from': 'أحمد الفيتوري', 'to': 'فريق عقد 990 – الإشراف', 'kind': 'group', 'messages': 160, 'last_at': ago(3)},
+        {'from': 'سالم المبروك', 'to': 'م. فيصل الشبلي ↔ سالم المبروك', 'kind': 'dm', 'messages': 44, 'last_at': ago(60)},
+      ],
+      'daily': [for (var i = 0; i < days.length; i++) {'day': d0(days[i]), 'messages': 20 + (i * 13) % 50}],
+      'types': [
+        {'type': 'video', 'files': 21, 'bytes': 300000000},
+        {'type': 'image', 'files': 52, 'bytes': 80000000},
+        {'type': 'application', 'files': 23, 'bytes': 32000000},
+      ],
+      'large': [
+        {'sender': 'أحمد الفيتوري', 'room': 'فريق عقد 990 – الإشراف', 'mime': 'video/mp4', 'size': 48200000, 'at': ago(1480)},
+      ],
+    },
+    'security_incidents': [
+      {'id': 'i1', 'title': 'تصدير كثيف من حساب العقود', 'severity': 'high', 'status': 'investigating', 'category': 'data', 'details': '31 ملفاً في يوم واحد، منها 12 لسجل المالية.', 'actions': 'تعليق الصلاحيات الدقيقة مؤقتاً والتواصل مع المستخدم.', 'user_id': 'u-1', 'detected_at': ago(1400)},
+      {'id': 'i2', 'title': 'جهاز جديد لموظفة المكتب خارج الدوام', 'severity': 'medium', 'status': 'open', 'category': 'device', 'details': 'دخول من جهاز Windows جديد الساعة 22:10.', 'actions': '', 'user_id': 'u-2', 'detected_at': ago(5200)},
+      {'id': 'i3', 'title': 'محاولة دخول من جهاز محظور', 'severity': 'low', 'status': 'closed', 'category': 'device', 'details': '', 'actions': 'الجهاز محظور مسبقاً؛ لا إجراء.', 'user_id': null, 'detected_at': ago(20000), 'closed_at': ago(19000)},
+    ],
+  };
 }

@@ -58,7 +58,7 @@ Uint8List buildXlsx(ExportTable t, PrintConfig c, PrintContext ctx) {
   final sub = [if (c.subtitle.trim().isNotEmpty) c.subtitle.trim(), if (t.section.isNotEmpty) t.section].join(' · ');
   if (sub.isNotEmpty) line(sub);
   line([
-    if (c.showRef) 'الرقم: ${c.refPrefix}/${ctx.ref}',
+    if (c.showRef) 'الرقم: ${ctx.refText(c)}',
     'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}',
     'طبعه: ${ctx.printedBy}',
   ].join('   ·   '), size: 10);
@@ -105,6 +105,7 @@ Uint8List buildXlsx(ExportTable t, PrintConfig c, PrintContext ctx) {
       );
 
   final first = row;
+  final keyCol = {for (var j = 0; j < cols.length; j++) cols[j].key: j + off};
   for (var i = 0; i < t.rows.length; i++) {
     final r = t.rows[i];
     final odd = i.isOdd;
@@ -112,6 +113,14 @@ Uint8List buildXlsx(ExportTable t, PrintConfig c, PrintContext ctx) {
     for (var j = 0; j < cols.length; j++) {
       final v = j < r.length ? r[j] : null;
       final type = cols[j].type;
+      // العمود المحسوب معادلة حية تعتمد على خلايا صفه
+      final f = cols[j].formula;
+      if (f != null && Formula.refs(f).every(keyCol.containsKey)) {
+        final rr = row + 1;
+        sh.updateCell(at(j + off, row), FormulaCellValue(Formula.toExcel(f, (k) => '${_colLetter(keyCol[k]!)}$rr')),
+            cellStyle: body(type, odd));
+        continue;
+      }
       final CellValue value = switch (v) {
         null => TextCellValue(''),
         int n when type != ColType.money => IntCellValue(n),
@@ -171,9 +180,51 @@ Uint8List buildXlsx(ExportTable t, PrintConfig c, PrintContext ctx) {
     row++;
     line('ملاحظات: ${c.notes.trim()}', size: 10);
   }
+  if (t.rows.isNotEmpty) _analysisSheet(excel, name, t, off, first, last, head, thin);
   final bytes = excel.encode();
   if (bytes == null) throw StateError('تعذّر إنشاء ملف Excel');
   return Uint8List.fromList(_forceRtl(bytes));
+}
+
+/// ورقة «التحليل»: العدد والمجموع والمتوسط والأدنى والأعلى لكل عمود رقمي بمعادلات تشير إلى ورقة البيانات،
+/// فتتغير نتائجها تلقائياً إن عُدّلت القيم أو المعادلات في ورقة البيانات.
+void _analysisSheet(Excel excel, String dataSheet, ExportTable t, int off, int first, int last, CellStyle head, Border thin) {
+  final numeric = [for (var j = 0; j < t.columns.length; j++) if (t.columns[j].numeric) j];
+  if (numeric.isEmpty) return;
+  const name = 'التحليل';
+  if (name == dataSheet) return;
+  final sh = excel[name];
+  sh.isRTL = true;
+  CellIndex at(int col, int row) => CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row);
+  final cell = CellStyle(horizontalAlign: HorizontalAlign.Center, numberFormat: NumFormat.standard_4, leftBorder: thin, rightBorder: thin, topBorder: thin, bottomBorder: thin);
+  final label = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Right, leftBorder: thin, rightBorder: thin, topBorder: thin, bottomBorder: thin);
+  sh.updateCell(at(0, 0), TextCellValue('المؤشر'), cellStyle: head);
+  for (var k = 0; k < numeric.length; k++) {
+    sh.updateCell(at(k + 1, 0), TextCellValue(t.columns[numeric[k]].label), cellStyle: head);
+    sh.setColumnWidth(k + 1, 18);
+  }
+  sh.setColumnWidth(0, 22);
+  final q = "'${dataSheet.replaceAll("'", "''")}'";
+  final rows = <(String, String, bool)>[
+    ('عدد القيم', 'COUNT', true),
+    ('المجموع', 'SUM', false),
+    ('المتوسط', 'AVERAGE', true),
+    ('الأدنى', 'MIN', true),
+    ('الأعلى', 'MAX', true),
+  ];
+  for (var i = 0; i < rows.length; i++) {
+    sh.updateCell(at(0, i + 1), TextCellValue(rows[i].$1), cellStyle: label);
+    for (var k = 0; k < numeric.length; k++) {
+      final col = t.columns[numeric[k]];
+      final l = _colLetter(numeric[k] + off);
+      final range = '$q!\$$l\$${first + 1}:\$$l\$${last + 1}';
+      final ok = rows[i].$3 || col.type != ColType.percent;
+      sh.updateCell(at(k + 1, i + 1), ok ? FormulaCellValue('IFERROR(${rows[i].$2}($range),"")') : TextCellValue('—'), cellStyle: cell);
+    }
+  }
+  sh.updateCell(at(0, rows.length + 2),
+      TextCellValue('النتائج معادلات مرتبطة بورقة «$dataSheet»: عدّل القيم هناك فتتغير هنا تلقائياً.'),
+      cellStyle: CellStyle(italic: true, fontColorHex: ExcelColor.fromHexString('FF6B7280')));
 }
 
 /// مكتبة excel لا تكتب اتجاه الورقة من اليمين إذا أُعيدت تسميتها، فيُضاف rightToLeft في ملف الورقة نفسه.

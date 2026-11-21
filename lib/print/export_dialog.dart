@@ -11,6 +11,7 @@ import 'exporter.dart';
 import 'model.dart';
 import 'preview.dart';
 import 'sources.dart';
+import 'table_editor.dart';
 
 /// زر «تصدير وطباعة» للصفحات: [items] العناصر المعروضة (بعد البحث والتصفية) إن وُجدت.
 class ExportButton extends StatelessWidget {
@@ -71,6 +72,12 @@ class _ExportDialogState extends State<_ExportDialog> {
   ExportFormat _format = ExportFormat.pdf;
   bool _init = false;
 
+  // نسخة حرّرها المستخدم قبل التصدير، ومفتاح الاستعلام الذي بُنيت عليه (تُهمل إن تغيّر)
+  ExportTable? _edited;
+  String _editedSig = '';
+
+  String get _sig => [_source?.id, _onlyShown, _project, _from, _to, _search.text, _cols.join(',')].join('|');
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -102,6 +109,7 @@ class _ExportDialogState extends State<_ExportDialog> {
   ExportTable? _table(AppState app) {
     final s = _source;
     if (s == null) return null;
+    if (_edited != null && _editedSig == _sig) return _edited;
     final items = widget.items != null && _onlyShown && s.id == widget.sourceId ? widget.items : null;
     final t = s.build(app, ExportQuery(projectId: _project, from: _from, to: _to, items: items, search: _search.text));
     return t.select(_cols);
@@ -224,6 +232,40 @@ class _ExportDialogState extends State<_ExportDialog> {
           TextButton(onPressed: () => setState(() => _cols = [for (final c in s.columns) c.key]), child: const Text('الكل')),
           TextButton(onPressed: () => setState(() => _cols = [for (final c in s.columns) if (c.on) c.key]), child: const Text('الافتراضي')),
         ]),
+        if (_cols.length > 1) ...[
+          const SizedBox(height: 8),
+          Text('ترتيب الأعمدة في الملف: اسحب العمود إلى مكانه', style: TextStyle(color: sem.muted, fontSize: 12)),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 44,
+            child: ReorderableListView(
+              scrollDirection: Axis.horizontal,
+              buildDefaultDragHandles: false,
+              onReorder: (a, b) => setState(() {
+                if (b > a) b--;
+                _cols.insert(b, _cols.removeAt(a));
+              }),
+              children: [
+                for (var i = 0; i < _cols.length; i++)
+                  ReorderableDragStartListener(
+                    key: ValueKey('col-${_cols[i]}'),
+                    index: i,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 6),
+                      child: Chip(
+                        avatar: Icon(
+                            s.columns.where((c) => c.key == _cols[i]).firstOrNull?.computed == true
+                                ? Icons.functions_rounded
+                                : Icons.drag_indicator_rounded,
+                            size: 16),
+                        label: Text(s.columns.where((c) => c.key == _cols[i]).firstOrNull?.label ?? _cols[i]),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ],
       label('الصفحة والقالب', Icons.design_services_outlined),
       Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -316,6 +358,16 @@ class _ExportDialogState extends State<_ExportDialog> {
           style: TextStyle(color: sem.muted, fontSize: 12.5),
         ),
       ),
+      if (_edited != null && _editedSig == _sig)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: InfoBanner(
+            text: 'سيُصدَّر الملف بتعديلاتك (العنوان والقيم وترتيب الصفوف)، مع إعادة حساب الأعمدة المحسوبة والمجاميع. سجلات المنظومة لم تتغير.',
+            level: 'ok',
+            icon: Icons.edit_note_rounded,
+            action: TextButton(onPressed: () => setState(() => _edited = null), child: const Text('إلغاء التعديلات')),
+          ),
+        ),
       if (table != null)
         Padding(
           padding: const EdgeInsets.only(top: 12),
@@ -330,6 +382,22 @@ class _ExportDialogState extends State<_ExportDialog> {
     final actions = Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: Wrap(alignment: WrapAlignment.end, spacing: 10, runSpacing: 8, children: [
+        TextButton.icon(
+          onPressed: table == null || table.rows.length > 2000
+              ? null
+              : () async {
+                  final sig = _sig;
+                  final edited = await editExportTable(context, table);
+                  if (edited != null && mounted) {
+                    setState(() {
+                      _edited = edited;
+                      _editedSig = sig;
+                    });
+                  }
+                },
+          icon: const Icon(Icons.edit_note_rounded),
+          label: const Text('تحرير البيانات'),
+        ),
         TextButton.icon(
           onPressed: table == null ? null : () => _preview(table),
           icon: const Icon(Icons.visibility_outlined),
@@ -374,7 +442,7 @@ class _ExportDialogState extends State<_ExportDialog> {
 
   Future<void> _preview(ExportTable table) async {
     final app = AppScope.read(context);
-    final ctx = printContextOf(app);
+    final ctx = previewPrintContext(app, table.sourceId);
     var cover = false;
     await showDialog<void>(
       context: context,

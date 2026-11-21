@@ -46,13 +46,15 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('23_admin', 23, 'الإدارة والتدقيق والمساعد'),
   ManualChapter('24_manual', 24, 'دليل الاستخدام داخل المنظومة'),
   ManualChapter('25_print', 25, 'الطباعة والتصدير ومكتبة الوسائط'),
+  ManualChapter('26_chat', 26, 'المراسلات الداخلية'),
+  ManualChapter('27_security', 27, 'مركز الأمن السيبراني'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/19';
+const String manualUpdated = '2026/11/21';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -150,8 +152,28 @@ const Map<int, String> manualTabAnchors = {
   130: '25_print',
   131: '25_print',
   132: '25_print',
+  133: '25_print',
   138: '23_admin',
   139: '23_admin',
+  // المراسلات الداخلية
+  140: '26_chat',
+  141: '26_chat',
+  142: '26_chat',
+  148: '23_admin',
+  149: '23_admin',
+  // الأمن السيبراني
+  150: '27_security',
+  151: '27_security',
+  152: '27_security',
+  153: '27_security',
+  154: '27_security',
+  155: '27_security',
+  156: '27_security',
+  157: '27_security',
+  160: '27_security',
+  161: '27_security',
+  168: '23_admin',
+  169: '23_admin',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).
@@ -166,6 +188,8 @@ const Map<String, String> manualSectionAnchors = {
   'safety': '21_safety',
   'acceptance': '22_acceptance',
   'print': '25_print',
+  'chat': '26_chat',
+  'security': '27_security',
   'manual': '24_manual',
 };
 

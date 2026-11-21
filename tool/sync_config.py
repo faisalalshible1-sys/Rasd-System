@@ -72,6 +72,10 @@ if code != 200 or not isinstance(cfg, dict):
     print(f"::error title=المزامنة::تعذّر قراءة الإعدادات: {code} {cfg}")
     sys.exit(1)
 cfg.pop("exported_at", None)
+# صيغ الأرقام الإشارية (الترحيل 23) لجدولها الحي في نسخة PDF من الدليل
+code, refs = sb("GET", "/rest/v1/ref_schemes?select=key,name,pattern,reset,pad,start_at,codes,active,per_section&order=key.asc")
+if code == 200 and isinstance(refs, list):
+    cfg["ref_schemes"] = refs
 write("config/live-settings.json", cfg)
 print(f"الإعدادات: {len(cfg.get('settings', {}))} إعداداً، {len(cfg.get('forms', []))} نموذجاً، {len(cfg.get('custom_fields', []))} حقلاً")
 

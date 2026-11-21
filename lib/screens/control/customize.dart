@@ -9,6 +9,7 @@ import '../dashboard.dart';
 import '../home_shell.dart';
 import 'appearance.dart';
 import 'control_panel.dart';
+import 'layout_editor.dart';
 
 /// التخصيص والتطوير (للمدير وحده): الحركة، والقائمة، وأقسام الرئيسية، والمصطلحات، ومساعد Claude.
 /// كل ما هنا إعدادات حية تسري فوراً على كل الأجهزة، وتُحفظ في سجل التدقيق.
@@ -185,6 +186,7 @@ class _CustomizeSectionState extends State<CustomizeSection> {
         ],
         ...staggered(stepMs: 70, [
           const AppearanceEditor(),
+          const LayoutEditor(),
           _motionCard(context, s),
           _navCard(context, app),
           _dashCard(context),

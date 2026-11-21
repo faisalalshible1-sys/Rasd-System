@@ -125,7 +125,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
       ],
     );
     final metaLines = <String>[
-      if (c.showRef) 'الرقم: ${d('${c.refPrefix}/${ctx.ref}')}',
+      if (c.showRef) 'الرقم: ${d('${ctx.refText(c)}')}',
       if (c.showDate) 'التاريخ: ${d(fmtDateBy(ctx.at, c.dateStyle))}',
     ];
     final meta = pw.Column(
@@ -414,7 +414,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
         pw.Center(
           child: _tx(
             d([
-              if (c.showRef) 'الرقم: ${c.refPrefix}/${ctx.ref}',
+              if (c.showRef) 'الرقم: ${ctx.refText(c)}',
               'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}',
               'عدد السجلات: ${table.rows.length}',
             ].join(' · ')),

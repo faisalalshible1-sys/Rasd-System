@@ -69,7 +69,7 @@ ExportFormat? exportFormatOf(String s) {
 enum ColType { text, long, number, money, percent, date }
 
 class ExportColumn {
-  const ExportColumn(this.key, this.label, {this.type = ColType.text, this.flex = 1, this.on = true});
+  const ExportColumn(this.key, this.label, {this.type = ColType.text, this.flex = 1, this.on = true, this.formula});
 
   final String key;
   final String label;
@@ -80,6 +80,15 @@ class ExportColumn {
 
   /// ظاهر افتراضياً (الأعمدة الثانوية تُختار يدوياً).
   final bool on;
+
+  /// عمود محسوب من أعمدة أخرى، مثل {actual}-{planned}: يُحسب في التطبيق بالمعادلة نفسها،
+  /// ويُكتب في Excel معادلةً حية تتغير نتيجتها إن عُدّلت القيم التي تعتمد عليها.
+  final String? formula;
+
+  bool get computed => formula != null;
+
+  ExportColumn copyWith({String? label, bool clearFormula = false}) =>
+      ExportColumn(key, label ?? this.label, type: type, flex: flex, on: on, formula: clearFormula ? null : formula);
 
   bool get numeric => type == ColType.number || type == ColType.money || type == ColType.percent;
 
@@ -117,7 +126,7 @@ class ExportTable {
   /// وصف ما استُخرج: (التسمية، القيمة) مثل العقد والفترة والتصفية.
   final List<(String, String)> meta;
 
-  /// نسخة بأعمدة مختارة بترتيبها.
+  /// نسخة بأعمدة مختارة بترتيبها. العمود المحسوب الذي غاب أحد أعمدة معادلته يبقى بقيمته ثابتة.
   ExportTable select(List<String> keys) {
     final idx = <int>[];
     for (final k in keys) {
@@ -125,17 +134,51 @@ class ExportTable {
       if (i >= 0) idx.add(i);
     }
     if (idx.isEmpty) return this;
+    final picked = {for (final i in idx) columns[i].key};
     return ExportTable(
       sourceId: sourceId,
       title: title,
       section: section,
-      columns: [for (final i in idx) columns[i]],
+      columns: [
+        for (final i in idx)
+          columns[i].computed && !Formula.refs(columns[i].formula!).every(picked.contains) ? columns[i].copyWith(clearFormula: true) : columns[i]
+      ],
       rows: [
         for (final r in rows) [for (final i in idx) i < r.length ? r[i] : null]
       ],
       summary: summary,
       meta: meta,
     );
+  }
+
+  /// نسخة معدّلة (من شاشة التحرير قبل التصدير).
+  ExportTable copyWith({String? title, List<ExportColumn>? columns, List<List<Object?>>? rows}) => ExportTable(
+        sourceId: sourceId,
+        title: title ?? this.title,
+        section: section,
+        columns: columns ?? this.columns,
+        rows: rows ?? this.rows,
+        summary: summary,
+        meta: meta,
+      );
+
+  /// يعيد حساب الأعمدة المحسوبة من قيم صفها، بالمعادلة نفسها التي تُكتب في Excel.
+  ExportTable recompute() {
+    if (!columns.any((c) => c.computed)) return this;
+    final keys = [for (final c in columns) c.key];
+    return copyWith(rows: [
+      for (final r in rows)
+        [
+          for (var j = 0; j < columns.length; j++)
+            columns[j].computed
+                ? Formula.eval(columns[j].formula!, (k) {
+                    final i = keys.indexOf(k);
+                    final v = i >= 0 && i < r.length ? r[i] : null;
+                    return v is num ? v : (v is String ? num.tryParse(v.replaceAll(',', '')) : null);
+                  })
+                : (j < r.length ? r[j] : null),
+        ],
+    ]);
   }
 
   /// مجموع عمود رقمي (null إن لم يكن رقمياً أو كان فارغاً).
@@ -155,6 +198,130 @@ class ExportTable {
   }
 
   bool get hasTotals => columns.asMap().keys.any((i) => total(i) != null);
+}
+
+// ---------------------------------------------------------------------
+// معادلات الأعمدة المحسوبة: أرقام، و{مفتاح عمود}، و+ - * /، والأقواس، وmax(أ،ب) وmin(أ،ب).
+// ---------------------------------------------------------------------
+class Formula {
+  static final RegExp _ref = RegExp(r'\{([a-z0-9_]+)\}');
+
+  /// مفاتيح الأعمدة التي تعتمد عليها المعادلة.
+  static List<String> refs(String f) => [for (final m in _ref.allMatches(f)) m.group(1)!];
+
+  /// النتيجة مقرّبة إلى منزلتين، أو null إن لم توجد قيمة أو كانت القسمة على صفر.
+  static double? eval(String f, num? Function(String key) value) {
+    final p = _Parser(f, value);
+    try {
+      final v = p.expr();
+      p._ws();
+      if (p.i < p.s.length || v == null || v.isNaN || v.isInfinite) return null;
+      if (!p.sawValue && refs(f).isNotEmpty) return null;
+      return (v * 100).round() / 100;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// المعادلة بصيغة Excel: {مفتاح} ← مرجع الخلية، وmax/min ← MAX/MIN، داخل IFERROR.
+  static String toExcel(String f, String Function(String key) cell) {
+    final body = f.replaceAllMapped(_ref, (m) => cell(m.group(1)!)).replaceAll('max(', 'MAX(').replaceAll('min(', 'MIN(');
+    return 'IFERROR($body,"")';
+  }
+}
+
+class _Parser {
+  _Parser(this.s, this.value);
+
+  final String s;
+  final num? Function(String key) value;
+  int i = 0;
+  bool _sawValue = false;
+
+  void _ws() {
+    while (i < s.length && s[i] == ' ') {
+      i++;
+    }
+  }
+
+  double? expr() {
+    var v = term();
+    _ws();
+    while (i < s.length && (s[i] == '+' || s[i] == '-')) {
+      final op = s[i++];
+      final r = term();
+      v = v == null || r == null ? null : (op == '+' ? v + r : v - r);
+      _ws();
+    }
+    return v;
+  }
+
+  double? term() {
+    var v = factor();
+    _ws();
+    while (i < s.length && (s[i] == '*' || s[i] == '/')) {
+      final op = s[i++];
+      final r = factor();
+      if (v == null || r == null) {
+        v = null;
+      } else if (op == '*') {
+        v = v * r;
+      } else {
+        v = r == 0 ? null : v / r;
+      }
+      _ws();
+    }
+    return v;
+  }
+
+  double? factor() {
+    _ws();
+    if (i >= s.length) throw const FormatException('end');
+    final c = s[i];
+    if (c == '-') {
+      i++;
+      final v = factor();
+      return v == null ? null : -v;
+    }
+    if (c == '(') {
+      i++;
+      final v = expr();
+      _ws();
+      if (i >= s.length || s[i] != ')') throw const FormatException(')');
+      i++;
+      return v;
+    }
+    if (c == '{') {
+      final j = s.indexOf('}', i);
+      if (j < 0) throw const FormatException('}');
+      final key = s.substring(i + 1, j);
+      i = j + 1;
+      final v = value(key);
+      if (v != null) _sawValue = true;
+      return (v ?? 0).toDouble();
+    }
+    if (s.startsWith('max(', i) || s.startsWith('min(', i)) {
+      final isMax = s.startsWith('max(', i);
+      i += 4;
+      final a = expr();
+      _ws();
+      if (i >= s.length || s[i] != ',') throw const FormatException(',');
+      i++;
+      final b = expr();
+      _ws();
+      if (i >= s.length || s[i] != ')') throw const FormatException(')');
+      i++;
+      if (a == null || b == null) return null;
+      return isMax ? (a > b ? a : b) : (a < b ? a : b);
+    }
+    final m = RegExp(r'[0-9]+(\.[0-9]+)?').matchAsPrefix(s, i);
+    if (m == null) throw FormatException('رمز غير متوقع: $c');
+    i = m.end;
+    return double.parse(m.group(0)!);
+  }
+
+  /// هل كانت لأي مرجع قيمة؟ (إن لم يكن، فالنتيجة فارغة لا صفر)
+  bool get sawValue => _sawValue;
 }
 
 // ---------------------------------------------------------------------
@@ -593,7 +760,7 @@ class PrintTemplate {
 
 /// سياق الطباعة: من طبع ومتى، والرقم المرجعي، والعنوان النهائي.
 class PrintContext {
-  PrintContext({required this.printedBy, required this.orgName, DateTime? at, String? ref})
+  PrintContext({required this.printedBy, required this.orgName, DateTime? at, String? ref, this.issued = false})
       : at = at ?? DateTime.now(),
         ref = ref ?? _autoRef(at ?? DateTime.now());
 
@@ -601,6 +768,14 @@ class PrintContext {
   final String orgName;
   final DateTime at;
   final String ref;
+
+  /// رقم أصدرته قاعدة البيانات بصيغة المدير (الترحيل 23)؛ يُطبع كما هو دون بادئة الإعدادات.
+  final bool issued;
+
+  /// الرقم كما يظهر في المستند.
+  String refText(PrintConfig c) => issued ? ref : '${c.refPrefix}/$ref';
+
+  PrintContext withRef(String r) => PrintContext(printedBy: printedBy, orgName: orgName, at: at, ref: r, issued: true);
 
   static String _autoRef(DateTime t) =>
       '${t.year}/${_two(t.month)}${_two(t.day)}/${_two(t.hour)}${_two(t.minute)}${_two(t.second)}';
@@ -612,5 +787,5 @@ String titleOf(ExportTable t, PrintConfig c) =>
 
 /// نص رمز التحقق: يكفي لمطابقة النسخة المطبوعة مع سجل التدقيق.
 String verifyText(ExportTable t, PrintConfig c, PrintContext ctx) =>
-    '${titleOf(t, c)} | ${c.refPrefix}/${ctx.ref} | ${fmtDateBy(ctx.at, 'ymd')} ${_two(ctx.at.hour)}:${_two(ctx.at.minute)} | '
+    '${titleOf(t, c)} | ${ctx.refText(c)} | ${fmtDateBy(ctx.at, 'ymd')} ${_two(ctx.at.hour)}:${_two(ctx.at.minute)} | '
     '${t.rows.length} سجل | ${ctx.printedBy}';

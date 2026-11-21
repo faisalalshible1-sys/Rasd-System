@@ -975,8 +975,14 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// سجل أرقام وعدادات ثابتة للقطات البصرية (لا تُضبط في التطبيق).
+  List<RefLogEntry>? debugRefLog;
+  Map<String, int>? debugRefCounters;
+
   Future<List<RefLogEntry>> loadRefLog({String? scheme, int limit = 500}) async {
     if (!v11Ready) return const [];
+    final d = debugRefLog;
+    if (d != null) return [for (final e in d) if (scheme == null || scheme.isEmpty || e.scheme == scheme) e];
     var q = client.from('ref_log').select();
     if (scheme != null && scheme.isNotEmpty) q = q.eq('scheme', scheme);
     final res = await q.order('id', ascending: false).limit(limit);
@@ -986,6 +992,7 @@ class AppState extends ChangeNotifier {
   /// آخر رقم صدر لكل صيغة في فترتها الحالية (من العدادات).
   Future<Map<String, int>> loadRefCounters() async {
     if (!v11Ready) return const {};
+    if (debugRefCounters != null) return debugRefCounters!;
     final res = await client.from('ref_counters').select();
     final out = <String, int>{};
     for (final r in res) {

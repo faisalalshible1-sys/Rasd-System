@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../app_state.dart';
+import '../rasd.dart';
 import '../config.dart';
 import '../manual.dart';
 import '../models.dart';
@@ -30,6 +31,7 @@ Future<Map<String, String>> loadManualTexts() async {
 /// القيم الحية التي تُستبدل في نص الدليل.
 Map<String, String> manualValues(AppState app) {
   final count = app.formDefs.length;
+  final chat = app.settings.raw['chat.config'] is Map ? app.settings.raw['chat.config'] as Map : const {};
   final req = count - 1;
   return {
     'APP_VERSION': AppConfig.appVersion,
@@ -47,8 +49,29 @@ Map<String, String> manualValues(AppState app) {
     'LEVELS_TABLE': manualLevelsTable([
       for (final l in app.riskConfig.levels) (name: l.name, min: l.min, action: l.action, reviewDays: l.reviewDays),
     ]),
+    'CHAT_MAX_MB': '${chat['max_file_mb'] is num ? (chat['max_file_mb'] as num).toInt() : 50}',
+    'CHAT_EDIT_MIN': '${chat['edit_minutes'] is num ? (chat['edit_minutes'] as num).toInt() : 60}',
+    'REF_TABLE': manualRefTable([
+      for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
+        (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),
+    ]),
   };
 }
+
+/// الصيغ الأساسية كما يزرعها الترحيل 23 (للدليل قبل تحديث قاعدة البيانات).
+const List<RefScheme> defaultRefSchemes = [
+  RefScheme(key: 'print', name: 'المطبوعات والملفات المصدّرة', pattern: 'م.ش.هـ/{SECTION}/{YYYY}/{SEQ}', codes: {'cycle': 'د.م'}, system: true),
+  RefScheme(key: 'letter_out', name: 'المراسلات الصادرة', pattern: 'م.ش.هـ/ص/{YYYY}/{SEQ}', system: true),
+  RefScheme(key: 'letter_in', name: 'المراسلات الواردة', pattern: 'م.ش.هـ/و/{YYYY}/{SEQ}', system: true),
+  RefScheme(key: 'letter_internal', name: 'المراسلات الداخلية', pattern: 'م.ش.هـ/د/{YYYY}/{SEQ}', system: true),
+];
+
+/// جدول صيغ الأرقام الإشارية في الدليل.
+String manualRefTable(List<({String name, String pattern, String reset, String example, bool active})> rows) => [
+      '| الصيغة | النمط | إعادة التسلسل | أول رقم (مثال) |',
+      '| --- | --- | --- | --- |',
+      for (final r in rows) '| **${r.name}**${r.active ? '' : ' (موقوفة)'} | ${r.pattern} | ${r.reset} | ${r.example} |',
+    ].join('\n');
 
 const String manualPdfPath = 'manual/manual-latest.pdf';
 

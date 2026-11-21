@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../units.dart';
 import '../ui/widgets.dart';
 import 'docx_writer.dart';
 import 'model.dart';
@@ -27,13 +28,46 @@ Future<Uint8List> renderExport(ExportFormat f, ExportTable t, PrintConfig c, Pri
 
 PrintContext printContextOf(AppState app) => PrintContext(printedBy: app.me?.displayName ?? 'مستخدم', orgName: app.orgName);
 
+/// قسم المصدر لرمز {SECTION} في الرقم الإشاري: cycle:finance ← cycle، وunit:ncr ← قسم وحدته.
+String refSectionOf(String sourceId) {
+  final i = sourceId.indexOf(':');
+  final head = i < 0 ? sourceId : sourceId.substring(0, i);
+  if (head == 'unit') {
+    final k = unitKinds[sourceId.substring(i + 1)];
+    return k == null ? 'print' : (unitSectionOf[k.unit] ?? 'print');
+  }
+  return switch (head) { 'media' => 'print', '' => 'print', _ => head };
+}
+
+/// سياق المعاينة: شكل الرقم الإشاري قبل صدوره (التسلسل #) إن كانت صيغة المطبوعات مفعّلة.
+PrintContext previewPrintContext(AppState app, String sourceId) {
+  final ctx = printContextOf(app);
+  final s = app.v11Ready ? app.refScheme('print') : null;
+  if (s == null || !s.active) return ctx;
+  return ctx.withRef(s.masked(ctx: {'section': refSectionOf(sourceId)}));
+}
+
+/// سياق الطباعة برقم إشاري تصدره قاعدة البيانات (لا يتكرر)، وإلا الرقم التلقائي من الوقت.
+Future<PrintContext> issuedPrintContext(AppState app, ExportTable table, PrintConfig config) async {
+  final ctx = printContextOf(app);
+  if (!config.showRef) return ctx;
+  final kind = table.sourceId.startsWith('unit:') ? table.sourceId.substring(5) : '';
+  final ref = await app.issueRef('print', {
+    'section': refSectionOf(table.sourceId),
+    'source': table.sourceId,
+    'title': titleOf(table, config),
+    if (kind.isNotEmpty) 'kind': kind,
+  });
+  return ref == null ? ctx : ctx.withRef(ref);
+}
+
 /// اسم الملف: العنوان وتاريخ اليوم.
 String exportFileName(ExportTable t, PrintConfig c, PrintContext ctx) => '${titleOf(t, c)} ${fmtDateBy(ctx.at, 'ymd').replaceAll('/', '-')}';
 
 /// يبني الملف ثم يحفظه ([print] = false) أو يفتحه للطباعة ([print] = true)، مع نافذة انتظار ورسالة بالنتيجة.
 Future<void> runExport(BuildContext context, ExportTable table, PrintConfig config, ExportFormat format, {bool print = false}) async {
   final app = AppScope.read(context);
-  final ctx = printContextOf(app);
+  var ctx = printContextOf(app);
   final nav = Navigator.of(context, rootNavigator: true);
   showDialog<void>(
     context: context,
@@ -52,6 +86,7 @@ Future<void> runExport(BuildContext context, ExportTable table, PrintConfig conf
   String? message;
   var error = false;
   try {
+    ctx = await issuedPrintContext(app, table, config);
     final bytes = await renderExport(format, table, config, ctx);
     final name = exportFileName(table, config, ctx);
     if (print) {

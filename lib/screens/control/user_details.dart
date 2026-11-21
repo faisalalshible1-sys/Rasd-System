@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../app_state.dart';
 import '../../models.dart';
+import '../../rasd.dart';
 import '../../ui/audit_text.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
@@ -287,6 +288,12 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
           ),
         ),
         const SizedBox(height: 16),
+
+        // --------------------------------------------------------- الصلاحيات الدقيقة (الترحيل 23)
+        if (app.v11Ready && role != null && role != AppRole.director && role != AppRole.securityAuditor) ...[
+          GrantsCard(userId: widget.userId, name: display, editable: canManage),
+          const SizedBox(height: 16),
+        ],
 
         // --------------------------------------------------------- الأمان
         SectionCard(
@@ -679,6 +686,143 @@ class _AuditCard extends StatelessWidget {
                   ),
               ],
             ),
+    );
+  }
+}
+
+
+/// الصلاحيات الدقيقة لمستخدم: نماذج بعينها أو صفحات أو أنواع سجلات، فوق صلاحيات دوره.
+class GrantsCard extends StatelessWidget {
+  const GrantsCard({super.key, required this.userId, required this.name, required this.editable});
+
+  final String userId;
+  final String name;
+  final bool editable;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final sem = Sem.of(context);
+    final scopes = app.grantsOf(userId).toList()..sort();
+    return SectionCard(
+      title: 'الصلاحيات الدقيقة',
+      icon: Icons.key_rounded,
+      subtitle: 'كتابة في نموذج أو صفحة بعينها دون القسم كله، فوق صلاحيات الدور. التجميد يوقفها، وتظهر لمسؤول الأمن.',
+      trailing: editable
+          ? FilledButton.tonalIcon(
+              onPressed: () => showDialog<void>(context: context, builder: (_) => GrantsDialog(userId: userId, name: name)),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('تعديل'),
+            )
+          : null,
+      child: scopes.isEmpty
+          ? Text('لا صلاحيات دقيقة؛ يعمل بصلاحيات دوره فقط.', style: TextStyle(color: sem.muted))
+          : Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final s in scopes)
+                Chip(avatar: const Icon(Icons.key_rounded, size: 15), label: Text(grantLabel(s, app.allFormDefs))),
+            ]),
+    );
+  }
+}
+
+class GrantsDialog extends StatefulWidget {
+  const GrantsDialog({super.key, required this.userId, required this.name});
+
+  final String userId;
+  final String name;
+
+  @override
+  State<GrantsDialog> createState() => _GrantsDialogState();
+}
+
+class _GrantsDialogState extends State<GrantsDialog> {
+  late final Set<String> _picked = {...AppScope.read(context).grantsOf(widget.userId)};
+  final _q = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _q.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final app = AppScope.read(context);
+    setState(() => _busy = true);
+    try {
+      await app.setUserGrants(widget.userId, _picked.toList()..sort());
+      if (mounted) {
+        Navigator.of(context).pop();
+        showToast(context, 'حُفظت الصلاحيات الدقيقة (${_picked.length})');
+      }
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final sem = Sem.of(context);
+    final q = _q.text.trim();
+    final catalog = grantCatalog(app.formDefs).where((g) => q.isEmpty || g.label.contains(q) || g.group.contains(q)).toList();
+    final groups = <String, List<GrantScope>>{};
+    for (final g in catalog) {
+      (groups[g.group] ??= []).add(g);
+    }
+    return AlertDialog(
+      title: Text('الصلاحيات الدقيقة — ${widget.name}'),
+      content: SizedBox(
+        width: 600,
+        height: 560,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('اختر ما يكتب فيه هذا المستخدم إضافة إلى دوره. كل منح وسحب يُسجَّل في سجل التدقيق.', style: TextStyle(color: sem.muted)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _q,
+            onChanged: (_) => setState(() {}),
+            decoration: fieldDeco('بحث في النماذج والصفحات', prefixIcon: const Icon(Icons.search_rounded)),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(children: [
+              for (final g in groups.entries) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                  child: Row(children: [
+                    Expanded(child: Text(g.key, style: const TextStyle(fontWeight: FontWeight.w800))),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        final all = g.value.every((x) => _picked.contains(x.key));
+                        for (final x in g.value) {
+                          all ? _picked.remove(x.key) : _picked.add(x.key);
+                        }
+                      }),
+                      child: Text(g.value.every((x) => _picked.contains(x.key)) ? 'إلغاء الكل' : 'الكل'),
+                    ),
+                  ]),
+                ),
+                for (final x in g.value)
+                  CheckboxListTile(
+                    dense: true,
+                    value: _picked.contains(x.key),
+                    onChanged: (v) => setState(() => v == true ? _picked.add(x.key) : _picked.remove(x.key)),
+                    title: Text(x.label),
+                    subtitle: x.note.isEmpty ? null : Text(x.note, style: TextStyle(fontSize: 11.5, color: sem.muted)),
+                  ),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+      actions: [
+        Text('${_picked.length} صلاحية', style: TextStyle(color: sem.muted)),
+        const SizedBox(width: 12),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
+        FilledButton(onPressed: _busy || _picked.length > 80 ? null : _save, child: const Text('حفظ')),
+      ],
     );
   }
 }

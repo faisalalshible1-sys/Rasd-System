@@ -1,6 +1,7 @@
 import '../app_state.dart';
 import '../docs.dart' show fmtBytes;
 import '../models.dart';
+import '../rasd.dart' show grantLabel;
 import '../registers.dart';
 import '../units.dart';
 
@@ -311,6 +312,44 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'export.media':
       final n = (d['rows'] as num?)?.toInt() ?? 0;
       return 'نزّل حزمة ZIP من $n ملفاً (${fmtBytes(d['bytes'] as num?)})';
+    case 'user.grants':
+      String names(Object? v) => (v is List ? v : const []).map((x) => grantLabel('$x', app.allFormDefs)).join('، ');
+      final add = names(d['added']);
+      final rem = names(d['removed']);
+      return 'الصلاحيات الدقيقة لـ ${text(d['name'])}: ${[if (add.isNotEmpty) 'منح $add', if (rem.isNotEmpty) 'سحب $rem'].join(' · ')}';
+    case 'ref.scheme_save':
+      return d['created'] == true
+          ? 'أنشأ صيغة الرقم الإشاري «${text(d['name'])}»: ${text(d['pattern'])}'
+          : 'عدّل صيغة «${text(d['name'])}»: ${text(d['from'])} ← ${text(d['pattern'])}';
+    case 'ref.scheme_delete':
+      return 'حذف صيغة الرقم الإشاري «${text(d['name'])}»';
+    case 'ref.counter_set':
+      return 'ضبط تسلسل «${text(d['key'])}» للفترة ${text(d['period'])}: من ${text(d['from'])} إلى ${text(d['to'])}';
+    case 'chat.room_create':
+      return 'أنشأ ${d['kind'] == 'channel' ? 'القناة' : 'المجموعة'} «${text(d['title'])}»';
+    case 'chat.room_update':
+      return 'عدّل «${text(d['title'])}»';
+    case 'chat.members':
+      if (d['role'] != null) return 'غيّر دور عضو في «${text(d['title'])}» إلى ${d['role'] == 'admin' ? 'مشرف' : 'عضو'}';
+      final add = (d['added'] as List?)?.length ?? 0;
+      final rem = (d['removed'] as List?)?.length ?? 0;
+      return 'أعضاء «${text(d['title'])}»: ${[if (add > 0) 'أضاف $add', if (rem > 0) 'أزال $rem'].join(' و')}';
+    case 'chat.lock':
+      return 'قفل المحادثة «${text(d['title'])}»: ${text(d['reason'])}';
+    case 'chat.unlock':
+      return 'فتح المحادثة «${text(d['title'])}»';
+    case 'chat.room_delete':
+      return 'حذف المحادثة «${text(d['title'])}» (${text(d['messages'])} رسالة، ${text(d['files'])} مرفقاً)';
+    case 'chat.message_delete':
+      return 'حذف رسالة ${text(d['sender'])} في «${text(d['title'])}» بصفته مشرفاً';
+    case 'security.incident_save':
+      return '${d['created'] == true ? 'سجّل' : 'عدّل'} الحادثة الأمنية «${text(d['title'])}» (${text(d['status'])})';
+    case 'security.incident_delete':
+      return 'حذف الحادثة الأمنية «${text(d['title'])}»';
+    case 'security.emergency_freeze':
+      return '${d['on'] == true ? 'جمّد المنظومة' : 'رفع التجميد'}: ${text(d['reason'])}';
+    case 'security.grants_suspend':
+      return 'علّق ${(d['scopes'] as List?)?.length ?? 0} صلاحية دقيقة لـ ${e.projectLabel}: ${text(d['reason'])}';
     default:
       return auditActionLabels[e.action] ?? e.action;
   }

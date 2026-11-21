@@ -152,7 +152,7 @@ Future<Uint8List> buildDocx(ExportTable table, PrintConfig c, PrintContext ctx) 
       w.para(w.run(lines[i], b: i == 0 || i == lines.length - 1, color: i == 0 ? ink : muted, size: i == 0 ? w.half + 4 : w.half)),
   ];
   final metaParas = <String>[
-    if (c.showRef) w.para(w.run(d('الرقم: ${c.refPrefix}/${ctx.ref}'), color: muted, size: w.half - 1)),
+    if (c.showRef) w.para(w.run(d('الرقم: ${ctx.refText(c)}'), color: muted, size: w.half - 1)),
     if (c.showDate) w.para(w.run(d('التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}'), color: muted, size: w.half - 1)),
   ];
   final logoPara = logo == null ? '' : w.para(logoRun('rIdLogo', 1, c.logoSize * 0.8), align: 'center');
@@ -192,7 +192,7 @@ Future<Uint8List> buildDocx(ExportTable table, PrintConfig c, PrintContext ctx) 
   }
   final printed = c.showPrintedBy
       ? w.para(
-          w.run(d('طبعه: ${ctx.printedBy} · ${fmtDateBy(ctx.at, c.dateStyle)} · ${c.refPrefix}/${ctx.ref}'), color: muted, size: w.half - 4),
+          w.run(d('طبعه: ${ctx.printedBy} · ${fmtDateBy(ctx.at, c.dateStyle)} · ${ctx.refText(c)}'), color: muted, size: w.half - 4),
           align: 'center')
       : '';
   final footerXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr $_ns>'
@@ -211,7 +211,7 @@ Future<Uint8List> buildDocx(ExportTable table, PrintConfig c, PrintContext ctx) 
     if (c.subtitle.trim().isNotEmpty) body.write(w.para(w.run(c.subtitle.trim(), size: w.half + 8), align: 'center'));
     if (table.section.isNotEmpty) body.write(w.para(w.run(table.section, color: muted, size: w.half + 4), align: 'center'));
     body.write(w.para(
-        w.run(d([if (c.showRef) 'الرقم: ${c.refPrefix}/${ctx.ref}', 'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}', 'عدد السجلات: ${table.rows.length}'].join('   ·   ')),
+        w.run(d([if (c.showRef) 'الرقم: ${ctx.refText(c)}', 'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}', 'عدد السجلات: ${table.rows.length}'].join('   ·   ')),
             color: muted),
         align: 'center',
         before: 360));

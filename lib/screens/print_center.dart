@@ -359,7 +359,7 @@ class _PrintDesignerPageState extends State<PrintDesignerPage> {
     final sem = Sem.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 1000;
     final table = _sampleTable(app);
-    final ctx = printContextOf(app);
+    final ctx = previewPrintContext(app, table.sourceId);
     final sources = exportSources(app);
     if (!sources.any((s) => s.id == _sample) && sources.isNotEmpty) _sample = sources.first.id;
 

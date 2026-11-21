@@ -1116,6 +1116,21 @@ const Map<String, String> auditActionLabels = {
   'export.file': 'استخرج ملفاً من المنظومة',
   'export.print': 'طبع من المنظومة',
   'export.media': 'نزّل حزمة وسائط',
+  'user.grants': 'عدّل الصلاحيات الدقيقة لمستخدم',
+  'ref.scheme_save': 'حفظ صيغة رقم إشاري',
+  'ref.scheme_delete': 'حذف صيغة رقم إشاري',
+  'ref.counter_set': 'ضبط تسلسل رقم إشاري',
+  'chat.room_create': 'أنشأ محادثة',
+  'chat.room_update': 'عدّل محادثة',
+  'chat.members': 'عدّل أعضاء محادثة',
+  'chat.lock': 'قفل محادثة',
+  'chat.unlock': 'فتح محادثة مقفلة',
+  'chat.room_delete': 'حذف محادثة',
+  'chat.message_delete': 'حذف رسالة لغيره',
+  'security.incident_save': 'سجّل حادثة أمنية أو عدّلها',
+  'security.incident_delete': 'حذف حادثة أمنية',
+  'security.emergency_freeze': 'جمّد المنظومة أو رفع التجميد',
+  'security.grants_suspend': 'علّق الصلاحيات الدقيقة لمستخدم',
 };
 
 const Map<String, String> projectFieldLabels = {

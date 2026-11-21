@@ -106,7 +106,7 @@ class PagePreview extends StatelessWidget {
                 color: i == 0 ? const Color(0xFF1F2933) : _muted)),
     ]);
     final meta = Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-      if (c.showRef) Text(_d('الرقم: ${c.refPrefix}/${context0.ref}'), style: TextStyle(fontSize: fs - 0.5, color: _muted)),
+      if (c.showRef) Text(_d('الرقم: ${context0.refText(c)}'), style: TextStyle(fontSize: fs - 0.5, color: _muted)),
       if (c.showDate) Text(_d('التاريخ: ${fmtDateBy(context0.at, c.dateStyle)}'), style: TextStyle(fontSize: fs - 0.5, color: _muted)),
     ]);
     final hasLogo = c.logo != 'none';
@@ -332,7 +332,7 @@ class PagePreview extends StatelessWidget {
       if (table.section.isNotEmpty) Text(table.section, style: TextStyle(fontSize: fs + 2, color: _muted)),
       const SizedBox(height: 20),
       Text(
-        _d([if (c.showRef) 'الرقم: ${c.refPrefix}/${context0.ref}', 'التاريخ: ${fmtDateBy(context0.at, c.dateStyle)}', 'عدد السجلات: ${table.rows.length}']
+        _d([if (c.showRef) 'الرقم: ${context0.refText(c)}', 'التاريخ: ${fmtDateBy(context0.at, c.dateStyle)}', 'عدد السجلات: ${table.rows.length}']
             .join('   ·   ')),
         style: const TextStyle(color: _muted),
       ),

@@ -36,7 +36,7 @@ Uint8List buildJson(ExportTable t, PrintConfig c, PrintContext ctx) {
     'title': titleOf(t, c),
     'section': t.section,
     'source': t.sourceId,
-    'reference': '${c.refPrefix}/${ctx.ref}',
+    'reference': '${ctx.refText(c)}',
     'generated_at': ctx.at.toIso8601String(),
     'generated_by': ctx.printedBy,
     'organization': ctx.orgName,
@@ -89,7 +89,7 @@ Future<Uint8List> buildHtml(ExportTable t, PrintConfig c, PrintContext ctx) asyn
     for (var i = 0; i < lines.length; i++) '<div class="${i == 0 ? 'o1' : 'o2'}">${_h(lines[i])}</div>',
   ].join();
   final meta = [
-    if (c.showRef) '<div>الرقم: ${_h(d('${c.refPrefix}/${ctx.ref}'))}</div>',
+    if (c.showRef) '<div>الرقم: ${_h(d('${ctx.refText(c)}'))}</div>',
     if (c.showDate) '<div>التاريخ: ${_h(d(fmtDateBy(ctx.at, c.dateStyle)))}</div>',
   ].join();
   final cells = switch (c.logoPos) {
@@ -177,7 +177,7 @@ Future<Uint8List> buildHtml(ExportTable t, PrintConfig c, PrintContext ctx) asyn
       : '<section class="cover"><div class="bar"></div>${logo == null ? '' : '<img class="clogo" src="data:image/${imageExt(logo)};base64,${base64Encode(logo)}" alt="">'}'
           '${lines.map((l) => '<div class="o2">${_h(l)}</div>').join()}<h1 class="ct">${_h(title)}</h1>'
           '${c.subtitle.trim().isEmpty ? '' : '<div class="cs">${_h(c.subtitle.trim())}</div>'}'
-          '<div class="cm">${_h(d([if (c.showRef) 'الرقم: ${c.refPrefix}/${ctx.ref}', 'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}', 'عدد السجلات: ${t.rows.length}'].join('   ·   ')))}</div>'
+          '<div class="cm">${_h(d([if (c.showRef) 'الرقم: ${ctx.refText(c)}', 'التاريخ: ${fmtDateBy(ctx.at, c.dateStyle)}', 'عدد السجلات: ${t.rows.length}'].join('   ·   ')))}</div>'
           '${c.coverNote.trim().isEmpty ? '' : '<p class="cn">${_h(c.coverNote.trim())}</p>'}<div class="bar"></div></section>';
   final wm = c.watermark.trim().isEmpty ? '' : '<div class="wm">${_h(c.watermark.trim())}</div>';
   final footer = [

@@ -83,6 +83,32 @@ for p in range(5, 0, -1):
         f'<td style="background:{lvl_color(p * i)}">{p * i}</td>' for i in range(1, 6)) + '</tr>')
 matrix.append('<tr><td class="lab">الاحتمالية ↑<br>التأثير ←</td>' + ''.join(f'<td class="lab">{i}<br>{I[i]}</td>' for i in range(1, 6)) + '</tr></table>')
 
+chat_cfg = settings.get('chat.config') or {}
+RESET = {'yearly': 'يبدأ من جديد كل سنة', 'monthly': 'يبدأ من جديد كل شهر', 'daily': 'يبدأ من جديد كل يوم', 'never': 'تسلسل مستمر لا يُصفَّر'}
+ref_schemes = live.get('ref_schemes') or [
+    {'name': 'المطبوعات والملفات المصدّرة', 'pattern': 'م.ش.هـ/{SECTION}/{YYYY}/{SEQ}', 'reset': 'yearly', 'pad': 4, 'codes': {'cycle': 'د.م'}, 'active': True, 'start_at': 1},
+    {'name': 'المراسلات الصادرة', 'pattern': 'م.ش.هـ/ص/{YYYY}/{SEQ}', 'reset': 'yearly', 'pad': 4, 'codes': {}, 'active': True, 'start_at': 1},
+    {'name': 'المراسلات الواردة', 'pattern': 'م.ش.هـ/و/{YYYY}/{SEQ}', 'reset': 'yearly', 'pad': 4, 'codes': {}, 'active': True, 'start_at': 1},
+    {'name': 'المراسلات الداخلية', 'pattern': 'م.ش.هـ/د/{YYYY}/{SEQ}', 'reset': 'yearly', 'pad': 4, 'codes': {}, 'active': True, 'start_at': 1},
+]
+
+
+def ref_example(s):
+    # المعادلة نفسها في formatRef (lib/rasd.dart) وref_format في قاعدة البيانات، لأول رقم في الفترة
+    t = datetime.date.today()
+    codes = s.get('codes') or {}
+    sec = codes.get('cycle') or 'cycle'
+    r = (s['pattern'].replace('{YYYY}', str(t.year)).replace('{YY}', f'{t.year % 100:02d}')
+         .replace('{MM}', f'{t.month:02d}').replace('{DD}', f'{t.day:02d}')
+         .replace('{SECTION}', sec).replace('{DEPT}', '-').replace('{CODE}', '-').replace('{KIND}', '-'))
+    r = re.sub(r'\{SEQ:([1-8])\}', lambda m: '1'.zfill(int(m.group(1))), r)
+    return r.replace('{SEQ}', '1'.zfill(int(s.get('pad') or 4)))
+
+
+ref_rows = ['| الصيغة | النمط | إعادة التسلسل | أول رقم (مثال) |', '| --- | --- | --- | --- |']
+for s in ref_schemes:
+    ref_rows.append(f"| **{s['name']}**{'' if s.get('active', True) else ' (موقوفة)'} | {s['pattern']} | {RESET.get(s.get('reset'), s.get('reset'))} | {ref_example(s)} |")
+
 count = len(forms)
 req = count - 1
 values = {
@@ -94,6 +120,9 @@ values = {
     'FORMS_PCT10': f'{round(10 / req * 100)}%' if req > 0 else '—',
     'FORMS_TABLE': forms_table,
     'LEVELS_TABLE': levels_table,
+    'CHAT_MAX_MB': str(int(chat_cfg.get('max_file_mb', 50))),
+    'CHAT_EDIT_MIN': str(int(chat_cfg.get('edit_minutes', 60))),
+    'REF_TABLE': '\n'.join(ref_rows),
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML

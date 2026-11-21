@@ -10,6 +10,7 @@ import '../manual.dart' show manualAnchorForTab;
 import '../models.dart';
 import '../print/export_dialog.dart' show showExportDialog;
 import '../print/sources.dart' show exportSourceForTab;
+import '../rasd.dart' show UiLayout;
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/update.dart';
@@ -37,6 +38,9 @@ import 'pm_registers.dart';
 import 'pm_report.dart';
 import 'pm_settings.dart';
 import 'print_center.dart';
+import 'chat.dart';
+import 'ref_numbers.dart';
+import 'security_center.dart';
 import 'risks.dart';
 import 'supervision.dart';
 import 'swot.dart';
@@ -123,6 +127,24 @@ class Tabs {
   static const printCenter = 130;
   static const printDesigner = 131;
   static const printMedia = 132;
+  static const printRefs = 133;
+
+  // المراسلات الداخلية
+  static const chat = 140;
+  static const chatChannels = 141;
+  static const chatSettings = 142;
+
+  // الأمن السيبراني (مسؤول الأمن والمدير)
+  static const secDashboard = 150;
+  static const secPosture = 151;
+  static const secAlerts = 152;
+  static const secIdentity = 153;
+  static const secSessions = 154;
+  static const secData = 155;
+  static const secAudit = 156;
+  static const secChat = 157;
+  static const secIncidents = 160;
+  static const secPolicies = 161;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -176,8 +198,52 @@ List<_Dest> _adminDests(AppState app, [int base = 0]) {
   ];
 }
 
+/// القائمة بعد تخصيص المدير (ui.layout): أسماء الصفحات وترتيبها وإخفاؤها عن الموظفين، في كل الأقسام.
 List<_Dest> _destinations(AppState app) {
-  if (app.section == 'risks') {
+  final raw = _sectionDestinations(app);
+  final l = app.layout;
+  if (l.pages.isEmpty && (l.pageOrder[app.section] ?? const []).isEmpty) return raw;
+  final normal = [
+    for (final d in raw)
+      if (!d.admin && (app.isDirector || !(l.pages[d.id]?.hidden ?? false))) d.withLabel(l.pages[d.id]?.label),
+  ];
+  final ordered = UiLayout.ordered(normal, l.pageOrder[app.section] ?? const [], (d) => d.id);
+  return [...ordered, ...raw.where((d) => d.admin)];
+}
+
+/// صفحات القسم كما تعرّفها المنظومة (قبل تخصيص المدير). تُستعمل أيضاً في شاشة التخصيص.
+List<(int, String, IconData)> sectionPageCatalog(AppState app, String section) =>
+    [for (final d in _sectionDestinations(app, section)) if (!d.admin) (d.id, d.label, d.icon)];
+
+List<_Dest> _sectionDestinations(AppState app, [String? section]) {
+  final sec = section ?? app.section;
+  if (sec == 'chat') {
+    final c = app.chat;
+    return [
+      _Dest(Tabs.chat, 'المحادثات', Icons.forum_outlined, Icons.forum_rounded,
+          badge: c.rooms.where((r) => !r.isChannel && !r.muted).fold(0, (s, r) => s + r.unread)),
+      _Dest(Tabs.chatChannels, 'قنوات الأقسام', Icons.campaign_outlined, Icons.campaign_rounded,
+          badge: c.rooms.where((r) => r.isChannel && !r.muted).fold(0, (s, r) => s + r.unread)),
+      if (app.isDirector) const _Dest(Tabs.chatSettings, 'إعدادات المراسلات', Icons.settings_outlined, Icons.settings_rounded),
+      ..._adminDests(app, 140),
+    ];
+  }
+  if (sec == 'security') {
+    return [
+      const _Dest(Tabs.secDashboard, 'لوحة الأمن', Icons.shield_outlined, Icons.shield_rounded),
+      const _Dest(Tabs.secPosture, 'الوضع الأمني', Icons.fact_check_outlined, Icons.fact_check_rounded),
+      const _Dest(Tabs.secAlerts, 'التنبيهات والأنماط', Icons.notification_important_outlined, Icons.notification_important_rounded),
+      const _Dest(Tabs.secIdentity, 'الهويات والصلاحيات', Icons.badge_outlined, Icons.badge_rounded),
+      const _Dest(Tabs.secSessions, 'الجلسات والأجهزة', Icons.devices_outlined, Icons.devices_rounded),
+      const _Dest(Tabs.secData, 'نشاط البيانات', Icons.dataset_outlined, Icons.dataset_rounded),
+      const _Dest(Tabs.secAudit, 'سجل التدقيق', Icons.manage_search_outlined, Icons.manage_search_rounded),
+      const _Dest(Tabs.secChat, 'مراقبة المراسلات', Icons.mark_chat_read_outlined, Icons.mark_chat_read_rounded),
+      const _Dest(Tabs.secIncidents, 'الحوادث الأمنية', Icons.report_outlined, Icons.report_rounded),
+      const _Dest(Tabs.secPolicies, 'السياسات والإعدادات', Icons.admin_panel_settings_outlined, Icons.admin_panel_settings_rounded),
+      ..._adminDests(app, 160),
+    ];
+  }
+  if (sec == 'risks') {
     final pm = app.pm;
     final overdue = pm.overdueReviews;
     if (!app.v7Ready) {
@@ -210,7 +276,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 20),
     ];
   }
-  if (app.section == 'docs') {
+  if (sec == 'docs') {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final late = app.docs.ofKind('letter').where((l) => l.overdue(today)).length;
@@ -226,7 +292,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 60),
     ];
   }
-  if (app.section == 'supervision') {
+  if (sec == 'supervision') {
     final unreviewed = app.isDirector ? app.docs.reports.where((r) => !r.reviewed).length : 0;
     return [
       _Dest(Tabs.supReports, 'التقارير اليومية', Icons.assignment_outlined, Icons.assignment_rounded, badge: unreviewed),
@@ -234,7 +300,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 70),
     ];
   }
-  if (app.section == 'heritage') {
+  if (sec == 'heritage') {
     final today = _unitToday();
     final s = UnitStats(app.units, today);
     return [
@@ -244,7 +310,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 90),
     ];
   }
-  if (app.section == 'planning_qa') {
+  if (sec == 'planning_qa') {
     final today = _unitToday();
     final s = UnitStats(app.units, today);
     return [
@@ -255,7 +321,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 100),
     ];
   }
-  if (app.section == 'safety') {
+  if (sec == 'safety') {
     final today = _unitToday();
     final s = UnitStats(app.units, today);
     return [
@@ -267,7 +333,7 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 110),
     ];
   }
-  if (app.section == 'acceptance') {
+  if (sec == 'acceptance') {
     final today = _unitToday();
     final s = UnitStats(app.units, today);
     return [
@@ -277,22 +343,23 @@ List<_Dest> _destinations(AppState app) {
       ..._adminDests(app, 120),
     ];
   }
-  if (app.section == 'print') {
+  if (sec == 'print') {
     return [
       const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
       const _Dest(Tabs.printDesigner, 'مصمم الصفحة', Icons.design_services_outlined, Icons.design_services_rounded),
       const _Dest(Tabs.printMedia, 'مكتبة الوسائط', Icons.perm_media_outlined, Icons.perm_media_rounded),
+      if (app.v11Ready) const _Dest(Tabs.printRefs, 'الأرقام الإشارية', Icons.pin_outlined, Icons.pin_rounded),
       ..._adminDests(app, 130),
     ];
   }
-  if (app.section == 'manual') {
+  if (sec == 'manual') {
     return [
       const _Dest(Tabs.manual, 'دليل الاستخدام', Icons.menu_book_outlined, Icons.menu_book_rounded),
       const _Dest(Tabs.manualNews, 'ما الجديد', Icons.new_releases_outlined, Icons.new_releases_rounded),
       ..._adminDests(app, 80),
     ];
   }
-  if (app.section == 'swot') {
+  if (sec == 'swot') {
     final alerts = app.v6Ready ? app.swot.alerts.length : 0;
     return [
       const _Dest(Tabs.swotDashboard, 'لوحة المتابعة', Icons.insights_outlined, Icons.insights_rounded),
@@ -346,8 +413,22 @@ Widget _page(int id) => switch (id) {
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 => const AssistantPage(),
+      Tabs.printRefs => const RefNumbersPage(),
+      Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
+      Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),
+      Tabs.chatSettings => const ChatSettingsPage(),
+      Tabs.secDashboard => const SecDashboardPage(),
+      Tabs.secPosture => const SecPosturePage(),
+      Tabs.secAlerts => const SecAlertsPage(),
+      Tabs.secIdentity => const SecIdentityPage(),
+      Tabs.secSessions => const SecSessionsPage(),
+      Tabs.secData => const SecDataPage(),
+      Tabs.secAudit => const SecAuditPage(),
+      Tabs.secChat => const SecChatPage(),
+      Tabs.secIncidents => const SecIncidentsPage(),
+      Tabs.secPolicies => const SecPoliciesPage(),
       Tabs.heritageOverview => const UnitOverviewPage(key: ValueKey('ov-heritage'), section: 'heritage'),
       Tabs.heritageBuildings =>
         const UnitRecordsPage(key: ValueKey('heritage_building'), unit: 'heritage', kinds: ['heritage_building']),
@@ -607,7 +688,7 @@ class _HomeShellState extends State<HomeShell> {
               ListTile(
                 leading: const Icon(Icons.apps_rounded),
                 title: const Text('الأقسام الرئيسية', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('أنت في: ${sectionName(app.section)}'),
+                subtitle: Text('أنت في: ${sectionTitle(app, app.section)}'),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   app.openHub();
@@ -871,7 +952,7 @@ class _TopBar extends StatelessWidget {
                           child: Text(title,
                               key: ValueKey(title), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                         ),
-                        Text(hub ? app.orgName : sectionName(app.section),
+                        Text(hub ? app.orgName : sectionTitle(app, app.section),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 11.5, color: hub ? sem.muted : sectionColor(context, app.section))),

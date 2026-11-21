@@ -5,6 +5,7 @@ import '../config.dart';
 import '../manual.dart';
 import '../models.dart';
 import '../print/sources.dart';
+import '../rasd.dart';
 import '../registers.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
@@ -39,6 +40,12 @@ const List<(String, String, String, IconData)> appSections = [
   ('acceptance', 'المطابقة والاستلام',
       'وحدة الاستلام بمحاضر الاستلام وقوائم الملاحظات، ووحدة ضبط الجودة بالاختبارات ونسبة المطابقة وحالات عدم المطابقة.',
       Icons.verified_rounded),
+  ('chat', 'المراسلات الداخلية',
+      'محادثات خاصة بين الأشخاص، ومجموعات خاصة، وقنوات للأقسام: نصوص وأرقام وصور وفيديو وملفات وروابط للعقود، لحظياً.',
+      Icons.forum_rounded),
+  ('security', 'الأمن السيبراني',
+      'لوحة شاملة لمسؤول الأمن: المؤشرات والتنبيهات والأنماط غير المعتادة، والهويات والصلاحيات، والجلسات والأجهزة، ونشاط البيانات والتدقيق والحوادث.',
+      Icons.shield_rounded),
   ('print', 'الطباعة والتصدير',
       'استخراج أي سجل في المنظومة إلى PDF وWord وExcel وغيرها، ومصمم صفحة الطباعة بقوالبه، ومكتبة الصور والفيديو والملفات وتنزيلها.',
       Icons.print_rounded),
@@ -57,6 +64,8 @@ const Map<String, String> sectionShortNames = {
   'planning_qa': 'التخطيط',
   'safety': 'السلامة',
   'acceptance': 'الاستلام',
+  'chat': 'المراسلات',
+  'security': 'الأمن',
   'print': 'الطباعة',
   'manual': 'الدليل',
 };
@@ -67,8 +76,39 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
       'cycle' || 'manual' || 'print' => true,
       'docs' || 'supervision' => app.v8Ready,
       'heritage' || 'planning_qa' || 'safety' || 'acceptance' => app.v9Ready,
+      'chat' => app.v12Ready,
+      'security' => app.v13Ready && app.canAudit,
       _ => app.v6Ready,
     };
+
+/// هل يظهر القسم لهذا المستخدم؟ الأمن السيبراني لمسؤول الأمن والمدير وحدهما، والمخفي بقرار المدير لا يظهر لغيره.
+bool sectionVisible(AppState app, String key) {
+  if (key == 'security') return app.canAudit;
+  if (app.isDirector) return true;
+  return !(app.layout.sections[key]?.hidden ?? false);
+}
+
+/// الأقسام كما يراها المستخدم: بترتيب المدير وأسمائه وأوصافه.
+List<(String, String, String, IconData)> hubSections(AppState app) {
+  final l = app.layout;
+  final list = [
+    for (final s in appSections)
+      if (sectionVisible(app, s.$1))
+        (
+          s.$1,
+          (l.sections[s.$1]?.name ?? '').trim().isNotEmpty ? l.sections[s.$1]!.name.trim() : s.$2,
+          (l.sections[s.$1]?.desc ?? '').trim().isNotEmpty ? l.sections[s.$1]!.desc.trim() : s.$3,
+          s.$4,
+        ),
+  ];
+  return UiLayout.ordered(list, l.sectionOrder, (s) => s.$1);
+}
+
+/// اسم القسم بعد تخصيص المدير.
+String sectionTitle(AppState app, String key) {
+  final n = (app.layout.sections[key]?.name ?? '').trim();
+  return n.isNotEmpty ? n : sectionName(key);
+}
 
 String sectionName(String key) => appSections.firstWhere((s) => s.$1 == key, orElse: () => appSections.first).$2;
 IconData sectionIcon(String key) => appSections.firstWhere((s) => s.$1 == key, orElse: () => appSections.first).$4;
@@ -87,6 +127,8 @@ Color sectionColor(BuildContext context, String key) {
     'safety' => dark ? const Color(0xFFF2726F) : const Color(0xFFC62828),
     'acceptance' => dark ? const Color(0xFF6FCF8E) : const Color(0xFF2E7D32),
     'print' => dark ? const Color(0xFF7FC8E8) : const Color(0xFF0B6E99),
+    'chat' => dark ? const Color(0xFF6FD0C8) : const Color(0xFF00796B),
+    'security' => dark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -116,7 +158,7 @@ class SectionHub extends StatelessWidget {
               style: t.bodyMedium?.copyWith(color: sem.muted)),
         ),
         ResponsiveGrid(minItemWidth: 330, spacing: 14, children: [
-          for (final s in appSections) _SectionCard(app: app, section: s),
+          for (final s in hubSections(app)) _SectionCard(app: app, section: s),
         ]),
         if (!app.v6Ready)
           const Padding(
@@ -240,6 +282,22 @@ class _SectionCard extends StatelessWidget {
           ('${s.openPunch}', 'ملاحظة استلام قائمة', s.openPunch > 0 ? sem.wip : null),
           ('${s.pendingTests}', 'اختبار بانتظار النتيجة', null),
           ('${s.openNcr}', 'عدم مطابقة مفتوحة', s.openNcr > 0 ? sem.danger : null),
+        ];
+      case 'chat':
+        if (!app.v12Ready) return const [];
+        final c = app.chat;
+        return [
+          ('${c.unreadTotal}', 'رسالة غير مقروءة', c.unreadTotal > 0 ? Theme.of(context).colorScheme.primary : null),
+          ('${c.rooms.where((r) => r.isGroup || r.isChannel).length}', 'مجموعة وقناة', null),
+          ('${c.rooms.where((r) => r.isDm).length}', 'محادثة خاصة', null),
+        ];
+      case 'security':
+        if (!app.v13Ready) return const [];
+        final locked = app.people.values.where((p) => p.locked).length;
+        return [
+          (app.settings.frozen ? 'مجمّدة' : 'تعمل', 'حالة المنظومة', app.settings.frozen ? sem.danger : sem.ok),
+          ('${app.people.values.where((p) => p.active && p.role != null).length}', 'حساباً مفعّلاً', null),
+          ('$locked', 'حساباً مقفلاً', locked > 0 ? sem.wip : null),
         ];
       case 'print':
         final media = app.v8Ready ? app.docs.files.where((f) => f.isImage || f.isVideo).length : 0;
@@ -384,7 +442,7 @@ class SectionSwitcher extends StatelessWidget {
           child: Tooltip(
             message: s.$2,
             child: _SwitchItem(
-              label: sectionShortNames[s.$1] ?? s.$2,
+              label: (app.layout.sections[s.$1]?.name ?? '').trim().isNotEmpty ? s.$2 : (sectionShortNames[s.$1] ?? s.$2),
               icon: s.$4,
               color: sectionColor(context, s.$1),
               selected: app.section == s.$1,
@@ -397,8 +455,13 @@ class SectionSwitcher extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: sem.rule)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        for (var i = 0; i < appSections.length; i += 5)
-          Row(children: [for (final s in appSections.skip(i).take(5)) item(s)]),
+        for (final row in [
+          for (var i = 0; i < hubSections(app).length; i += 5) hubSections(app).skip(i).take(5).toList(),
+        ])
+          Row(children: [
+            for (final s in row) item(s),
+            for (var k = row.length; k < 5; k++) const Expanded(child: SizedBox()),
+          ]),
       ]),
     );
   }

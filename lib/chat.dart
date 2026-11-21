@@ -261,7 +261,7 @@ class ChatAttachment {
 /// يختار المستخدم مرفقات (صور تُضغط، وفيديو وصوت وملفات كما هي) حتى [maxMb].
 Future<List<ChatAttachment>> pickChatFiles({int maxMb = 50, bool media = false}) async {
   final exts = media ? ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'mov', 'webm'] : chatMimes.keys.toList();
-  final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: exts, allowMultiple: true);
+  final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: exts);
   final out = <ChatAttachment>[];
   for (final f in picked) {
     var ext = f.name.contains('.') ? f.name.substring(f.name.lastIndexOf('.') + 1).toLowerCase() : '';
@@ -644,4 +644,16 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<Uint8List> download(String path) => client.storage.from(chatBucket).download(path);
+
+  /// محادثات ورسائل جاهزة دون قاعدة البيانات (للقطات البصرية فقط).
+  void debugSeed(List<ChatRoom> list, Map<String, List<ChatMessage>> messages) {
+    rooms = list;
+    loaded = true;
+    _messages
+      ..clear()
+      ..addAll(messages);
+    for (final k in messages.keys) {
+      _more[k] = false;
+    }
+  }
 }

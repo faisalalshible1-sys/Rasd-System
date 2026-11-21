@@ -24,7 +24,7 @@ class GrantScope {
 const Map<String, String> docKindLabels = {'boq': 'المقايسات', 'letter': 'المراسلات', 'design': 'التصاميم'};
 
 /// كل النطاقات التي يمكن منحها، مجمّعة: نماذج الدورة المستندية، والشؤون الفنية، والإشراف، وسجلات الوحدات، وSWOT.
-List<GrantScope> grantCatalog(List<FormDef> forms, {String contractFormKey = 'f01'}) => [
+List<GrantScope> grantCatalog(List<FormDef> forms) => [
       for (final f in forms)
         if (f.active)
           GrantScope('form:${f.key}', f.name, 'نماذج الدورة المستندية',
@@ -144,6 +144,12 @@ class RefScheme {
   /// معاينة الرقم كما تصدره قاعدة البيانات (ref_format) دون حجز تسلسل.
   String preview({DateTime? at, int seq = 1, Map<String, String> ctx = const {}}) =>
       formatRef(pattern, seq: seq, pad: pad, at: at ?? DateTime.now(), ctx: ctx, codes: codes);
+
+  /// شكل الرقم قبل صدوره: التسلسل علامات # (لمعاينة الطباعة).
+  String masked({Map<String, String> ctx = const {}}) {
+    final p = pattern.replaceAllMapped(RegExp(r'\{SEQ(?::([1-8]))?\}'), (m) => '#' * (m.group(1) != null ? int.parse(m.group(1)!) : pad));
+    return formatRef(p, seq: 0, pad: pad, at: DateTime.now(), ctx: ctx, codes: codes);
+  }
 }
 
 String _p2(int n) => n.toString().padLeft(2, '0');

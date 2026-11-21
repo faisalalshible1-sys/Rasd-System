@@ -143,7 +143,7 @@ ExportSource _src<T extends Object>({
         rows: rows,
         summary: summary == null || list.isEmpty ? const [] : summary(app, list),
         meta: meta,
-      );
+      ).recompute();
     },
   );
 }
@@ -283,6 +283,7 @@ List<ExportSource> _all(AppState app) => [
           _C('outstanding', 'المستحق غير المدفوع', type: ColType.money),
           _C('retention', 'التأمينات المحتجزة', type: ColType.money, on: false),
           _C('extracts', 'عدد المستخلصات', type: ColType.number, flex: 0.6, on: false),
+          _C('paid_pct', 'نسبة المدفوع من القيمة', type: ColType.percent, flex: 0.7, on: false, formula: '{paid}/{value}*100'),
         ],
         row: (a, p) => [
           p.label,
@@ -295,6 +296,7 @@ List<ExportSource> _all(AppState app) => [
           p.outstanding,
           p.retentionHeld,
           p.extractsCount,
+          null,
         ],
         summary: (a, l) => [
           ('مجموع القيم', fmtNumber(l.fold<double>(0, (s, p) => s + (p.contractValue ?? 0)))),
@@ -326,6 +328,7 @@ List<ExportSource> _all(AppState app) => [
           _C('taxes', 'الضرائب', type: ColType.money, on: false),
           _C('net', 'الصافي', type: ColType.money),
           _C('paid', 'المدفوع', type: ColType.money),
+          _C('unpaid', 'المتبقي من الصافي', type: ColType.money, on: false, formula: 'max({net}-{paid},0)'),
           _C('status', 'الحالة', flex: 0.9),
           _C('referral', 'رقم الإحالة', flex: 0.8, on: false),
         ],
@@ -343,6 +346,7 @@ List<ExportSource> _all(AppState app) => [
           x.taxes,
           x.net,
           x.paidAmount,
+          null,
           x.statusLabel,
           x.referralNo,
         ],
@@ -508,7 +512,7 @@ List<ExportSource> _all(AppState app) => [
           _C('category', 'التصنيف', flex: 0.9),
           _C('probability', 'الاحتمال', type: ColType.number, flex: 0.5),
           _C('impact', 'الأثر', type: ColType.number, flex: 0.5),
-          _C('score', 'الدرجة', type: ColType.number, flex: 0.5),
+          _C('score', 'الدرجة', type: ColType.number, flex: 0.5, formula: '{probability}*{impact}'),
           _C('level', 'المستوى', flex: 0.8),
           _C('owner', 'المالك', flex: 1),
           _C('response', 'الاستجابة', flex: 0.8, on: false),
@@ -615,7 +619,7 @@ List<ExportSource> _all(AppState app) => [
           _C('project', 'المشروع', flex: 2),
           _C('planned', 'المخطط', type: ColType.percent, flex: 0.6),
           _C('actual', 'الفعلي', type: ColType.percent, flex: 0.6),
-          _C('deviation', 'الانحراف', type: ColType.percent, flex: 0.6),
+          _C('deviation', 'الانحراف', type: ColType.percent, flex: 0.6, formula: '{actual}-{planned}'),
           _C('works', 'الأعمال المنفذة', type: ColType.long),
           _C('obstacles', 'المعوقات', type: ColType.long, on: false),
           _C('by', 'المُعِد', flex: 0.9, on: false),
