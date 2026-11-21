@@ -6,10 +6,11 @@ import '../app_state.dart';
 import '../models.dart';
 import '../prices.dart';
 import '../print/export_dialog.dart';
+import '../print/model.dart' show ExportFormat;
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'pm_common.dart';
-import 'schedule.dart' show ScheduleNotReady;
+import 'schedule.dart' show ScheduleNotReady, itemsText;
 
 // =====================================================================
 // لائحة الأسعار الاسترشادية (بحث برقم البند أو بكلمات من الوصف، وتصفّح الفصول والعناوين)،
@@ -17,6 +18,32 @@ import 'schedule.dart' show ScheduleNotReady;
 // =====================================================================
 
 String _price(double? v) => v == null ? '—' : fmtMoney(v);
+
+/// الوصف الكامل مقسوماً: سياق البنود الأم، ثم وصف البند نفسه (آخر جزء بعد « — »).
+(String, String) splitDesc(String full) {
+  final i = full.lastIndexOf(' — ');
+  return i < 0 ? ('', full) : (full.substring(0, i), full.substring(i + 3));
+}
+
+/// وصف البند بارزاً وسياقه تحته بخط أصغر.
+class DescText extends StatelessWidget {
+  const DescText(this.full, {super.key, this.bold = true, this.contextLines = 2});
+
+  final String full;
+  final bool bold;
+  final int contextLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final (ctx, own) = splitDesc(full);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(own, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(height: 1.4, fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+      if (ctx.isNotEmpty)
+        Text(ctx, maxLines: contextLines, overflow: TextOverflow.ellipsis, style: TextStyle(height: 1.4, color: sem.muted, fontSize: 12.5)),
+    ]);
+  }
+}
 String _qty(double? v) => v == null ? '' : (v == v.roundToDouble() ? v.toStringAsFixed(0) : fmtMoney(v));
 
 /// صف من اللائحة: الرقم والوصف والوحدة والسعر، والعنوان بسهم للتصفح.
@@ -35,7 +62,6 @@ class PriceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     final it = item;
-    final desc = full && it.isItem ? it.fullDesc : it.description;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -52,10 +78,13 @@ class PriceRow extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (chapter != null) Text(chapter!, style: TextStyle(color: sem.muted, fontSize: 11.5)),
-              Text(desc,
-                  maxLines: it.isItem ? 4 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(height: 1.45, fontWeight: it.isHeading ? FontWeight.w700 : FontWeight.w400, color: it.kind == 'note' ? sem.muted : null)),
+              if (full && it.isItem)
+                DescText(it.fullDesc)
+              else
+                Text(it.description,
+                    maxLines: it.isItem ? 4 : 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(height: 1.45, fontWeight: it.isHeading ? FontWeight.w700 : FontWeight.w400, color: it.kind == 'note' ? sem.muted : null)),
             ]),
           ),
           const SizedBox(width: 10),
@@ -388,7 +417,7 @@ Future<void> addToBoq(BuildContext context, PriceItem it) async {
               for (final s in sheets.take(12))
                 SimpleDialogOption(
                   onPressed: () => Navigator.of(ctx).pop(s.id),
-                  child: Text('${s.title} (${s.lines.length} بنداً)', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: Text('${s.title} (${itemsText(s.lines.length)})', maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
             ],
           ),
@@ -437,7 +466,7 @@ class BoqSheetsPage extends StatelessWidget {
               if (app.people[s.createdBy]?.displayName != null) app.people[s.createdBy]!.displayName,
             ].join(' · '),
             badges: [
-              ToneBadge('${s.lines.length} ${s.lines.length <= 10 && s.lines.length > 2 ? 'بنود' : 'بنداً'}', color: sem.muted),
+              ToneBadge(itemsText(s.lines.length), color: sem.muted),
               if (s.showPrices) ToneBadge('الإجمالي ${fmtMoney(s.total)}', color: Theme.of(context).colorScheme.primary),
               if (!s.showPrices) ToneBadge('كميات دون أسعار', color: sem.muted),
             ],
@@ -686,7 +715,8 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
 
   void _export() {
     final title = _title.text.trim().isEmpty ? 'مقايسة' : _title.text.trim();
-    showExportDialog(context, sourceId: _showPrices ? 'docs:boq_sheet' : 'docs:boq_sheet_qty', items: _current(), title: title);
+    showExportDialog(context,
+        sourceId: _showPrices ? 'docs:boq_sheet' : 'docs:boq_sheet_qty', items: _current(), title: title, format: ExportFormat.xlsx);
   }
 
   @override
@@ -903,12 +933,12 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
                 if (b.code.isNotEmpty) Text(b.code, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w800)),
                 if (!b.fromList) ToneBadge('بند حر', color: sem.wip),
                 if (_showPrices && b.price != null)
-                  Text('${fmtMoney(b.price)} / ${b.unit}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-                if (_showPrices && total != null)
-                  Text('= ${fmtMoney(total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                  Text('سعر الوحدة ${fmtMoney(b.price)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+                if (_showPrices && total != null && q != null)
+                  Text('الإجمالي ${fmtMoney(total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
               ]),
               const SizedBox(height: 4),
-              Text(b.desc, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(height: 1.45)),
+              DescText(b.desc, contextLines: 3),
             ]),
           ),
           if (!ro)

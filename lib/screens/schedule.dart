@@ -19,7 +19,22 @@ import 'pm_projects.dart' show showScheduleEditor;
 // (المخطط والفعلي والانحراف بالنقاط وبالأيام لكل بند، والنسبة الكلية الموزونة) ومخطط زمني.
 // =====================================================================
 
-String _pts(double? v) => v == null ? '—' : '${v >= 0 ? '+' : '−'}${v.abs().toStringAsFixed(1)}';
+/// الانحراف بالنقاط نصاً، بالكلمات بدل الإشارة حتى لا يلتبس اتجاهها في النص العربي.
+String varText(double? v) {
+  if (v == null) return '—';
+  final a = v.abs();
+  if (a < 0.05) return 'دون انحراف';
+  return '${v < 0 ? 'تأخر' : 'تقدم'} ${a.toStringAsFixed(1)} نقطة';
+}
+
+/// عدد البنود بصيغته العربية.
+String itemsText(int n) => switch (n) {
+      0 => 'لا بنود',
+      1 => 'بند واحد',
+      2 => 'بندان',
+      <= 10 => '$n بنود',
+      _ => '$n بنداً',
+    };
 String _pct1(double? v) => v == null ? '—' : '${v.toStringAsFixed(1)}%';
 
 /// الانحراف بالأيام نصاً: «متقدم 5 أيام» أو «متأخر 12 يوماً».
@@ -185,7 +200,7 @@ class _ScheduleDashboardPageState extends State<ScheduleDashboardPage> {
           SectionCard(
             title: 'البنود المتأخرة',
             icon: Icons.warning_amber_rounded,
-            subtitle: 'الأكبر انحرافاً أولاً. الانحراف بالنقاط = الفعلي − المخطط، وبالأيام = الفعلي × المدة − الأيام المنقضية.',
+            subtitle: 'الأكبر انحرافاً أولاً. الانحراف بالنقاط هو الفعلي ناقص المخطط، وبالأيام هو الفعلي × المدة ناقص الأيام المنقضية.',
             child: Column(children: [
               for (final (t, c) in lateItems.take(20))
                 _ItemRow(
@@ -197,7 +212,7 @@ class _ScheduleDashboardPageState extends State<ScheduleDashboardPage> {
               if (lateItems.length > 20)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text('و${lateItems.length - 20} بنداً آخر — صدّرها كلها من زر التصدير أعلى الصفحة.',
+                  child: Text('وغيرها: ${itemsText(lateItems.length - 20)}. صدّرها كلها من زر التصدير أعلى الصفحة.',
                       style: TextStyle(color: sem.muted, fontSize: 12.5)),
                 ),
             ]),
@@ -253,7 +268,7 @@ Future<String?> pickScheduleProject(BuildContext context, AppState app) {
                     dense: true,
                     title: Text(p.name.isEmpty ? p.assignNo : p.name, maxLines: 2, overflow: TextOverflow.ellipsis),
                     subtitle: Text(
-                        [if (p.assignNo.isNotEmpty) p.assignNo, if (t != null) '${t.items.length} بنداً · ${perfLabels[t.perf]}' else 'بلا جدول']
+                        [if (p.assignNo.isNotEmpty) p.assignNo, if (t != null) '${itemsText(t.items.length)} · ${perfLabels[t.perf]}' else 'بلا جدول']
                             .join(' · ')),
                     trailing: t == null ? null : PerfBadge(t.perf),
                     onTap: () => Navigator.of(ctx).pop(p.id),
@@ -336,9 +351,9 @@ class _TrackRow extends StatelessWidget {
           Wrap(spacing: 14, runSpacing: 2, children: [
             Text('الفعلي ${_pct1(t.actual)}', style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 12.5)),
             Text('المخطط ${_pct1(t.planned)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-            Text('الانحراف ${_pts(t.variance)} نقطة', style: TextStyle(color: (t.variance ?? 0) < 0 ? sem.danger : sem.muted, fontSize: 12.5)),
+            Text(varText(t.variance), style: TextStyle(color: (t.variance ?? 0) < 0 ? sem.danger : sem.muted, fontSize: 12.5)),
             Text('SPI ${spiText(t.spi)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-            Text('البنود ${t.items.length}${late > 0 ? ' · متأخرة $late' : ''}',
+            Text('${itemsText(t.items.length)}${late > 0 ? ' · متأخرة $late' : ''}',
                 style: TextStyle(color: late > 0 ? sem.danger : sem.muted, fontSize: 12.5)),
             Text('${pmDay(t.start)} إلى ${pmDay(t.end)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
           ]),
@@ -387,7 +402,7 @@ class _ItemRow extends StatelessWidget {
           Wrap(spacing: 14, runSpacing: 2, children: [
             Text('الفعلي ${_pct1(c.actual)}', style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 12.5)),
             Text('المخطط ${_pct1(c.planned)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
-            Text('الانحراف ${_pts(c.variance)} نقطة', style: TextStyle(color: c.variance < 0 ? sem.danger : sem.muted, fontSize: 12.5)),
+            Text(varText(c.variance), style: TextStyle(color: c.variance < 0 ? sem.danger : sem.muted, fontSize: 12.5)),
             if (c.status != 'done' && c.status != 'not_started')
               Text(daysVarText(c.daysVariance), style: TextStyle(color: c.daysVariance < -0.5 ? sem.danger : sem.muted, fontSize: 12.5)),
             if (over != null) Text('تجاوز النهاية المخططة بـ${_daysWord(over)}', style: TextStyle(color: sem.danger, fontSize: 12.5)),
@@ -506,9 +521,9 @@ class ProjectSchedulePage extends StatelessWidget {
                 color: perfColor(context, track.perf)),
             StatCard(label: 'المخطط حتى تاريخ الإسناد', value: _pct1(track.planned), sub: 'موزون', icon: Icons.flag_outlined),
             StatCard(
-                label: 'الانحراف',
-                value: '${_pts(track.variance)} نقطة',
-                sub: 'SPI ${spiText(track.spi)} · ${perfLabels[track.perf]}',
+                label: 'الانحراف (نقطة)',
+                value: (track.variance ?? 0).abs() < 0.05 ? '0' : track.variance!.abs().toStringAsFixed(1),
+                sub: '${(track.variance ?? 0) < -0.05 ? 'تأخر' : ((track.variance ?? 0) > 0.05 ? 'تقدم' : 'في الموعد')} · SPI ${spiText(track.spi)} · ${perfLabels[track.perf]}',
                 icon: Icons.speed_rounded,
                 color: (track.variance ?? 0) < 0 ? sem.danger : sem.ok),
             StatCard(
@@ -560,7 +575,7 @@ class ProjectSchedulePage extends StatelessWidget {
     }
     try {
       final n = await app.pmItemsFromWorks(p.id);
-      if (context.mounted) showToast(context, n == 0 ? 'كل الأعمال لها بنود' : 'أُنشئ $n ${n <= 10 ? 'بنود' : 'بنداً'} بتاريخي البرنامج الزمني؛ عدّل تواريخ كل بند ووزنه');
+      if (context.mounted) showToast(context, n == 0 ? 'كل الأعمال لها بنود' : 'أُنشئ ${itemsText(n)} بتاريخي البرنامج الزمني؛ عدّل تواريخ كل بند ووزنه');
     } catch (e) {
       if (context.mounted) showToast(context, friendlyError(e), error: true);
     }
@@ -645,7 +660,7 @@ class ProjectSchedulePage extends StatelessWidget {
         ('الوزن', '${i.weight == null ? 'متوسط أوزان البنود' : fmtNum(i.weight!)} · نصيبه ${t.shares[k].toStringAsFixed(1)}% من المشروع'),
         ('المخطط حتى تاريخ الإسناد', _pct1(c.planned)),
         ('الإنجاز الفعلي', _pct1(c.actual)),
-        ('الانحراف', '${_pts(c.variance)} نقطة · ${daysVarText(c.daysVariance)}'),
+        ('الانحراف', '${varText(c.variance)} · ${daysVarText(c.daysVariance)}'),
         ('SPI', spiText(c.spi)),
         ('البداية · النهاية الفعليتان', i.actualStart == null && i.actualEnd == null ? '' : '${pmDay(i.actualStart)} · ${pmDay(i.actualEnd)}'),
         ('الإنهاء المتوقع بالسرعة الحالية', c.actual >= 100 || c.forecastEnd == null ? '' : '${pmDay(c.forecastEnd)}${(c.forecastDelay ?? 0) > 0 ? ' (بعد النهاية المخططة بـ${_daysWord(c.forecastDelay!)})' : ''}'),
@@ -716,7 +731,7 @@ Future<void> showPmItemEditor(BuildContext context, Project p, PmItem? item) asy
       final pr = ((v['progress'] as double?) ?? 0) * 100;
       final c = ItemCalc(PmItem(id: '', projectId: p.id, title: '', plannedStart: ps, plannedEnd: pe, progress: pr), cfg.refDay, cfg);
       return InfoBanner(
-        text: 'حتى ${pmDay(c.ref)}: المخطط ${_pct1(c.planned)} · الفعلي ${_pct1(c.actual)} · الانحراف ${_pts(c.variance)} نقطة'
+        text: 'حتى ${pmDay(c.ref)}: المخطط ${_pct1(c.planned)} · الفعلي ${_pct1(c.actual)} · ${varText(c.variance)}'
             '${c.status == 'done' || c.status == 'not_started' ? '' : ' (${daysVarText(c.daysVariance)})'} · ${perfLabels[c.status]}',
         level: c.status == 'critical' ? 'critical' : (c.status == 'slight' ? 'warning' : 'ok'),
       );
@@ -770,7 +785,10 @@ class ScheduleGantt extends StatelessWidget {
           Expanded(
             child: SizedBox(
               height: 22,
-              child: CustomPaint(painter: _AxisPainter(from: from, to: to, span: span, color: sem.muted, grid: sem.rule)),
+              child: CustomPaint(
+                  painter: _AxisPainter(
+                      from: from, to: to, span: span, grid: sem.rule,
+                      style: (Theme.of(context).textTheme.labelSmall ?? const TextStyle()).copyWith(fontSize: 10.5, color: sem.muted))),
             ),
           ),
         ]),
@@ -822,11 +840,12 @@ class _GanttColors {
 }
 
 class _AxisPainter extends CustomPainter {
-  _AxisPainter({required this.from, required this.to, required this.span, required this.color, required this.grid});
+  _AxisPainter({required this.from, required this.to, required this.span, required this.style, required this.grid});
 
   final DateTime from, to;
   final int span;
-  final Color color, grid;
+  final TextStyle style;
+  final Color grid;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -845,7 +864,7 @@ class _AxisPainter extends CustomPainter {
       if (k % step != 0) continue;
       final m = months[k];
       final tp = TextPainter(
-        text: TextSpan(text: '${m.month}/${m.year % 100}', style: TextStyle(fontSize: 10.5, color: color)),
+        text: TextSpan(text: '${m.month}/${m.year % 100}', style: style),
         textDirection: TextDirection.ltr,
       )..layout();
       if (x + tp.width <= size.width) tp.paint(canvas, Offset(x + 2, 2));
@@ -853,7 +872,7 @@ class _AxisPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _AxisPainter old) => old.from != from || old.to != to || old.color != color;
+  bool shouldRepaint(covariant _AxisPainter old) => old.from != from || old.to != to || old.style != style;
 }
 
 class _BarPainter extends CustomPainter {

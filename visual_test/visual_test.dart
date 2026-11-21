@@ -1273,7 +1273,8 @@ void main() {
     await _shot(tester, 'k6_boq_editor_dark_mobile', app, const BoqEditorPage(sheetId: 'bq1'), size: const Size(400, 3600), dark: true);
     final bq = app.boqSheet('bq1')!;
     await _shot(tester, 'k7_boq_export_light', app,
-        _OpenAction(run: (ctx) => showExportDialog(ctx, sourceId: 'docs:boq_sheet', items: bq.lines, title: bq.title)), size: const Size(1440, 1500));
+        _OpenAction(run: (ctx) => showExportDialog(ctx, sourceId: 'docs:boq_sheet', items: bq.lines, title: bq.title, format: ExportFormat.xlsx)),
+        size: const Size(1440, 1500));
     await tester.runAsync(() async {
       final dir = Directory('visual_test/goldens/exports')..createSync(recursive: true);
       final ctx = PrintContext(printedBy: 'م. فيصل الشبلي', orgName: 'مكتب الشؤون الهندسية', at: DateTime(2026, 11, 21, 10, 5));

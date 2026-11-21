@@ -34,9 +34,11 @@ class ExportButton extends StatelessWidget {
 
 /// يفتح نافذة التصدير. [onDesign] يفتح مصمم الصفحة على السجل نفسه (من قسم الطباعة).
 /// [title]: عنوان المستند حين تُصدَّر عناصر الصفحة نفسها (مثل عنوان المقايسة)، بدل اسم السجل.
-Future<void> showExportDialog(BuildContext context, {String? sourceId, List<Object>? items, String? projectId, String? title}) {
+/// [format]: الصيغة المختارة عند الفتح (مثل Excel للمقايسة).
+Future<void> showExportDialog(BuildContext context,
+    {String? sourceId, List<Object>? items, String? projectId, String? title, ExportFormat? format}) {
   final narrow = MediaQuery.sizeOf(context).width < 720;
-  final dialog = _ExportDialog(sourceId: sourceId, items: items, projectId: projectId, title: title);
+  final dialog = _ExportDialog(sourceId: sourceId, items: items, projectId: projectId, title: title, format: format);
   if (narrow) {
     return Navigator.of(context).push(MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => dialog));
   }
@@ -50,12 +52,13 @@ Future<void> showExportDialog(BuildContext context, {String? sourceId, List<Obje
 }
 
 class _ExportDialog extends StatefulWidget {
-  const _ExportDialog({this.sourceId, this.items, this.projectId, this.title});
+  const _ExportDialog({this.sourceId, this.items, this.projectId, this.title, this.format});
 
   final String? sourceId;
   final List<Object>? items;
   final String? projectId;
   final String? title;
+  final ExportFormat? format;
 
   @override
   State<_ExportDialog> createState() => _ExportDialogState();
@@ -88,6 +91,7 @@ class _ExportDialogState extends State<_ExportDialog> {
     final app = AppScope.read(context);
     final sources = exportSources(app);
     _project = widget.projectId;
+    if (widget.format != null) _format = widget.format!;
     _setSource(widget.sourceId == null ? null : exportSource(app, widget.sourceId!) ?? (sources.isEmpty ? null : sources.first));
     final d = app.defaultPrintTemplate;
     if (d != null) {
