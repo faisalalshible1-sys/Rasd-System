@@ -376,6 +376,64 @@
       "stage": 4
     }
   ],
+  "ref_schemes": [
+    {
+      "active": true,
+      "codes": {},
+      "key": "letter_in",
+      "name": "المراسلات الواردة",
+      "pad": 4,
+      "pattern": "م.ش.هـ/و/{YYYY}/{SEQ}",
+      "per_section": false,
+      "reset": "yearly",
+      "start_at": 1
+    },
+    {
+      "active": true,
+      "codes": {},
+      "key": "letter_internal",
+      "name": "المراسلات الداخلية",
+      "pad": 4,
+      "pattern": "م.ش.هـ/د/{YYYY}/{SEQ}",
+      "per_section": false,
+      "reset": "yearly",
+      "start_at": 1
+    },
+    {
+      "active": true,
+      "codes": {},
+      "key": "letter_out",
+      "name": "المراسلات الصادرة",
+      "pad": 4,
+      "pattern": "م.ش.هـ/ص/{YYYY}/{SEQ}",
+      "per_section": false,
+      "reset": "yearly",
+      "start_at": 1
+    },
+    {
+      "active": true,
+      "codes": {
+        "acceptance": "م.س",
+        "cycle": "د.م",
+        "docs": "ش.ف",
+        "heritage": "تر",
+        "manual": "د",
+        "planning_qa": "ت.ج",
+        "print": "ط",
+        "risks": "م.م",
+        "safety": "س.م",
+        "supervision": "إش",
+        "swot": "ت.س"
+      },
+      "key": "print",
+      "name": "المطبوعات والملفات المصدّرة",
+      "pad": 4,
+      "pattern": "م.ش.هـ/{SECTION}/{YYYY}/{SEQ}",
+      "per_section": false,
+      "reset": "yearly",
+      "start_at": 1
+    }
+  ],
   "settings": {
     "ai.enabled": true,
     "ai.instructions": "",
@@ -384,6 +442,12 @@
     "brand.org_name": "مكتب الشؤون الهندسية",
     "brand.org_parent": "لجنة إعادة إعمار منطقة الصابري ووسط البلاد",
     "brand.primary_color": "#1F4E79",
+    "chat.config": {
+      "edit_minutes": 60,
+      "enabled": true,
+      "groups": true,
+      "max_file_mb": 50
+    },
     "finance.advance_recovery_rate": 0,
     "finance.currency": "د.ل",
     "finance.deduction_types": [],
@@ -647,6 +711,7 @@
       "quality_notes": true
     },
     "ui.labels": {},
+    "ui.layout": {},
     "ui.motion": "full",
     "ui.nav": {
       "hidden": [],
