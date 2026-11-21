@@ -2,6 +2,7 @@
 //   flutter test visual_test --update-goldens
 // تُحفظ الصور في visual_test/goldens/ ويرفعها سير العمل visual.yml.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dc_app/app_state.dart';
@@ -9,6 +10,7 @@ import 'package:dc_app/chat.dart';
 import 'package:dc_app/docs.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
+import 'package:dc_app/prices.dart';
 import 'package:dc_app/print/export_dialog.dart';
 import 'package:dc_app/print/exporter.dart';
 import 'package:dc_app/print/model.dart';
@@ -16,6 +18,7 @@ import 'package:dc_app/print/preview.dart';
 import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/rasd.dart';
+import 'package:dc_app/schedule.dart';
 import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/chat.dart';
@@ -43,8 +46,10 @@ import 'package:dc_app/screens/pm_projects.dart';
 import 'package:dc_app/screens/pm_registers.dart';
 import 'package:dc_app/screens/pm_report.dart';
 import 'package:dc_app/screens/pm_settings.dart';
+import 'package:dc_app/screens/prices.dart';
 import 'package:dc_app/screens/print_center.dart';
 import 'package:dc_app/screens/risks.dart';
+import 'package:dc_app/screens/schedule.dart';
 import 'package:dc_app/screens/supervision.dart';
 import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/screens/swot_presentation.dart';
@@ -119,7 +124,7 @@ String _day(int daysAgo) => dbDate(_d(daysAgo));
 
 AppState _sampleState() {
   final client = SupabaseClient('http://localhost:54321', 'anon-key', authOptions: const AuthClientOptions(autoRefreshToken: false));
-  final app = AppState(client);
+  final app = _VisualApp(client);
   app.me = Profile.fromMap({'id': 'u-dir', 'full_name': 'م. فيصل الشبلي', 'email': 'director@office.ly', 'role': 'director', 'active': true});
   app.people = {
     for (final p in [
@@ -359,6 +364,118 @@ AppState _sampleState() {
   app.settings.applyGlobals();
   app.indexData();
   return app;
+}
+
+/// حالة اللقطات: لائحة الأسعار من عينة محفوظة بدل قاعدة البيانات (البحث والتصفح بالقواعد نفسها تقريباً).
+class _VisualApp extends AppState {
+  _VisualApp(super.client);
+
+  List<PriceItem> priceFixture = [];
+
+  @override
+  Future<List<PriceItem>> searchPrices(String listId, String q, {String? chapter, int limit = 80}) async {
+    final s = q.trim();
+    final rows = priceFixture.where((p) => chapter == null || p.chapter == chapter);
+    if (isPriceCode(s)) return rows.where((p) => p.code == s || p.code.startsWith('$s.')).take(limit).toList();
+    final words = normalizeArabic(s).split(' ').where((w) => w.isNotEmpty).toList();
+    return rows
+        .where((p) => p.isItem && words.every((w) => normalizeArabic('${p.code} ${p.fullDesc} ${p.group} ${p.section}').contains(w)))
+        .take(limit)
+        .toList();
+  }
+
+  @override
+  Future<List<PriceItem>> browsePrices(String listId, String chapter, int? parentSeq) async =>
+      priceFixture.where((p) => p.chapter == chapter && p.parentSeq == parentSeq).toList();
+}
+
+/// بيانات تجريبية لبنود الجداول الزمنية ولائحة الأسعار والمقايسات (الترحيلات 27–29).
+void _planning(AppState app) {
+  final raw = jsonDecode(File('visual_test/fixtures/prices_2026_sample.json').readAsStringSync()) as List;
+  final items = [for (final m in raw) PriceItem.fromMap({...Map<String, dynamic>.from(m as Map), 'list_id': 'guide-2026'})];
+  (app as _VisualApp).priceFixture = items;
+  app.priceLists = [
+    PriceList.fromMap({
+      'id': 'guide-2026',
+      'title': 'لائحة الأسعار الاسترشادية 2026',
+      'year': 2026,
+      'source': 'دولة ليبيا — حكومة الوحدة الوطنية',
+      'currency': 'دينار',
+      'active': true,
+      'chapters': [
+        {'key': 'buildings', 'name': 'أعمال المباني العامة والصيانة العامة'},
+        {'key': 'roads', 'name': 'أعمال شبكات الطرق والأرصفة'},
+        {'key': 'water', 'name': 'أعمال شبكات مياه الشرب والصرف الصحي وصرف مياه الأمطار'},
+        {'key': 'tanks', 'name': 'أعمال الخزانات'},
+        {'key': 'gardens', 'name': 'أعمال الحدائق والملاعب'},
+        {'key': 'power', 'name': 'أعمال شبكات الكهرباء والإنارة الخارجية'},
+      ],
+    }),
+  ];
+  Map<String, dynamic> lj(String code, double? qty, [String notes = '']) {
+    final p = items.firstWhere((x) => x.chapter == 'buildings' && x.code == code);
+    return {'seq': p.seq, 'chapter': p.chapter, 'code': p.code, 'desc': p.fullDesc, 'unit': p.unit, 'price': p.price, 'qty': qty, 'notes': notes};
+  }
+
+  Map<String, dynamic> sheet(String id, String? project, String title, String ref, bool prices, List<Map<String, dynamic>> lines, int ago) => {
+        'id': id,
+        'project_id': project,
+        'list_id': 'guide-2026',
+        'title': title,
+        'ref_no': ref,
+        'show_prices': prices,
+        'created_by': 'u-dir',
+        'updated_at': _iso(ago),
+        'lines': lines,
+        'total': lines.fold<double>(0, (s, l) => s + ((l['qty'] as num?) ?? 0) * ((l['price'] as num?) ?? 0)),
+      };
+  final ps = app.projects;
+  app.boqSheets = [
+    BoqSheet.fromMap(sheet('bq1', ps[1].id, 'مقايسة ترميم مبنى القنصلية – المرحلة الأولى', 'م.ش.هـ/ف/2026/0012', true, [
+      lj('3.2.6.5', 45, 'أعمدة الطابق الأرضي'),
+      lj('3.2.6.6', 30),
+      lj('7.2.2.1', 120, 'الصالة الرئيسية والممرات'),
+      lj('7.2.2.4', 64),
+      lj('7.2.2.13', null, 'الكمية بعد الحصر'),
+      {'seq': null, 'chapter': '', 'code': '', 'desc': 'تنظيف نهائي للموقع وترحيل المخلفات', 'unit': 'مقطوعية', 'price': 2500, 'qty': 1, 'notes': ''},
+    ], 1)),
+    BoqSheet.fromMap(sheet('bq2', null, 'مقايسة كميات أعمال الرخام للمباني الإدارية', '', false, [
+      lj('7.2.2.2', 340),
+      lj('7.2.2.3', 180),
+    ], 6)),
+  ];
+  PmItem it(String id, String pid, int sort, String title, int start, int end, double? w, double progress, {int? actualEnd, String notes = ''}) =>
+      PmItem.fromMap({
+        'id': id,
+        'project_id': pid,
+        'sort': sort,
+        'code': '$sort',
+        'title': title,
+        'planned_start': _day(start),
+        'planned_end': _day(end),
+        'weight': w,
+        'progress': progress,
+        'actual_start': progress > 0 ? _day(start - 2) : null,
+        'actual_end': actualEnd == null ? null : _day(actualEnd),
+        'notes': notes,
+      });
+  app.pmItems = [
+    it('a1', ps[0].id, 1, 'أعمال التمهيد والحفر', 280, 200, 15, 100, actualEnd: 205),
+    it('a2', ps[0].id, 2, 'طبقات الأساس والأساس المساعد', 210, 60, 35, 82),
+    it('a3', ps[0].id, 3, 'الطبقات الإسفلتية', 90, -60, 30, 28, notes: 'تأخر توريد البيتومين'),
+    it('a4', ps[0].id, 4, 'الأرصفة والجزر الوسطية', 40, -120, 12, 5),
+    it('a5', ps[0].id, 5, 'العلامات والإشارات المرورية', -60, -150, 8, 0),
+    it('b1', ps[1].id, 1, 'التدعيم الإنشائي للجدران الحاملة', 250, 120, 40, 70, notes: 'نقص العمالة المتخصصة'),
+    it('b2', ps[1].id, 2, 'ترميم الواجهات الحجرية', 150, -30, 35, 30),
+    it('b3', ps[1].id, 3, 'الأعمال الكهربائية والصحية', 60, -90, 25, 5),
+    it('c1', ps[2].id, 1, 'حفر الخنادق والفرش', 200, 100, null, 100, actualEnd: 104),
+    it('c2', ps[2].id, 2, 'توريد وتركيب الأنابيب', 120, -20, null, 95),
+    it('c3', ps[2].id, 3, 'غرف التفتيش والمحابس', 60, -60, null, 60),
+    it('c4', ps[2].id, 4, 'الاختبارات والتعقيم وإعادة الرصف', -30, -90, null, 0),
+    it('d1', ps[3].id, 1, 'الهيكل الخرساني', 180, 30, 50, 92),
+    it('d2', ps[3].id, 2, 'المباني والتشطيبات', 60, -100, 50, 36),
+  ];
+  app.v14Ready = true;
 }
 
 /// بيانات تجريبية لمتابعة المشاريع (الإصدار السابع).
@@ -1132,6 +1249,44 @@ void main() {
     });
   });
 
+  testWidgets('schedules and prices', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _planning(app);
+    final ps = app.projects;
+    app.tab = 52;
+    await _shot(tester, 'j0_schedules_light', app, const HomeShell(), size: const Size(1440, 2400));
+    await _shot(tester, 'j1_schedules_dark_mobile', app, _scaffold(const ScheduleDashboardPage()), size: const Size(400, 4000), dark: true);
+    await _shot(tester, 'j2_project_schedule_light', app, ProjectSchedulePage(projectId: ps[0].id), size: const Size(1300, 2500));
+    await _shot(tester, 'j3_project_schedule_mobile', app, ProjectSchedulePage(projectId: ps[1].id), size: const Size(400, 3000));
+    await _shot(tester, 'j4_item_editor_light', app, _OpenAction(run: (ctx) => showPmItemEditor(ctx, ps[0], app.itemsOf(ps[0].id)[2])),
+        size: const Size(1200, 1300));
+    app.tab = 65;
+    await _shot(tester, 'k0_prices_light', app, const HomeShell(), size: const Size(1440, 1000));
+    await _shot(tester, 'k1_prices_search_light', app, _scaffold(const PriceListPage(initialQuery: 'رخام')), size: const Size(1200, 2400));
+    await _shot(tester, 'k2_prices_code_mobile', app, _scaffold(const PriceListPage(initialQuery: '7.2.2', initialChapter: 'buildings')),
+        size: const Size(400, 2600));
+    await _shot(tester, 'k3_prices_browse_light', app, _scaffold(const PriceListPage(initialChapter: 'buildings')), size: const Size(1200, 2000));
+    app.tab = 66;
+    await _shot(tester, 'k4_boq_sheets_light', app, const HomeShell(), size: const Size(1440, 900));
+    await _shot(tester, 'k5_boq_editor_light', app, const BoqEditorPage(sheetId: 'bq1'), size: const Size(1300, 2400));
+    await _shot(tester, 'k6_boq_editor_dark_mobile', app, const BoqEditorPage(sheetId: 'bq1'), size: const Size(400, 3600), dark: true);
+    final bq = app.boqSheet('bq1')!;
+    await _shot(tester, 'k7_boq_export_light', app,
+        _OpenAction(run: (ctx) => showExportDialog(ctx, sourceId: 'docs:boq_sheet', items: bq.lines, title: bq.title)), size: const Size(1440, 1500));
+    await tester.runAsync(() async {
+      final dir = Directory('visual_test/goldens/exports')..createSync(recursive: true);
+      final ctx = PrintContext(printedBy: 'م. فيصل الشبلي', orgName: 'مكتب الشؤون الهندسية', at: DateTime(2026, 11, 21, 10, 5));
+      final s = exportSource(app, 'docs:boq_sheet')!;
+      final t = s.build(app, ExportQuery(items: bq.lines)).copyWith(title: bq.title).select([for (final c in s.columns) if (c.on) c.key]);
+      File('${dir.path}/boq_live.xlsx').writeAsBytesSync(await renderExport(ExportFormat.xlsx, t, PrintConfig(), ctx));
+      File('${dir.path}/boq.pdf').writeAsBytesSync(await renderExport(ExportFormat.pdf, t, PrintConfig(), ctx));
+      final sc = exportSource(app, 'risks:schedule')!;
+      final st = sc.build(app, const ExportQuery()).select([for (final c in sc.columns) if (c.on) c.key]);
+      File('${dir.path}/schedule_live.xlsx').writeAsBytesSync(await renderExport(ExportFormat.xlsx, st, PrintConfig(), ctx));
+    });
+  });
+
   testWidgets('print center', (tester) async {
     final app = _sampleState();
     await _preload(tester);
@@ -1219,6 +1374,29 @@ class _OpenExportState extends State<_OpenExport> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) showExportDialog(context, sourceId: widget.sourceId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox());
+}
+
+/// يشغّل إجراءً يفتح نافذة بعد أول إطار (للقطات).
+class _OpenAction extends StatefulWidget {
+  const _OpenAction({required this.run});
+
+  final void Function(BuildContext context) run;
+
+  @override
+  State<_OpenAction> createState() => _OpenActionState();
+}
+
+class _OpenActionState extends State<_OpenAction> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.run(context);
     });
   }
 

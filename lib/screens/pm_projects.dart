@@ -7,6 +7,7 @@ import '../ui/charts.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'pm_common.dart';
+import 'schedule.dart' show openProjectSchedule;
 
 // =====================================================================
 // سجل المشاريع والبرنامج الزمني، وسجل التقدم الدوري (المخطط مقابل الفعلي)
@@ -163,6 +164,15 @@ Future<void> showTrackDetails(BuildContext context, ProjectTrack t) {
           },
           icon: const Icon(Icons.edit_calendar_outlined),
           label: const Text('البرنامج الزمني'),
+        ),
+      if (app.v14Ready)
+        FilledButton.tonalIcon(
+          onPressed: () {
+            Navigator.of(sheet).pop();
+            openProjectSchedule(context, p.id);
+          },
+          icon: const Icon(Icons.date_range_outlined),
+          label: Text(app.schedule.track(p.id) == null ? 'بنود الجدول الزمني' : 'بنود الجدول الزمني (${app.schedule.track(p.id)!.items.length})'),
         ),
       if (app.canEditPm)
         FilledButton.icon(

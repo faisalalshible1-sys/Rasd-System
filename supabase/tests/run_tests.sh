@@ -84,3 +84,13 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql"
 $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/100_audited_writes_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# لائحة الأسعار الاسترشادية 2026 ومُعِدّ المقايسات (الترحيلان 27 و28)
+$P -d dctest -f "$DIR/migrations/20261121000027_prices_boq.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000027_prices_boq.sql"
+$P -d dctest -f "$DIR/migrations/20261121000028_price_list_2026.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000028_price_list_2026.sql"
+$P -d dctest -f "$DIR/migrations/20261121000027_prices_boq.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000027_prices_boq.sql"
+$P -d dctest -f "$DIR/migrations/20261121000028_price_list_2026.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000028_price_list_2026.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/101_prices_boq_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# بنود الجدول الزمني لكل مشروع (الترحيل 29)
+$P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql"
+$P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/102_schedule_items_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

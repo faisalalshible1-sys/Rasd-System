@@ -331,6 +331,12 @@ class _DocsPageState extends State<DocsPage> {
 
     final actions = <Widget>[
       ExportButton(sourceId: 'docs:$kind', items: list),
+      if (kind == 'boq' && app.v14Ready)
+        OutlinedButton.icon(
+          onPressed: () => app.setTab(66),
+          icon: const Icon(Icons.calculate_outlined),
+          label: const Text('إعداد من لائحة الأسعار'),
+        ),
       if (app.canAddDoc(kind))
         FilledButton.icon(
           onPressed: () => showDocEditor(context, kind, projectId: _project.isNotEmpty && _project != '-' ? _project : null),

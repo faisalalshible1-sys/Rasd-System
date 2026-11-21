@@ -37,11 +37,13 @@ import 'pm_projects.dart';
 import 'pm_registers.dart';
 import 'pm_report.dart';
 import 'pm_settings.dart';
+import 'prices.dart';
 import 'print_center.dart';
 import 'chat.dart';
 import 'ref_numbers.dart';
 import 'security_center.dart';
 import 'risks.dart';
+import 'schedule.dart';
 import 'supervision.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
@@ -75,6 +77,7 @@ class Tabs {
   static const pmSettings = 49;
   static const pmGuide = 50;
   static const pmPresentation = 51;
+  static const pmSchedule = 52;
 
   // تحليل SWOT
   static const swotDashboard = 30;
@@ -92,6 +95,8 @@ class Tabs {
   static const docsDesigns = 62;
   static const docsStorage = 63;
   static const docsMaterials = 64;
+  static const docsPrices = 65;
+  static const docsBoqSheets = 66;
 
   // الإشراف
   static const supReports = 70;
@@ -261,6 +266,8 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
       _Dest(Tabs.pmProjects, 'سجل المشاريع', Icons.view_timeline_outlined, Icons.view_timeline_rounded,
           badge: pm.tracks.values.where((t) => t.perf == 'critical').length),
       _Dest(Tabs.pmProgress, 'التقدم الدوري', Icons.show_chart_outlined, Icons.show_chart_rounded, badge: pm.staleProjects),
+      if (app.v14Ready)
+        _Dest(Tabs.pmSchedule, 'الجداول الزمنية', Icons.date_range_outlined, Icons.date_range_rounded, badge: app.schedule.lateProjects),
       const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
       _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
       const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
@@ -282,6 +289,10 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
     final late = app.docs.ofKind('letter').where((l) => l.overdue(today)).length;
     return [
       const _Dest(Tabs.docsBoq, 'المقايسات', Icons.request_quote_outlined, Icons.request_quote_rounded),
+      if (app.v14Ready) ...[
+        const _Dest(Tabs.docsBoqSheets, 'مُعِدّ المقايسات', Icons.calculate_outlined, Icons.calculate_rounded),
+        const _Dest(Tabs.docsPrices, 'لائحة الأسعار', Icons.price_change_outlined, Icons.price_change_rounded),
+      ],
       _Dest(Tabs.docsLetters, 'المراسلات', Icons.mark_email_read_outlined, Icons.mark_email_read_rounded, badge: late),
       const _Dest(Tabs.docsDesigns, 'التصاميم', Icons.architecture_outlined, Icons.architecture_rounded),
       if (app.v9Ready)
@@ -477,6 +488,9 @@ Widget _page(int id) => switch (id) {
       Tabs.pmSettings => const PmSettingsPage(),
       Tabs.pmGuide => const PmGuidePage(),
       Tabs.pmPresentation => const PmPresentationPage(),
+      Tabs.pmSchedule => const ScheduleDashboardPage(),
+      Tabs.docsPrices => const PriceListPage(),
+      Tabs.docsBoqSheets => const BoqSheetsPage(),
       Tabs.swotDashboard => const SwotDashboardPage(),
       Tabs.swotMatrix => const SwotMatrixPage(),
       Tabs.swotFactors => const SwotFactorsPage(),

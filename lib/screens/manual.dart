@@ -51,6 +51,9 @@ Map<String, String> manualValues(AppState app) {
     ]),
     'CHAT_MAX_MB': '${chat['max_file_mb'] is num ? (chat['max_file_mb'] as num).toInt() : 50}',
     'CHAT_EDIT_MIN': '${chat['edit_minutes'] is num ? (chat['edit_minutes'] as num).toInt() : 60}',
+    'SPI_AHEAD': app.pmConfig.spiAhead.toStringAsFixed(2),
+    'SPI_OK': app.pmConfig.spiOk.toStringAsFixed(2),
+    'SPI_WARN': app.pmConfig.spiWarn.toStringAsFixed(2),
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

@@ -69,7 +69,7 @@ ExportFormat? exportFormatOf(String s) {
 enum ColType { text, long, number, money, percent, date }
 
 class ExportColumn {
-  const ExportColumn(this.key, this.label, {this.type = ColType.text, this.flex = 1, this.on = true, this.formula});
+  const ExportColumn(this.key, this.label, {this.type = ColType.text, this.flex = 1, this.on = true, this.formula, this.sum = true});
 
   final String key;
   final String label;
@@ -85,10 +85,13 @@ class ExportColumn {
   /// ويُكتب في Excel معادلةً حية تتغير نتيجتها إن عُدّلت القيم التي تعتمد عليها.
   final String? formula;
 
+  /// يُجمع في صف الإجمالي (لا يُجمع مثلاً سعر الوحدة ولا كميات بوحدات مختلفة).
+  final bool sum;
+
   bool get computed => formula != null;
 
   ExportColumn copyWith({String? label, bool clearFormula = false}) =>
-      ExportColumn(key, label ?? this.label, type: type, flex: flex, on: on, formula: clearFormula ? null : formula);
+      ExportColumn(key, label ?? this.label, type: type, flex: flex, on: on, formula: clearFormula ? null : formula, sum: sum);
 
   bool get numeric => type == ColType.number || type == ColType.money || type == ColType.percent;
 
@@ -184,7 +187,7 @@ class ExportTable {
   /// مجموع عمود رقمي (null إن لم يكن رقمياً أو كان فارغاً).
   double? total(int col) {
     final c = columns[col];
-    if (!c.numeric || c.type == ColType.percent) return null;
+    if (!c.numeric || c.type == ColType.percent || !c.sum) return null;
     var any = false;
     var s = 0.0;
     for (final r in rows) {

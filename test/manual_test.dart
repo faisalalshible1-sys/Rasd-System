@@ -65,7 +65,7 @@ void main() {
   test('الفصول سليمة: الصناديق مغلقة، والقيم الحية معروفة، والإحالات لفصول موجودة', () {
     const known = {
       'APP_VERSION', 'MANUAL_UPDATED', 'FORMS_COUNT', 'FORMS_REQ', 'FORMS_TODO', 'FORMS_PCT10', 'FORMS_TABLE', 'LEVELS_TABLE', //
-      'RISK_MATRIX', 'CHAT_MAX_MB', 'CHAT_EDIT_MIN', 'REF_TABLE',
+      'RISK_MATRIX', 'CHAT_MAX_MB', 'CHAT_EDIT_MIN', 'REF_TABLE', 'SPI_AHEAD', 'SPI_OK', 'SPI_WARN',
     };
     final maxChapter = manualChapters.map((c) => c.number).reduce((a, b) => a > b ? a : b);
     for (final c in [...manualChapters.map((c) => c.asset), manualChangelogAsset]) {

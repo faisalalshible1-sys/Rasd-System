@@ -48,6 +48,8 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('25_print', 25, 'الطباعة والتصدير ومكتبة الوسائط'),
   ManualChapter('26_chat', 26, 'المراسلات الداخلية'),
   ManualChapter('27_security', 27, 'مركز الأمن السيبراني'),
+  ManualChapter('28_prices', 28, 'لائحة الأسعار الاسترشادية ومُعِدّ المقايسات'),
+  ManualChapter('29_schedule', 29, 'الجداول الزمنية للمشاريع والانحرافات'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -93,6 +95,7 @@ const Map<int, String> manualTabAnchors = {
   49: '15_pm_dashboard',
   50: '08_pm_map',
   51: '15_pm_dashboard',
+  52: '29_schedule',
   // تحليل SWOT
   30: '16_swot',
   31: '16_swot',
@@ -110,6 +113,8 @@ const Map<int, String> manualTabAnchors = {
   62: '17_docs',
   63: '17_docs',
   64: '17_docs',
+  65: '28_prices',
+  66: '28_prices',
   68: '23_admin',
   69: '23_admin',
   // الإشراف

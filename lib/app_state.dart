@@ -10,7 +10,9 @@ import 'config.dart';
 import 'docs.dart';
 import 'models.dart';
 import 'pm.dart';
+import 'prices.dart';
 import 'registers.dart';
+import 'schedule.dart';
 import 'services/doc_files.dart';
 import 'chat.dart';
 import 'print/model.dart';
@@ -108,6 +110,16 @@ class AppState extends ChangeNotifier {
 
   // الترحيل 25: مركز الأمن السيبراني الموسّع
   bool v13Ready = false;
+
+  // الترحيلات 27–29: لائحة الأسعار الاسترشادية والمقايسات المعدّة منها، وبنود الجدول الزمني لكل مشروع
+  List<PriceList> priceLists = [];
+  List<BoqSheet> boqSheets = [];
+  List<PmItem> pmItems = [];
+  bool v14Ready = false;
+  ScheduleAnalysis? _schedule;
+
+  /// آخر نتائج معروضة في صفحة لائحة الأسعار (مصدر تصديرها).
+  List<PriceItem> priceResults = [];
 
   /// محادثة مساعد Claude الحالية (تبقى أثناء التنقل بين الصفحات).
   final List<AssistantMessage> assistantMessages = [];
@@ -272,6 +284,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel8;
   RealtimeChannel? _channel9;
   RealtimeChannel? _channel11;
+  RealtimeChannel? _channel14;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -624,6 +637,7 @@ class AppState extends ChangeNotifier {
       await _loadV11();
       await _loadV12();
       await _loadV13();
+      await _loadV14();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -927,6 +941,147 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// لائحة الأسعار والمقايسات وبنود الجدول الزمني (الترحيلات 27–29)؛ يعمل التطبيق بدونها كما كان.
+  Future<void> _loadV14() async {
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('price_lists').select().order('year', ascending: false),
+        client.from('boq_sheets').select().order('updated_at', ascending: false),
+        client.from('pm_items').select().order('sort'),
+      ]);
+      priceLists = r[0].map(PriceList.fromMap).toList();
+      boqSheets = r[1].map(BoqSheet.fromMap).toList();
+      pmItems = r[2].map(PmItem.fromMap).toList();
+      v14Ready = true;
+    } catch (_) {
+      priceLists = [];
+      boqSheets = [];
+      pmItems = [];
+      v14Ready = false;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // لائحة الأسعار والمقايسات (الترحيلان 27 و28)
+  // ---------------------------------------------------------------
+  PriceList? get activePriceList {
+    for (final l in priceLists) {
+      if (l.active) return l;
+    }
+    return priceLists.firstOrNull;
+  }
+
+  PriceList? priceList(String id) {
+    for (final l in priceLists) {
+      if (l.id == id) return l;
+    }
+    return null;
+  }
+
+  static const _priceCols = 'list_id, seq, chapter, code, parent_seq, kind, description, unit, unit_inferred, price, section, grp, full_desc';
+
+  /// بحث برقم البند (البند وما تحته) أو بكلمات من الوصف.
+  Future<List<PriceItem>> searchPrices(String listId, String q, {String? chapter, int limit = 80}) async {
+    final r = await client.rpc('price_search', params: {'p_list': listId, 'p_q': q, 'p_chapter': chapter, 'p_limit': limit});
+    return [for (final m in (r as List? ?? const [])) PriceItem.fromMap(Map<String, dynamic>.from(m as Map))];
+  }
+
+  /// صفوف تحت عنوان (أو عناوين الفصل الأولى إن كان [parentSeq] فارغاً).
+  Future<List<PriceItem>> browsePrices(String listId, String chapter, int? parentSeq) async {
+    var q = client.from('price_items').select(_priceCols).eq('list_id', listId).eq('chapter', chapter);
+    q = parentSeq == null ? q.isFilter('parent_seq', null) : q.eq('parent_seq', parentSeq);
+    final r = await q.order('seq').limit(1000);
+    return r.map(PriceItem.fromMap).toList();
+  }
+
+  Future<PriceItem?> priceItem(String listId, int seq) async {
+    final r = await client.from('price_items').select(_priceCols).eq('list_id', listId).eq('seq', seq).maybeSingle();
+    return r == null ? null : PriceItem.fromMap(r);
+  }
+
+  /// من يعدّ المقايسات (كصلاحية مقايسات الشؤون الفنية).
+  bool canEditBoq(String? projectId) => v14Ready && canEditDoc('boq', projectId);
+
+  /// حذف المقايسة: المدير، أو من أعدّها ما دامت له الصلاحية.
+  bool canDeleteBoq(BoqSheet s) => v14Ready && (isDirector || (s.createdBy == me?.id && canEditBoq(s.projectId)));
+
+  BoqSheet? boqSheet(String id) {
+    for (final s in boqSheets) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  Future<String> saveBoq(String? id, Map<String, dynamic> data) async {
+    final r = await client.rpc('save_boq', params: {'p_id': id, 'p_data': data});
+    await _loadV14();
+    _notify();
+    return r.toString();
+  }
+
+  Future<void> deleteBoq(String id) async {
+    await client.rpc('delete_boq', params: {'p_id': id});
+    await _loadV14();
+    _notify();
+  }
+
+  // ---------------------------------------------------------------
+  // بنود الجدول الزمني (الترحيل 29)
+  // ---------------------------------------------------------------
+  ScheduleAnalysis get schedule => _schedule ??= ScheduleAnalysis(projects: projects, items: pmItems, cfg: pmConfig);
+
+  List<PmItem> itemsOf(String projectId) =>
+      pmItems.where((i) => i.projectId == projectId).toList()..sort((a, b) => a.sort.compareTo(b.sort));
+
+  /// بيانات البند: من يحدّث البرنامج الزمني. الإنجاز والتواريخ الفعلية: أيضاً من يحدّث سجل التقدم.
+  bool canEditItems(Project p) => v14Ready && canEditSchedule(p);
+  bool canUpdateItemProgress(Project p) => v14Ready && (canEditSchedule(p) || canEditPm);
+
+  Future<void> _afterV14() async {
+    await _loadV14();
+    _notify();
+  }
+
+  Future<void> savePmItem(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_pm_item', params: {'p_id': id, 'p_data': data});
+    await _afterV14();
+  }
+
+  Future<void> deletePmItem(String id) async {
+    await client.rpc('delete_pm_item', params: {'p_id': id});
+    await _afterV14();
+  }
+
+  Future<void> reorderPmItems(String projectId, List<String> ids) async {
+    await client.rpc('reorder_pm_items', params: {'p_project': projectId, 'p_ids': ids});
+    await _afterV14();
+  }
+
+  Future<int> pmItemsFromWorks(String projectId) async {
+    final n = await client.rpc('pm_items_from_works', params: {'p_project': projectId});
+    await _afterV14();
+    return (n as num?)?.toInt() ?? 0;
+  }
+
+  /// يسجّل النسبتين الكليتين المحسوبتين من البنود قياساً في «التقدم الدوري» بتاريخ الإسناد
+  /// (ويحدّث قياس اليوم نفسه إن وُجد).
+  Future<void> recordScheduleMeasurement(ScheduleTrack t) async {
+    final day = t.ref;
+    PmProgress? same;
+    for (final m in measurements) {
+      if (m.projectId == t.project.id && daysBetween(m.measuredOn, day) == 0) same = m;
+    }
+    await saveProgress(same?.id, {
+      'project_id': t.project.id,
+      'measured_on': pmIso(day),
+      'planned': ((t.planned ?? 0) / 100 * 10000).round() / 10000,
+      'actual': ((t.actual ?? 0) / 100 * 10000).round() / 10000,
+      'works': same?.works.isNotEmpty == true ? same!.works : 'محسوبة من بنود الجدول الزمني (${t.items.length} بنداً)',
+      'obstacles': same?.obstacles ?? '',
+      'prepared_by': same?.preparedBy ?? '',
+    });
+  }
+
   RefScheme? refScheme(String key) {
     for (final s in refSchemes) {
       if (s.key == key) return s;
@@ -1183,6 +1338,16 @@ class AppState extends ChangeNotifier {
     }
     ch11.subscribe();
     _channel11 = ch11;
+
+    // قناة الترحيلات 27–29: المقايسات وبنود الجدول الزمني
+    final old14 = _channel14;
+    if (old14 != null) client.removeChannel(old14);
+    final ch14 = client.channel('dc-v14');
+    for (final t in const ['boq_sheets', 'pm_items']) {
+      ch14.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+    }
+    ch14.subscribe();
+    _channel14 = ch14;
   }
 
   void scheduleReload() {
@@ -1238,6 +1403,14 @@ class AppState extends ChangeNotifier {
     chat.stop();
     v12Ready = false;
     v13Ready = false;
+    priceLists = [];
+    boqSheets = [];
+    pmItems = [];
+    priceResults = [];
+    v14Ready = false;
+    final old14 = _channel14;
+    if (old14 != null) client.removeChannel(old14);
+    _channel14 = null;
     signedUrls.clear();
     _clearV7();
     risks = [];
@@ -1297,6 +1470,7 @@ class AppState extends ChangeNotifier {
 
   void _notify() {
     _pm = null;
+    _schedule = null;
     if (!_disposed) notifyListeners();
   }
 
@@ -1330,6 +1504,8 @@ class AppState extends ChangeNotifier {
     if (old9 != null) client.removeChannel(old9);
     final old11 = _channel11;
     if (old11 != null) client.removeChannel(old11);
+    final old14 = _channel14;
+    if (old14 != null) client.removeChannel(old14);
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();

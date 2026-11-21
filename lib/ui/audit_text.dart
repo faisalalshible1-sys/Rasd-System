@@ -216,6 +216,22 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'صحّح قياس التقدم بتاريخ ${text(d['measured_on']).replaceAll('-', '/')}${_changed(d['changes'])}';
     case 'pm.progress_delete':
       return 'حذف قياس التقدم بتاريخ ${text(d['measured_on']).replaceAll('-', '/')}';
+    case 'pm.item_add':
+      return 'أضاف البند «${text(d['title'])}» للجدول الزمني: ${text(d['planned_start']).replaceAll('-', '/')} إلى ${text(d['planned_end']).replaceAll('-', '/')}';
+    case 'pm.item_update':
+      return 'حدّث بند الجدول الزمني «${text(d['title'])}»${_changed(d['changes'])}';
+    case 'pm.item_delete':
+      return 'حذف بند الجدول الزمني «${text(d['title'])}» (الإنجاز ${text(d['progress'])}%)';
+    case 'pm.items_from_works':
+      return 'أنشأ ${text(d['items'])} من بنود الجدول الزمني من أعمال العقد';
+    case 'pm.items_reorder':
+      return 'رتّب بنود الجدول الزمني (${text(d['items'])})';
+    case 'boq.create':
+      return 'أعدّ المقايسة «${text(d['title'])}» من لائحة الأسعار: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
+    case 'boq.update':
+      return 'عدّل المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
+    case 'boq.delete':
+      return 'حذف المقايسة «${text(d['title'])}» (${text(d['lines'])} بنداً)';
     case 'pm.issue_create':
       return 'سجّل المشكلة ${text(d['code'])}: ${text(d['description'])}';
     case 'pm.delay_create':
@@ -482,6 +498,16 @@ const Map<String, String> _registerFields = {
   'data': 'البيانات التفصيلية',
   'parent_id': 'السجل المرتبط',
   'closed_at': 'تاريخ الإغلاق',
+  'planned_start': 'البداية المخططة',
+  'planned_end': 'النهاية المخططة',
+  'weight': 'الوزن',
+  'actual_start': 'البداية الفعلية',
+  'actual_end': 'النهاية الفعلية',
+  'sort': 'الترتيب',
+  'show_prices': 'إظهار الأسعار',
+  'list_id': 'لائحة الأسعار',
+  'line_count': 'عدد البنود',
+  'total': 'الإجمالي',
 };
 
 String _changed(Object? changes) {

@@ -33,9 +33,10 @@ class ExportButton extends StatelessWidget {
 }
 
 /// يفتح نافذة التصدير. [onDesign] يفتح مصمم الصفحة على السجل نفسه (من قسم الطباعة).
-Future<void> showExportDialog(BuildContext context, {String? sourceId, List<Object>? items, String? projectId}) {
+/// [title]: عنوان المستند حين تُصدَّر عناصر الصفحة نفسها (مثل عنوان المقايسة)، بدل اسم السجل.
+Future<void> showExportDialog(BuildContext context, {String? sourceId, List<Object>? items, String? projectId, String? title}) {
   final narrow = MediaQuery.sizeOf(context).width < 720;
-  final dialog = _ExportDialog(sourceId: sourceId, items: items, projectId: projectId);
+  final dialog = _ExportDialog(sourceId: sourceId, items: items, projectId: projectId, title: title);
   if (narrow) {
     return Navigator.of(context).push(MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => dialog));
   }
@@ -49,11 +50,12 @@ Future<void> showExportDialog(BuildContext context, {String? sourceId, List<Obje
 }
 
 class _ExportDialog extends StatefulWidget {
-  const _ExportDialog({this.sourceId, this.items, this.projectId});
+  const _ExportDialog({this.sourceId, this.items, this.projectId, this.title});
 
   final String? sourceId;
   final List<Object>? items;
   final String? projectId;
+  final String? title;
 
   @override
   State<_ExportDialog> createState() => _ExportDialogState();
@@ -111,7 +113,8 @@ class _ExportDialogState extends State<_ExportDialog> {
     if (s == null) return null;
     if (_edited != null && _editedSig == _sig) return _edited;
     final items = widget.items != null && _onlyShown && s.id == widget.sourceId ? widget.items : null;
-    final t = s.build(app, ExportQuery(projectId: _project, from: _from, to: _to, items: items, search: _search.text));
+    var t = s.build(app, ExportQuery(projectId: _project, from: _from, to: _to, items: items, search: _search.text));
+    if (items != null && widget.title != null && widget.title!.trim().isNotEmpty) t = t.copyWith(title: widget.title);
     return t.select(_cols);
   }
 
