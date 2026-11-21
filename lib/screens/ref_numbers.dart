@@ -169,9 +169,9 @@ class _RefNumbersPageState extends State<RefNumbersPage> {
         ],
       ),
       ResponsiveGrid(minItemWidth: 200, children: [
-        StatCard(label: 'صيغة مفعّلة', value: '${app.refSchemes.where((s) => s.active).length}', icon: Icons.tune_rounded),
-        StatCard(label: 'رقماً في السجل', value: '${_log?.length ?? 0}', icon: Icons.format_list_numbered_rounded),
-        StatCard(label: 'صدر اليوم', value: '$issuedToday', icon: Icons.today_outlined),
+        StatCard(label: 'الصيغ المفعّلة', value: '${app.refSchemes.where((s) => s.active).length}', icon: Icons.tune_rounded),
+        StatCard(label: 'أرقام السجل', value: '${_log?.length ?? 0}', icon: Icons.format_list_numbered_rounded),
+        StatCard(label: 'الصادرة اليوم', value: '$issuedToday', icon: Icons.today_outlined),
       ]),
       const SizedBox(height: 12),
       SegmentedButton<int>(

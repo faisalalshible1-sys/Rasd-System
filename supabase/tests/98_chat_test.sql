@@ -185,7 +185,7 @@ select pg_temp.as_user('auditor@test.ly', 'aal2');
 select pg_temp.check((select count(*) = 0 from chat_messages where room_id = (select v from ids where k = 'dm')), 'مسؤول الأمن لا يقرأ نص المحادثات');
 select pg_temp.expect_error($$select public.chat_set_lock((select v from ids where k = 'dm'), true, '')$$, 'القفل بلا سبب');
 select public.chat_set_lock((select v from ids where k = 'dm'), true, 'تحقيق في تسريب');
-select pg_temp.check((select count(*) = 1 from pg_temp.alog() where action = 'chat.lock' and detail ->> 'title' like '%↔%'), 'القفل مسجّل باسمي الطرفين');
+select pg_temp.check((select count(*) = 1 from pg_temp.alog() where action = 'chat.lock' and detail ->> 'title' like '% — %'), 'القفل مسجّل باسمي الطرفين');
 select pg_temp.check((public.sec_chat_overview(30) -> 'totals' ->> 'messages')::int >= 6
                      and (public.sec_chat_overview(30) -> 'totals' ->> 'bytes')::bigint = 5242880
                      and (public.sec_chat_overview(30) -> 'totals' ->> 'locked')::int = 1,

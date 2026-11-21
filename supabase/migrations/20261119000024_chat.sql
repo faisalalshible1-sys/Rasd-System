@@ -718,7 +718,7 @@ returns text
 language sql stable security definer set search_path = public
 as $$
   select case when r.kind = 'dm'
-              then coalesce((select string_agg(public.actor_name(m.user_id), ' ↔ ' order by m.joined_at, m.user_id)
+              then coalesce((select string_agg(public.actor_name(m.user_id), ' — ' order by m.joined_at, m.user_id)
                                from public.chat_members m where m.room_id = r.id and m.explicit), 'محادثة خاصة')
               else r.title end
     from public.chat_rooms r where r.id = p_room

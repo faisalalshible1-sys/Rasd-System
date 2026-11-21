@@ -1331,7 +1331,7 @@ void _rasd(AppState app) {
   final grp = [
     m(1, 'r-grp', 'u-dir', 'أنشأ م. فيصل الشبلي المجموعة', kind: 'system', ago: 2900),
     m(2, 'r-grp', 'u-dir', 'صباح الخير. نحتاج تقرير الوضع الحالي لعقد 990 قبل اجتماع الأحد 9:00 صباحاً.', ago: 1500),
-    m(3, 'r-grp', 'u-3', 'تم. نسبة الإنجاز الفعلية 47.5% مقابل 52% مخطط، والانحراف −4.5 نقطة بسبب تأخر توريد الحديد.', ago: 1490, edited: true),
+    m(3, 'r-grp', 'u-3', 'تم. نسبة الإنجاز الفعلية 47.5% مقابل 52% مخطط، والانحراف -4.5 نقطة بسبب تأخر توريد الحديد.', ago: 1490, edited: true),
     m(4, 'r-grp', 'u-3', 'جولة الموقع اليوم', kind: 'file', file: 'جولة الموقع 990.mp4', mime: 'video/mp4', size: 23500000, ago: 1480),
     m(5, 'r-grp', 'u-2', '', kind: 'link', ref: {'type': 'project', 'id': 'p-003', 'label': 'عقد ع-2026/13 — صيانة مدرسة', 'sub': 'شركة البناء الحديث'}, ago: 300),
     m(6, 'r-grp', 'u-dir', 'ممتاز. أرسلوا محضر الاجتماع بعد الانتهاء.', reply: 3, ago: 120),
@@ -1470,7 +1470,7 @@ void _rasd(AppState app) {
       'totals': {'rooms': 23, 'dm': 15, 'groups': 6, 'channels': 2, 'locked': 1, 'messages': 1263, 'files': 96, 'bytes': 412000000, 'deleted': 7, 'edited': 22, 'senders': 13, 'off_hours': 58},
       'rooms': [
         {'id': 'r-grp', 'kind': 'group', 'title': 'فريق عقد 990 – الإشراف', 'locked': false, 'members': 4, 'messages': 312, 'files': 28, 'bytes': 186000000, 'last_at': ago(3)},
-        {'id': 'r-dm1', 'kind': 'dm', 'title': 'م. فيصل الشبلي ↔ سالم المبروك', 'locked': false, 'members': 2, 'messages': 88, 'files': 3, 'bytes': 2400000, 'last_at': ago(60)},
+        {'id': 'r-dm1', 'kind': 'dm', 'title': 'م. فيصل الشبلي — سالم المبروك', 'locked': false, 'members': 2, 'messages': 88, 'files': 3, 'bytes': 2400000, 'last_at': ago(60)},
         {'id': 'r-locked', 'kind': 'group', 'title': 'تصدير بيانات العقود', 'locked': true, 'lock_reason': 'مراجعة أمنية لتصدير بيانات', 'members': 3, 'messages': 14, 'files': 6, 'bytes': 9800000, 'last_at': ago(800)},
       ],
       'senders': [
@@ -1480,7 +1480,7 @@ void _rasd(AppState app) {
       ],
       'pairs': [
         {'from': 'أحمد الفيتوري', 'to': 'فريق عقد 990 – الإشراف', 'kind': 'group', 'messages': 160, 'last_at': ago(3)},
-        {'from': 'سالم المبروك', 'to': 'م. فيصل الشبلي ↔ سالم المبروك', 'kind': 'dm', 'messages': 44, 'last_at': ago(60)},
+        {'from': 'سالم المبروك', 'to': 'م. فيصل الشبلي — سالم المبروك', 'kind': 'dm', 'messages': 44, 'last_at': ago(60)},
       ],
       'daily': [for (var i = 0; i < days.length; i++) {'day': d0(days[i]), 'messages': 20 + (i * 13) % 50}],
       'types': [

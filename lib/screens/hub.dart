@@ -287,17 +287,17 @@ class _SectionCard extends StatelessWidget {
         if (!app.v12Ready) return const [];
         final c = app.chat;
         return [
-          ('${c.unreadTotal}', 'رسالة غير مقروءة', c.unreadTotal > 0 ? Theme.of(context).colorScheme.primary : null),
-          ('${c.rooms.where((r) => r.isGroup || r.isChannel).length}', 'مجموعة وقناة', null),
-          ('${c.rooms.where((r) => r.isDm).length}', 'محادثة خاصة', null),
+          ('${c.unreadTotal}', 'رسائل غير مقروءة', c.unreadTotal > 0 ? Theme.of(context).colorScheme.primary : null),
+          ('${c.rooms.where((r) => r.isGroup || r.isChannel).length}', 'مجموعات وقنوات', null),
+          ('${c.rooms.where((r) => r.isDm).length}', 'محادثات خاصة', null),
         ];
       case 'security':
         if (!app.v13Ready) return const [];
         final locked = app.people.values.where((p) => p.locked).length;
         return [
           (app.settings.frozen ? 'مجمّدة' : 'تعمل', 'حالة المنظومة', app.settings.frozen ? sem.danger : sem.ok),
-          ('${app.people.values.where((p) => p.active && p.role != null).length}', 'حساباً مفعّلاً', null),
-          ('$locked', 'حساباً مقفلاً', locked > 0 ? sem.wip : null),
+          ('${app.people.values.where((p) => p.active && p.role != null).length}', 'حسابات مفعّلة', null),
+          ('$locked', 'حسابات مقفلة', locked > 0 ? sem.wip : null),
         ];
       case 'print':
         final media = app.v8Ready ? app.docs.files.where((f) => f.isImage || f.isVideo).length : 0;

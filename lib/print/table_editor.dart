@@ -142,7 +142,9 @@ class _TableEditorState extends State<_TableEditor> {
           child: child,
         );
 
-    final header = Row(children: [
+    final header = Container(
+        color: cs.primaryContainer,
+        child: Row(children: [
       const SizedBox(width: 90),
       for (var j = 0; j < cols.length; j++)
         cellBox(
@@ -163,7 +165,7 @@ class _TableEditorState extends State<_TableEditor> {
           ),
           color: cs.primaryContainer,
         ),
-    ]);
+    ]));
 
     final body = ReorderableListView.builder(
       buildDefaultDragHandles: false,
