@@ -1042,6 +1042,7 @@ const Map<String, String> auditActionLabels = {
   'user.update': 'عدّل صلاحيات مستخدم',
   'user.claim_director': 'تولّى إدارة المنظومة',
   'user.email': 'غيّر بريد الدخول',
+  'user.rename': 'غيّر اسمه في المنظومة',
   'form_def.update': 'عدّل صلاحيات نموذج',
   'system.import': 'استيراد أولي للمشاريع',
   'project.field': 'عدّل حقلاً إضافياً',

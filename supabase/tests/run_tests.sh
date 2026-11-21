@@ -80,3 +80,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql"
 $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261119000025_security_center.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/99_security_center_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# الكتابة عبر الدوال المدققة فقط: العقود وملاحظات الجودة وصلاحيات النماذج والاسم والإشعارات (الترحيل 26)
+$P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql"
+$P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000026_audited_writes.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/100_audited_writes_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

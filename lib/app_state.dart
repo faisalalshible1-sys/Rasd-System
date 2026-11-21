@@ -2409,24 +2409,39 @@ class AppState extends ChangeNotifier {
     };
   }
 
-  Future<String> saveProject({String? id, required Map<String, dynamic> data}) async {
-    if (id == null) {
-      final row = await client.from('projects').insert(data).select('id').single();
-      await loadAll();
-      return row['id'].toString();
+  /// الكتابة عبر دالة قاعدة البيانات المدققة (الترحيل 26)، وعلى قاعدة لم تُحدَّث بعد تبقى الكتابة القديمة.
+  Future<T> _audited<T>(Future<T> Function() rpc, Future<T> Function() legacy) async {
+    try {
+      return await rpc();
+    } on PostgrestException catch (e) {
+      final missing = e.code == 'PGRST202' || e.message.contains('Could not find the function');
+      if (!missing) rethrow;
+      return legacy();
     }
-    await client.from('projects').update(data).eq('id', id);
+  }
+
+  Future<String> saveProject({String? id, required Map<String, dynamic> data}) async {
+    final saved = await _audited<String>(
+      () async => (await client.rpc('save_project', params: {'p_id': id, 'p_data': data})).toString(),
+      () async {
+        if (id == null) return (await client.from('projects').insert(data).select('id').single())['id'].toString();
+        await client.from('projects').update(data).eq('id', id);
+        return id;
+      },
+    );
     await loadAll();
-    return id;
+    return saved;
   }
 
   Future<void> updateNotes(String projectId, String notes) async {
-    await client.from('projects').update({'notes': notes}).eq('id', projectId);
-    await loadAll();
+    await saveProject(id: projectId, data: {'notes': notes});
   }
 
   Future<void> deleteProject(String projectId) async {
-    await client.from('projects').delete().eq('id', projectId);
+    await _audited<void>(
+      () => client.rpc('delete_project', params: {'p_id': projectId}),
+      () => client.from('projects').delete().eq('id', projectId),
+    );
     await loadAll();
   }
 
@@ -2436,7 +2451,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addQualityNote(String projectId, String body) async {
-    await client.from('quality_notes').insert({'project_id': projectId, 'body': body});
+    await _audited<void>(
+      () => client.rpc('add_quality_note', params: {'p_project': projectId, 'p_body': body}),
+      () => client.from('quality_notes').insert({'project_id': projectId, 'body': body}),
+    );
   }
 
   Future<List<AuditEntry>> loadProjectAudit(String projectId) async {
@@ -2471,14 +2489,20 @@ class AppState extends ChangeNotifier {
     if (sensitive != null) data['sensitive'] = sensitive;
     if (responsible != null) data['responsible'] = responsible;
     if (data.isEmpty) return;
-    await client.from('form_defs').update(data).eq('key', key);
+    await _audited<void>(
+      () => client.rpc('set_form_rights', params: {'p_key': key, 'p_sensitive': sensitive, 'p_responsible': responsible}),
+      () => client.from('form_defs').update(data).eq('key', key),
+    );
     await loadAll();
   }
 
   Future<void> updateMyName(String name) async {
     final uid = me?.id;
     if (uid == null) return;
-    await client.from('profiles').update({'full_name': name}).eq('id', uid);
+    await _audited<void>(
+      () => client.rpc('set_my_name', params: {'p_name': name}),
+      () => client.from('profiles').update({'full_name': name}).eq('id', uid),
+    );
     await loadAll();
   }
 
@@ -2749,7 +2773,10 @@ class AppState extends ChangeNotifier {
   Future<void> markNotificationsRead() async {
     final uid = me?.id;
     if (uid == null || unreadCount == 0) return;
-    await client.from('notifications').update({'read_at': DateTime.now().toUtc().toIso8601String()}).eq('user_id', uid);
+    await _audited<void>(
+      () => client.rpc('mark_notifications_read'),
+      () => client.from('notifications').update({'read_at': DateTime.now().toUtc().toIso8601String()}).eq('user_id', uid),
+    );
     await loadAll();
   }
 }
