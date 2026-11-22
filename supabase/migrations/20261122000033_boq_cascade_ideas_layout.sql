@@ -159,7 +159,7 @@ create index if not exists ideas_section_idx on public.ideas (section, status);
 -- أقسام المنظومة كما في التطبيق (lib/screens/hub.dart)
 create or replace function public.app_section_ok(p_key text)
 returns boolean
-language sql immutable
+language sql immutable set search_path = public
 as $$
   select p_key in ('cycle', 'risks', 'swot', 'docs', 'supervision', 'heritage', 'planning_qa', 'safety', 'acceptance',
                    'chat', 'security', 'print', 'manual')
