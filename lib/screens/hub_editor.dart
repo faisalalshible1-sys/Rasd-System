@@ -443,11 +443,7 @@ class EditableHubTile extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 2, 4, 6),
               child: Row(children: [
-                if (hidden)
-                  Flexible(child: ToneBadge('مخفي عن الموظفين', color: sem.danger, icon: Icons.visibility_off_outlined))
-                else
-                  const Spacer(),
-                if (hidden) const Spacer(),
+                const Spacer(),
                 if (canHide) ...[
                   round(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined, hidden ? 'مخفي عن الموظفين' : 'ظاهر للجميع',
                       onToggleHidden,
@@ -468,6 +464,11 @@ class EditableHubTile extends StatelessWidget {
                 ),
               ),
             ]),
+            if (hidden)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 2),
+                child: Center(child: ToneBadge('مخفي عن الموظفين', color: sem.danger, icon: Icons.visibility_off_outlined)),
+              ),
           ]),
         );
     return DragTarget<String>(
