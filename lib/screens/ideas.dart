@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../ui/layout_catalog.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'home_shell.dart' show Tabs, layoutPagesFor;
@@ -22,9 +23,10 @@ String _pageName(AppState app, int id, String fallback) {
   return custom.isNotEmpty ? custom : fallback;
 }
 
-/// صفحات قسم للاختيار في نافذة الفكرة: (الرقم، الاسم).
-List<(int, String)> _pagesOf(AppState app, String section) => [
-      for (final p in layoutPagesFor(app, section, app.layout.movedPages)) (p.id, _pageName(app, p.id, p.label)),
+/// صفحات قسم كما تظهر في قائمته الآن: (الرقم، الاسم، الأيقونة).
+List<(int, String, IconData)> _pagesOf(AppState app, String section) => [
+      for (final p in layoutPagesFor(app, section, app.layout.movedPages))
+        (p.id, _pageName(app, p.id, p.label), layoutIcons[app.layout.pages[p.id]?.icon ?? ''] ?? p.icon),
     ];
 
 /// نافذة فكرة جديدة مربوطة بقسم وصفحة (تُفتح من زر «فكرة» في كل صفحة، أو من صفحة الأفكار).
@@ -174,7 +176,7 @@ class _IdeasPageState extends State<IdeasPage> {
                 onPressed: () {
                   final s = sec == null || sec.isEmpty ? null : sec;
                   final p = s == null || _page == null || _page! < 0 ? null : _page;
-                  final label = p == null ? '' : _pagesOf(app, s!).firstWhere((x) => x.$1 == p, orElse: () => (p, '')).$2;
+                  final label = p == null ? '' : _pagesOf(app, s!).firstWhere((x) => x.$1 == p, orElse: () => (p, '', Icons.web_asset_rounded)).$2;
                   showIdeaComposer(context, section: s, pageId: p, pageLabel: label);
                 },
                 icon: const Icon(Icons.add),
@@ -316,7 +318,7 @@ class _IdeasPageState extends State<IdeasPage> {
   }
 }
 
-/// مكان الفكرة: القسم › الصفحة، ويفتحها عند الضغط.
+/// مكان الفكرة: القسم · الصفحة، ويفتحها عند الضغط.
 class _IdeaPlace extends StatelessWidget {
   const _IdeaPlace({required this.app, required this.idea, required this.onTap});
 
@@ -342,7 +344,7 @@ class _IdeaPlace extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(sectionIcon(s, app), size: 13, color: color),
             const SizedBox(width: 4),
-            Text(page.isEmpty ? sectionTitle(app, s) : '${sectionTitle(app, s)} › $page',
+            Text(page.isEmpty ? sectionTitle(app, s) : '${sectionTitle(app, s)} · $page',
                 style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.5)),
           ]),
         ),
@@ -496,10 +498,10 @@ class _IdeasMap extends StatelessWidget {
           selected: page == -1,
           onTap: () => onPage(page == -1 ? null : -1),
         ),
-        for (final p in [...pages, ...extra.entries.map((e) => (e.key, e.value))])
+        for (final p in [...pages, ...extra.entries.map((e) => (e.key, e.value, Icons.web_asset_rounded))])
           tile(
             label: p.$2,
-            icon: Icons.web_asset_rounded,
+            icon: p.$3,
             color: color,
             open: inSec.where((i) => i.pageId == p.$1 && i.isOpen).length,
             total: inSec.where((i) => i.pageId == p.$1).length,
@@ -539,7 +541,7 @@ class _PlacePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final sections = hubSections(app);
     final s = section;
-    final pages = s == null ? const <(int, String)>[] : _pagesOf(app, s);
+    final pages = s == null ? const <(int, String)>[] : [for (final p in _pagesOf(app, s)) (p.$1, p.$2)];
     final x = extraPage;
     final all = [...pages, if (x != null && !pages.any((p) => p.$1 == x.$1)) x];
     String labelOf(int id) => all.firstWhere((p) => p.$1 == id, orElse: () => (id, '')).$2;
@@ -617,7 +619,7 @@ class _IdeaDialogState extends State<_IdeaDialog> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'من: ${sectionTitle(app, widget.section!)}${widget.pageLabel.isEmpty ? '' : ' › ${widget.pageLabel}'}',
+                        'من: ${sectionTitle(app, widget.section!)}${widget.pageLabel.isEmpty ? '' : ' · ${widget.pageLabel}'}',
                         style: TextStyle(color: sem.muted, fontSize: 12.5),
                       ),
                     ),

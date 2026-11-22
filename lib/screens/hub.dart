@@ -411,17 +411,20 @@ class _SectionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(color: color.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(15)),
-                        child: Icon(section.$4, color: color, size: 28),
-                      ),
+                      // شارة الأفكار على زاوية الأيقونة حتى لا تضيّق اسم القسم
+                      Stack(clipBehavior: Clip.none, children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(color: color.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(15)),
+                          child: Icon(section.$4, color: color, size: 28),
+                        ),
+                        if (showIdeas) PositionedDirectional(top: -6, end: -8, child: _IdeasChip(app: app, sectionKey: section.$1, compact: true)),
+                      ]),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Text(section.$2, style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
                       ),
-                      if (showIdeas) ...[_IdeasChip(app: app, sectionKey: section.$1), const SizedBox(width: 4)],
                       Icon(Icons.chevron_left_rounded, color: enabled ? color : sem.muted),
                     ]),
                     const SizedBox(height: 12),

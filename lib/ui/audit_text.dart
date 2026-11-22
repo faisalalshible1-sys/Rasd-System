@@ -86,12 +86,12 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'config.field':
       return 'عرّف حقلاً إضافياً «${e.projectLabel}»';
     case 'idea.create':
-      final where = [_sectionName(d['section']), text(d['page'])].where((x) => x.isNotEmpty).join(' › ');
+      final where = [_sectionName(d['section']), text(d['page'])].where((x) => x.isNotEmpty).join(' · ');
       return 'أرسل فكرة: ${e.projectLabel}${where.isEmpty ? '' : ' ($where)'}';
     case 'idea.move':
       String place(Object? v) {
         if (v is! Map) return 'عامة';
-        final w = [_sectionName(v['section']), text(v['page'])].where((x) => x.isNotEmpty).join(' › ');
+        final w = [_sectionName(v['section']), text(v['page'])].where((x) => x.isNotEmpty).join(' · ');
         return w.isEmpty ? 'عامة' : w;
       }
       return 'نقل الفكرة «${e.projectLabel}» من ${place(d['from'])} إلى ${place(d['to'])}';

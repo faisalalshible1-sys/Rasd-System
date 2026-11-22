@@ -475,7 +475,7 @@ List<ExportSource> _all(AppState app) => [
                       ? a.layout.sections[x.section]!.name.trim()
                       : (sectionDefaultNames[x.section] ?? ''),
                   if (x.pageLabel.isNotEmpty) x.pageLabel,
-                ].join(' › '),
+                ].join(' · '),
           _who(a, x.createdBy),
           x.body,
           x.response,

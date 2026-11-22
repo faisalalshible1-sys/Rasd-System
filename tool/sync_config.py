@@ -102,7 +102,7 @@ for idea in ideas:
     if not num and status not in ("done", "rejected"):
         body = (idea.get("body") or "").strip()
         sec = SECTIONS.get(idea.get("section") or "", "")
-        place = (sec + (f" › {idea['page_label']}" if idea.get("page_label") else "")) if sec else "عامة للمنظومة"
+        place = (sec + (f" · {idea['page_label']}" if idea.get("page_label") else "")) if sec else "عامة للمنظومة"
         text = (body + "\n\n---\n" if body else "") + \
             f"- المكان: {place}\n" \
             f"- النوع: {CATEGORY.get(idea.get('category'), idea.get('category'))}\n" \

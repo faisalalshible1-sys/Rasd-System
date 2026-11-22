@@ -430,24 +430,24 @@ class EditableHubTile extends StatelessWidget {
         ),
       ),
     );
+    // شريط أدوات البطاقة فوقها (لا يغطي محتواها في أي نمط عرض)
     Widget tile(bool target) => AnimatedContainer(
           duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: target ? cs.primary : Colors.transparent, width: 2),
+            color: target ? cs.primaryContainer.withValues(alpha: 0.6) : sem.surface2.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: target ? cs.primary : sem.rule, width: target ? 2 : 1),
           ),
-          child: Stack(children: [
-            AnimatedOpacity(duration: const Duration(milliseconds: 200), opacity: hidden ? 0.42 : 1, child: IgnorePointer(child: child)),
-            Positioned.fill(
-              child: Material(
-                type: MaterialType.transparency,
-                child: InkWell(borderRadius: BorderRadius.circular(18), onTap: onEdit),
-              ),
-            ),
-            PositionedDirectional(
-              top: 8,
-              end: 8,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 2, 4, 6),
+              child: Row(children: [
+                if (hidden)
+                  Flexible(child: ToneBadge('مخفي عن الموظفين', color: sem.danger, icon: Icons.visibility_off_outlined))
+                else
+                  const Spacer(),
+                if (hidden) const Spacer(),
                 if (canHide) ...[
                   round(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined, hidden ? 'مخفي عن الموظفين' : 'ظاهر للجميع',
                       onToggleHidden,
@@ -459,12 +459,15 @@ class EditableHubTile extends StatelessWidget {
                 handle,
               ]),
             ),
-            if (hidden)
-              PositionedDirectional(
-                bottom: 10,
-                start: 12,
-                child: ToneBadge('مخفي عن الموظفين', color: sem.danger, icon: Icons.visibility_off_outlined),
+            Stack(children: [
+              AnimatedOpacity(duration: const Duration(milliseconds: 200), opacity: hidden ? 0.42 : 1, child: IgnorePointer(child: child)),
+              Positioned.fill(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(borderRadius: BorderRadius.circular(18), onTap: onEdit),
+                ),
               ),
+            ]),
           ]),
         );
     return DragTarget<String>(
