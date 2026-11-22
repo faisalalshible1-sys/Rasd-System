@@ -176,7 +176,7 @@ Future<Uint8List> buildPdf(ExportTable table, PrintConfig c, PrintContext ctx) a
             pw.Flexible(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: left)),
             if (c.qr) ...[
               pw.SizedBox(width: 6),
-              pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: verifyText(table, c, ctx), width: 34, height: 34, drawText: false),
+              pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: qrData(table, c, ctx), width: 34, height: 34, drawText: false),
             ],
           ]),
         ),

@@ -229,6 +229,8 @@ class Risk {
     this.costImpact,
     this.contingency = '',
     this.executor = '',
+    this.autoKey,
+    this.autoActive = false,
   });
 
   final String id;
@@ -263,6 +265,11 @@ class Risk {
   final String contingency; // الإجراء الاحتياطي عند وقوع الخطر
   final String executor; // منفذ الإجراء
 
+  /// خطر سجّلته متابعة البرنامج الزمني تلقائياً (الترحيل 31): pm_item:<البند> أو pm_plan:<العقد>، وهل سببه قائم.
+  final String? autoKey;
+  final bool autoActive;
+  bool get isAuto => autoKey != null;
+
   factory Risk.fromMap(Map<String, dynamic> m) => Risk(
         id: m['id'].toString(),
         code: _str(m['code']),
@@ -293,6 +300,8 @@ class Risk {
         costImpact: _num(m['cost_impact']),
         contingency: _str(m['contingency']),
         executor: _str(m['executor']),
+        autoKey: m['auto_key']?.toString(),
+        autoActive: m['auto_active'] == true,
       );
 
   int get score => probability * impact;
@@ -513,6 +522,8 @@ class SwotFactor {
     this.source = '',
     this.rating,
     this.sort = 0,
+    this.autoKey,
+    this.projectId,
   });
 
   final String id;
@@ -528,6 +539,11 @@ class SwotFactor {
   final int? rating;
   final int sort;
 
+  /// عامل ترجمته متابعة البرنامج الزمني لعقد (الترحيل 31).
+  final String? autoKey;
+  final String? projectId;
+  bool get isAuto => autoKey != null;
+
   factory SwotFactor.fromMap(Map<String, dynamic> m) => SwotFactor(
         id: m['id'].toString(),
         code: _str(m['code']),
@@ -541,6 +557,8 @@ class SwotFactor {
         source: _str(m['source']),
         rating: _int(m['rating']),
         sort: _int(m['sort']) ?? 0,
+        autoKey: m['auto_key']?.toString(),
+        projectId: m['project_id']?.toString(),
       );
 
   int get priority => importance * urgency;

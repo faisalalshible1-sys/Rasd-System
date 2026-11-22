@@ -24,6 +24,8 @@ dependencies:
   pdf: ^3.11.0
   archive: ^3.6.1
   web: ^1.0.0
+  # بصمة SHA-256 لنسخة PDF الأصلية المحفوظة لرمز QR (الترحيل 32)
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

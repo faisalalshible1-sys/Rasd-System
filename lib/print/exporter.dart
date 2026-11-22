@@ -65,7 +65,8 @@ Future<PrintContext> issuedPrintContext(AppState app, ExportTable table, PrintCo
 String exportFileName(ExportTable t, PrintConfig c, PrintContext ctx) => '${titleOf(t, c)} ${fmtDateBy(ctx.at, 'ymd').replaceAll('/', '-')}';
 
 /// يبني الملف ثم يحفظه ([print] = false) أو يفتحه للطباعة ([print] = true)، مع نافذة انتظار ورسالة بالنتيجة.
-Future<void> runExport(BuildContext context, ExportTable table, PrintConfig config, ExportFormat format, {bool print = false}) async {
+Future<void> runExport(BuildContext context, ExportTable table, PrintConfig config, ExportFormat format,
+    {bool print = false, String? projectId}) async {
   final app = AppScope.read(context);
   var ctx = printContextOf(app);
   final nav = Navigator.of(context, rootNavigator: true);
@@ -87,7 +88,27 @@ Future<void> runExport(BuildContext context, ExportTable table, PrintConfig conf
   var error = false;
   try {
     ctx = await issuedPrintContext(app, table, config);
-    final bytes = await renderExport(format, table, config, ctx);
+    // رمز QR يفتح النسخة الأصلية المحفوظة (الترحيل 32): رابط بالرمز قبل الإنشاء، ثم حفظ الملف كما هو وتسجيله
+    final store = format == ExportFormat.pdf && config.qr && app.v17Ready && app.role != null;
+    final token = store ? AppState.newExportToken() : null;
+    if (token != null) ctx = ctx.withVerify('${await app.webBaseUrl()}?f=$token');
+    var bytes = await renderExport(format, table, config, ctx);
+    var stored = false;
+    if (token != null) {
+      stored = await app.storeExportFile(
+        token: token,
+        bytes: bytes,
+        title: titleOf(table, config),
+        refNo: ctx.refText(config),
+        source: table.sourceId,
+        projectId: projectId,
+        confidential: config.confidential.trim().isNotEmpty,
+      );
+      if (!stored) {
+        ctx = ctx.withVerify(null);
+        bytes = await renderExport(format, table, config, ctx);
+      }
+    }
     final name = exportFileName(table, config, ctx);
     if (print) {
       final r = await openBytes(bytes, name, format.ext);
@@ -102,6 +123,11 @@ Future<void> runExport(BuildContext context, ExportTable table, PrintConfig conf
     } else {
       final path = await saveBytes(bytes, name, format.ext);
       message = path == null ? null : 'حُفظ ملف ${format.label}';
+    }
+    if (token != null && message != null) {
+      message = stored
+          ? '$message · رمز QR يفتح نسخته الأصلية المحفوظة لمن يحق له'
+          : '$message · تعذّر حفظ النسخة الأصلية، فرمز QR يحمل نص التحقق';
     }
     await app.logExport(
       kind: print ? 'print' : 'file',

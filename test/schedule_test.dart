@@ -1,3 +1,4 @@
+import 'package:dc_app/lifecycle.dart';
 import 'package:dc_app/models.dart';
 import 'package:dc_app/pm.dart';
 import 'package:dc_app/prices.dart';
@@ -105,5 +106,106 @@ void main() {
     expect(isPriceCode('7.2.2'), isTrue);
     expect(isPriceCode('٧.٢'), isTrue);
     expect(isPriceCode('خرسانة'), isFalse);
+  });
+
+  // ------------------------------------------------------------------ الفصل 29: البرنامج حيّ (أمثلة الدليل)
+  group('حساب تواريخ البرنامج من المراحل والمدد والتبعيات', () {
+    final start = DateTime(2026, 1, 1);
+    const ph = [
+      PmPhase(id: 'f1', projectId: 'p1', sort: 10, name: 'الأعمال التمهيدية'),
+      PmPhase(id: 'f2', projectId: 'p1', sort: 20, name: 'الأعمال الخرسانية'),
+      PmPhase(id: 'f3', projectId: 'p1', sort: 30, name: 'أعمال تكسيات الحوائط والأرضيات والوزرات'),
+      PmPhase(id: 'f4', projectId: 'p1', sort: 40, name: 'بنود أخرى'),
+    ];
+    PmItem b(String id, String phase, int sort, int days, {int offset = 0, String? dep}) => PmItem(
+        id: id, projectId: 'p1', title: id, plannedStart: start, plannedEnd: start, sort: sort, phaseId: phase, durationDays: days,
+        offsetDays: offset, dependsOn: dep);
+    final generated = [
+      b('i4', 'f1', 10, 13),
+      b('i19', 'f1', 20, 15),
+      b('i201', 'f2', 30, 72),
+      b('i376', 'f3', 40, 28),
+      b('free', 'f4', 50, 5),
+    ];
+
+    test('التوزيع المبدئي: 15 + 72 + 28 + 5 = 120 يوماً، والبنود متوازية داخل المرحلة', () {
+      final l = PlanLayout(start, ph, generated);
+      expect(l.totalDays, 120);
+      expect(l.dates['i4'], (DateTime(2026, 1, 1), DateTime(2026, 1, 14)));
+      expect(l.dates['i201'], (DateTime(2026, 1, 16), DateTime(2026, 3, 29)));
+      expect(l.dates['i376'], (DateTime(2026, 3, 29), DateTime(2026, 4, 26)));
+      expect(l.end, DateTime(2026, 5, 1));
+      expect(l.spans.map((s) => s.days).toList(), [15, 72, 28, 5]);
+    });
+
+    test('تعديل مدة وإزاحة وتبعية وفاصل يعيد حساب ما بعده: 125 ثم 128 ثم 138 ثم 136 يوماً', () {
+      var items = [for (final i in generated) i.id == 'i19' ? i.copyWith(durationDays: 20) : i];
+      expect(PlanLayout(start, ph, items).totalDays, 125);
+      items = [for (final i in items) i.id == 'i376' ? i.copyWith(offsetDays: 3) : i];
+      expect(PlanLayout(start, ph, items).totalDays, 128);
+      items = [...items, b('x', 'f2', 60, 10, dep: 'i201')];
+      final l = PlanLayout(start, ph, items);
+      expect(l.dates['x'], (DateTime(2026, 4, 3), DateTime(2026, 4, 13)));
+      expect(l.totalDays, 138);
+      final lagged = [for (final p in ph) p.id == 'f2' ? PmPhase(id: p.id, projectId: p.projectId, sort: p.sort, name: p.name, lagDays: -2) : p];
+      expect(PlanLayout(start, lagged, items).totalDays, 136);
+    });
+  });
+
+  // ------------------------------------------------------------------ الفصل 30: المثال المحلول للترجمة إلى المخاطر
+  test('العقد في 2026/02/19: الفعلي 38.4% والمخطط 43.8% وفارق 7 أيام، والبند المتجاوز 29 يوماً', () {
+    final c19 = PmConfig.fromJson({'ref_date': '2026-02-19'});
+    PmItem i(String id, DateTime s, DateTime e, double w, double pr, {bool na = false, DateTime? ae}) => PmItem(
+        id: id, projectId: 'p1', title: id, plannedStart: s, plannedEnd: e, weight: w, progress: pr, notApplicable: na, actualEnd: ae);
+    final t = ScheduleTrack(
+      project,
+      [
+        i('1.1.1.1', DateTime(2026, 1, 1), DateTime(2026, 1, 14), 6500, 100, ae: DateTime(2026, 1, 15)),
+        i('1.2.1.1', DateTime(2026, 1, 1), DateTime(2026, 1, 21), 9250, 0),
+        i('3.2.6.5', DateTime(2026, 1, 19), DateTime(2026, 3, 20), 75230, 55),
+        i('سياج', DateTime(2026, 3, 20), DateTime(2026, 3, 30), 1200, 0, na: true),
+        i('7.2.2.1', DateTime(2026, 4, 2), DateTime(2026, 4, 30), 28750, 0),
+        i('تنظيف', DateTime(2026, 4, 30), DateTime(2026, 5, 5), 5000, 0),
+      ],
+      DateTime(2026, 2, 19),
+      c19,
+      plan: PmPlan(id: 'pl', projectId: 'p1', status: 'approved', startDate: DateTime(2026, 1, 1)),
+    );
+    expect(t.allItems.length, 6);
+    expect(t.items.length, 5, reason: '«لا ينطبق» خارج الحساب');
+    expect(t.actual, closeTo(38.38, 0.01));
+    expect(t.planned, closeTo(43.79, 0.01));
+    expect(t.perf, 'slight');
+    expect(t.totalDays, 124);
+    expect(t.daysVariance, -7);
+    final over = t.calcOf('1.2.1.1')!;
+    expect(over.overdueDays, 29);
+    expect(over.behindDays, 29);
+    expect(t.shares[t.items.indexWhere((x) => x.id == '1.2.1.1')], closeTo(7.42, 0.01));
+    expect(over.projectedEnd, DateTime(2026, 3, 11));
+    final col = t.calcOf('3.2.6.5')!;
+    expect(col.status, 'ahead');
+    expect(col.projectedEnd, DateTime(2026, 3, 17));
+    expect(t.projectedEnd, DateTime(2026, 5, 5));
+    expect(t.forecastDelay, 0);
+  });
+
+  test('دورة حياة العقد: حالة المرحلة ونسبتها من نماذجها', () {
+    FormDef d(String k) => FormDef.fromMap({'key': k, 'name': k, 'stage': 1, 'sort': 1, 'active': true});
+    LifeForm f(String k, FormStatus s) => LifeForm(d(k), s, null);
+    expect(formsStatus([f('f25', FormStatus.done), f('f16', FormStatus.done)]), (FormStatus.done, 100.0));
+    expect(formsStatus([f('f25', FormStatus.done), f('f16', FormStatus.todo)]), (FormStatus.wip, 50.0));
+    expect(formsStatus([f('f25', FormStatus.todo), f('f16', FormStatus.na)]), (FormStatus.todo, 0.0));
+    expect(formsStatus([f('f25', FormStatus.na), f('f16', FormStatus.na)]).$1, FormStatus.na);
+    final life = lifecycleOf(
+      formDefs: [for (final k in ['f02', 'f08', 'f25', 'f16', 'f18']) d(k)],
+      statuses: {'f02': FormStatus.done, 'f08': FormStatus.done, 'f25': FormStatus.wip},
+    );
+    expect(life.map((p) => p.name).toList(), ['أمر العمل', 'التنفيذ', 'الاستلام الابتدائي', 'المستخلصات', 'الاستلام النهائي', 'إقفال العقد']);
+    expect(life[0].status, FormStatus.done);
+    expect(life[2].status, FormStatus.wip);
+    expect(life[3].status, FormStatus.na);
+    expect(life[5].status, FormStatus.todo);
+    expect(currentPhaseIndex(life), 2);
   });
 }

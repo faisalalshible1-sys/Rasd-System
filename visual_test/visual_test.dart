@@ -49,7 +49,9 @@ import 'package:dc_app/screens/pm_settings.dart';
 import 'package:dc_app/screens/prices.dart';
 import 'package:dc_app/screens/print_center.dart';
 import 'package:dc_app/screens/risks.dart';
+import 'package:dc_app/screens/plans.dart';
 import 'package:dc_app/screens/schedule.dart';
+import 'package:dc_app/screens/supervision_hub.dart';
 import 'package:dc_app/screens/supervision.dart';
 import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/screens/swot_presentation.dart';
@@ -387,6 +389,157 @@ class _VisualApp extends AppState {
   @override
   Future<List<PriceItem>> browsePrices(String listId, String chapter, int? parentSeq) async =>
       priceFixture.where((p) => p.chapter == chapter && p.parentSeq == parentSeq).toList();
+
+  /// معاينة التوليد كما تعيدها قاعدة البيانات لمثال الفصل 29 (124,730 في 120 يوماً).
+  @override
+  Future<Map<String, dynamic>> planPreview(String projectId, int totalDays) async => {
+        'total_days': 120,
+        'items': 5,
+        'phases': [
+          {'name': 'الأعمال التمهيدية', 'days': 15, 'cost': 15750, 'items': [
+            {'code': '1.1.1.1', 'title': 'في حدود ± 0.250 م', 'days': 13, 'cost': 6500},
+            {'code': '1.2.1.1', 'title': 'مباني - دور تحت الأرض فقط', 'days': 15, 'cost': 9250},
+          ]},
+          {'name': 'الأعمال الخرسانية', 'days': 72, 'cost': 75230, 'items': [
+            {'code': '3.2.6.5', 'title': 'أعمدة مربعة أو مستطيلة', 'days': 72, 'cost': 75230},
+          ]},
+          {'name': 'أعمال تكسيات الحوائط والأرضيات والوزرات', 'days': 28, 'cost': 28750, 'items': [
+            {'code': '7.2.2.1', 'title': 'رخام من نوع ابيض كراره', 'days': 28, 'cost': 28750},
+          ]},
+          {'name': 'بنود أخرى', 'days': 5, 'cost': 5000, 'items': [
+            {'code': '', 'title': 'تنظيف نهائي للموقع', 'days': 5, 'cost': 5000},
+          ]},
+        ],
+      };
+}
+
+/// البرامج الزمنية من المقايسة المعتمدة ومتابعة الإشراف (الترحيلات 30–32): مقايسة معتمدة، وبرنامج معتمد بمراحل
+/// لعقد، وبرنامج مسودة لعقد آخر، ومخاطر وعوامل SWOT مترجمة تلقائياً، وتواريخ تحديث النماذج.
+void _supervisionPlans(AppState app) {
+  final ps = app.projects;
+  final bq1 = app.boqSheet('bq1')!;
+  app.boqSheets = [
+    for (final s in app.boqSheets)
+      s.id == 'bq1'
+          ? BoqSheet.fromMap({
+              'id': s.id, 'project_id': s.projectId, 'list_id': s.listId, 'title': s.title, 'ref_no': s.refNo, 'show_prices': true,
+              'created_by': 'u-dir', 'updated_at': _iso(40), 'status': 'approved', 'approved_at': _iso(38), 'approved_by': 'u-dir',
+              'lines': [for (final l in bq1.lines) {'seq': l.seq, 'chapter': l.chapter, 'code': l.code, 'desc': l.desc, 'unit': l.unit, 'price': l.price, 'qty': l.qty, 'notes': l.notes}],
+              'total': s.total,
+            })
+          : s,
+    BoqSheet.fromMap({
+      'id': 'bq3', 'project_id': ps[4].id, 'list_id': 'guide-2026', 'title': 'مقايسة معالجة مختنقات شبكة المياه', 'ref_no': 'م.ش.هـ/ف/2026/0019',
+      'show_prices': true, 'created_by': 'u-dir', 'updated_at': _iso(3), 'status': 'approved', 'approved_at': _iso(2), 'approved_by': 'u-dir',
+      'lines': [for (final l in bq1.lines.take(4)) {'seq': l.seq, 'chapter': l.chapter, 'code': l.code, 'desc': l.desc, 'unit': l.unit, 'price': l.price, 'qty': (l.qty ?? 10) * 2, 'notes': ''}],
+      'total': bq1.total * 1.6,
+    }),
+  ];
+  PmPhase ph(String id, String pid, int sort, String name, [int lag = 0]) =>
+      PmPhase.fromMap({'id': id, 'project_id': pid, 'sort': sort, 'name': name, 'lag_days': lag});
+  final phases = [
+    ph('ph1', ps[1].id, 10, 'تجهيز الموقع'),
+    ph('ph2', ps[1].id, 20, 'الأعمال الخرسانية'),
+    ph('ph3', ps[1].id, 30, 'أعمال تكسيات الحوائط والأرضيات والوزرات', -10),
+    ph('ph4', ps[1].id, 40, 'بنود أخرى'),
+    ph('ph5', ps[4].id, 10, 'الأعمال الخرسانية'),
+    ph('ph6', ps[4].id, 20, 'أعمال تكسيات الحوائط والأرضيات والوزرات'),
+  ];
+  // البنود بمددها ثم تواريخها محسوبة بقواعد البرنامج نفسها (PlanLayout)
+  List<PmItem> plan(String pid, DateTime start, List<Map<String, dynamic>> raw) {
+    final base = [for (final m in raw) PmItem.fromMap({'project_id': pid, 'planned_start': dbDate(start), 'planned_end': dbDate(start), ...m})];
+    final l = PlanLayout(start, phases.where((x) => x.projectId == pid).toList(), base);
+    return [
+      for (final m in raw)
+        PmItem.fromMap({
+          'project_id': pid,
+          ...m,
+          'planned_start': dbDate(l.dates[m['id']]!.$1),
+          'planned_end': dbDate(l.dates[m['id']]!.$2),
+        }),
+    ];
+  }
+
+  String? seqOf(String code) => bq1.lines.where((l) => l.code == code).firstOrNull?.seq?.toString();
+  double costOf(String code) => bq1.lines.where((l) => l.code == code).map((l) => (l.qty ?? 0) * (l.price ?? 0)).fold(0.0, (a, b) => a + b);
+  final start1 = _d(150);
+  final items1 = plan(ps[1].id, DateTime(start1.year, start1.month, start1.day), [
+    {'id': 's0', 'sort': 5, 'code': '', 'title': 'تسليم الموقع وتجهيزه وتسويره', 'source': 'manual', 'phase_id': 'ph1', 'duration_days': 12, 'progress': 100,
+      'actual_start': _day(149), 'actual_end': _day(137)},
+    {'id': 's1', 'sort': 10, 'code': '3.2.6.5', 'title': 'أعمدة مربعة أو مستطيلة', 'source': 'boq', 'phase_id': 'ph2', 'duration_days': 60, 'unit': 'م3', 'qty': 45,
+      'price_seq': seqOf('3.2.6.5'), 'weight': costOf('3.2.6.5'), 'progress': 100, 'actual_start': _day(136), 'actual_end': _day(70)},
+    {'id': 's2', 'sort': 20, 'code': '3.2.6.6', 'title': 'كمرات وأعتاب خرسانية', 'source': 'boq', 'phase_id': 'ph2', 'duration_days': 49, 'unit': 'م3', 'qty': 30,
+      'price_seq': seqOf('3.2.6.6'), 'weight': costOf('3.2.6.6'), 'progress': 85, 'actual_start': _day(130), 'notes': 'تأخر توريد حديد التسليح'},
+    {'id': 's3', 'sort': 30, 'code': '7.2.2.1', 'title': 'رخام من نوع ابيض كراره', 'source': 'boq', 'phase_id': 'ph3', 'duration_days': 70, 'unit': 'م2', 'qty': 120,
+      'price_seq': seqOf('7.2.2.1'), 'weight': costOf('7.2.2.1'), 'progress': 40, 'actual_start': _day(60)},
+    {'id': 's4', 'sort': 40, 'code': '7.2.2.4', 'title': 'رخام محلي للأرضيات والدرج', 'source': 'boq', 'phase_id': 'ph3', 'duration_days': 55, 'unit': 'م2', 'qty': 64,
+      'price_seq': seqOf('7.2.2.4'), 'weight': costOf('7.2.2.4'), 'progress': 20, 'actual_start': _day(40), 'depends_on': 's3', 'offset_days': 0},
+    {'id': 's5', 'sort': 50, 'code': '7.2.2.13', 'title': 'وزرات رخام', 'source': 'boq', 'phase_id': 'ph3', 'duration_days': 30, 'unit': 'م.ط',
+      'price_seq': seqOf('7.2.2.13'), 'not_applicable': true},
+    {'id': 's6', 'sort': 60, 'code': '', 'title': 'تنظيف نهائي للموقع وترحيل المخلفات', 'source': 'boq', 'phase_id': 'ph4', 'duration_days': 10, 'unit': 'مقطوعية',
+      'qty': 1, 'weight': 2500},
+    {'id': 's7', 'sort': 70, 'code': 'إ-1', 'title': 'سياج مؤقت حول الواجهات', 'source': 'extra', 'phase_id': 'ph2', 'duration_days': 15, 'unit': 'م.ط', 'qty': 140,
+      'weight': 8400, 'progress': 100, 'actual_start': _day(120), 'actual_end': _day(104)},
+  ]);
+  final start4 = _d(-10);
+  final items4 = plan(ps[4].id, DateTime(start4.year, start4.month, start4.day), [
+    {'id': 'w1', 'sort': 10, 'code': '3.2.6.5', 'title': 'أعمدة مربعة أو مستطيلة', 'source': 'boq', 'phase_id': 'ph5', 'duration_days': 72, 'unit': 'م3', 'qty': 90, 'weight': 169000},
+    {'id': 'w2', 'sort': 20, 'code': '3.2.6.6', 'title': 'كمرات وأعتاب خرسانية', 'source': 'boq', 'phase_id': 'ph5', 'duration_days': 51, 'unit': 'م3', 'qty': 60, 'weight': 92000},
+    {'id': 'w3', 'sort': 30, 'code': '7.2.2.1', 'title': 'رخام من نوع ابيض كراره', 'source': 'boq', 'phase_id': 'ph6', 'duration_days': 28, 'unit': 'م2', 'qty': 240, 'weight': 69000},
+    {'id': 'w4', 'sort': 40, 'code': '7.2.2.4', 'title': 'رخام محلي للأرضيات والدرج', 'source': 'boq', 'phase_id': 'ph6', 'duration_days': 21, 'unit': 'م2', 'qty': 128, 'weight': 31000},
+    {'id': 'w5', 'sort': 50, 'code': 'إ-1', 'title': 'تحويل مؤقت لخط المياه أثناء التنفيذ', 'source': 'extra', 'phase_id': 'ph5', 'duration_days': 9, 'weight': 12000},
+  ]);
+  app.pmItems = [for (final i in app.pmItems) if (i.projectId != ps[1].id) i, ...items1, ...items4];
+  app.pmPhases = phases;
+  PmPlan pl(String pid, String status, DateTime start, int version) => PmPlan.fromMap({
+        'id': 'pl-$pid', 'project_id': pid, 'status': status, 'start_date': dbDate(start), 'version': version,
+        'approved_at': status == 'approved' ? _iso(140) : null, 'approved_by': status == 'approved' ? 'u-dir' : null,
+      });
+  DateTime first(String pid) => app.pmItems.where((i) => i.projectId == pid).map((i) => i.plannedStart).reduce((a, b) => a.isBefore(b) ? a : b);
+  app.pmPlans = {
+    for (final p in [ps[0], ps[2], ps[3]]) p.id: pl(p.id, 'approved', first(p.id), 1),
+    ps[1].id: pl(ps[1].id, 'approved', DateTime(start1.year, start1.month, start1.day), 2),
+    ps[4].id: pl(ps[4].id, 'draft', DateTime(start4.year, start4.month, start4.day), 0),
+  };
+  // تحديثات النماذج (لتواريخ مراحل دورة الحياة)
+  app.formDates = {
+    for (final p in ps)
+      p.id: {for (final (k, d) in const [('f02', 170), ('f04', 168), ('f05', 168), ('f06', 167), ('f07', 167), ('f08', 160), ('f09', 155),
+          ('f10', 90), ('f11', 88), ('f22', 60), ('f12', 58), ('f14', 50), ('f13', 45), ('f23', 44), ('f24', 40)]) k: _d(d)},
+  };
+  // الترجمة التلقائية إلى المخاطر وSWOT
+  app.risks = [
+    ...app.risks,
+    Risk.fromMap({'id': 'risk-a1', 'code': 'R09', 'project_id': ps[1].id, 'category': 'زمني', 'phase': 'التنفيذ', 'owner': 'الإشراف',
+      'description': 'تأخر البند «كمرات وأعتاب خرسانية» عن البرنامج الزمني المعتمد — ${ps[1].name}',
+      'effect': 'الإنجاز 85.0% مقابل 100.0% مخطط حتى اليوم (تجاوز نهايته المخططة بـ32 يوماً)، ونصيبه 21.6% من وزن العقد',
+      'probability': 5, 'impact': 5, 'time_impact_days': 32, 'status': 'open', 'response': 'mitigate', 'auto_key': 'pm_item:s2', 'auto_active': true,
+      'registered_on': _day(30), 'department': 'الإشراف والتنسيق', 'notes': 'سُجّل تلقائياً من متابعة البرنامج الزمني'}),
+    Risk.fromMap({'id': 'risk-a2', 'code': 'R10', 'project_id': ps[1].id, 'category': 'زمني', 'phase': 'التنفيذ', 'owner': 'الإشراف',
+      'description': 'تأخر تنفيذ العقد عن برنامجه الزمني المعتمد — ${ps[1].name}',
+      'effect': 'الإنجاز الكلي الموزون 61.4% مقابل 72.9% مخطط (فارق يعادل 18 يوماً من مدة البرنامج)',
+      'probability': 3, 'impact': 4, 'time_impact_days': 18, 'status': 'open', 'response': 'mitigate', 'auto_key': 'pm_plan:${ps[1].id}', 'auto_active': true,
+      'registered_on': _day(20), 'department': 'الإشراف والتنسيق'}),
+    Risk.fromMap({'id': 'risk-a3', 'code': 'R11', 'project_id': ps[1].id, 'category': 'زمني', 'phase': 'التنفيذ', 'owner': 'الإشراف',
+      'description': 'تأخر البند «أعمدة مربعة أو مستطيلة» عن البرنامج الزمني المعتمد — ${ps[1].name}',
+      'effect': 'الإنجاز 100.0% · تعافى البند', 'probability': 4, 'impact': 5, 'status': 'closed', 'closed_on': _day(70),
+      'auto_key': 'pm_item:s1', 'auto_active': false, 'registered_on': _day(95)}),
+  ];
+  app.swotFactors = [
+    ...app.swotFactors,
+    SwotFactor.fromMap({'id': 'f-W901', 'code': 'W901', 'kind': 'W', 'factor': 'تأخر تنفيذ «${ps[1].name}» عن برنامجه الزمني',
+      'impact': 'سلبي: متأخر بما يعادل 18 يوماً (الإنجاز 61.4% مقابل 72.9% مخطط)', 'importance': 4, 'urgency': 3, 'source': 'البرنامج الزمني',
+      'department': 'الإشراف والتنسيق', 'sort': 900, 'auto_key': 'pm_plan:${ps[1].id}:W', 'project_id': ps[1].id}),
+    SwotFactor.fromMap({'id': 'f-T901', 'code': 'T901', 'kind': 'T', 'factor': 'توقع تجاوز «${ps[1].name}» نهاية برنامجه الزمني',
+      'impact': 'سلبي: إنهاء متوقع بعد نهاية البرنامج بـ21 يوماً', 'importance': 4, 'urgency': 3, 'source': 'البرنامج الزمني',
+      'department': 'الإشراف والتنسيق', 'sort': 900, 'auto_key': 'pm_plan:${ps[1].id}:T', 'project_id': ps[1].id}),
+    SwotFactor.fromMap({'id': 'f-S901', 'code': 'S901', 'kind': 'S', 'factor': 'تقدم تنفيذ «${ps[3].name}» على برنامجه الزمني',
+      'impact': 'إيجابي: متقدم بما يعادل 9 أيام (الإنجاز 64.0% مقابل 58.1% مخطط)', 'importance': 3, 'urgency': 2, 'source': 'البرنامج الزمني',
+      'department': 'الإشراف والتنسيق', 'sort': 900, 'auto_key': 'pm_plan:${ps[3].id}:S', 'project_id': ps[3].id}),
+  ];
+  app.v15Ready = true;
+  app.v16Ready = true;
+  app.v17Ready = true;
 }
 
 /// بيانات تجريبية لبنود الجداول الزمنية ولائحة الأسعار والمقايسات (الترحيلات 27–29).
@@ -1286,6 +1439,35 @@ void main() {
       final st = sc.build(app, const ExportQuery()).select([for (final c in sc.columns) if (c.on) c.key]);
       File('${dir.path}/schedule_live.xlsx').writeAsBytesSync(await renderExport(ExportFormat.xlsx, st, PrintConfig(), ctx));
     });
+  });
+
+  testWidgets('supervision hub and plans', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _planning(app);
+    _supervisionPlans(app);
+    final ps = app.projects;
+    app.tab = 72;
+    await _shot(tester, 'm0_sup_dashboard_light', app, const HomeShell(), size: const Size(1440, 3200));
+    await _shot(tester, 'm1_sup_dashboard_dark_mobile', app, _scaffold(const SupervisionDashboardPage()), size: const Size(400, 6200), dark: true);
+    app.tab = 73;
+    await _shot(tester, 'm2_contract_items_light', app, const HomeShell(), size: const Size(1440, 3000));
+    await _shot(tester, 'm3_follow_light', app, ProjectFollowPage(projectId: ps[1].id), size: const Size(1400, 3600));
+    await _shot(tester, 'm4_follow_dark_mobile', app, ProjectFollowPage(projectId: ps[1].id), size: const Size(400, 6400), dark: true);
+    await _shot(tester, 'm5_life_phase_light', app,
+        _OpenAction(run: (ctx) => showLifePhaseSheet(ctx, ps[1], followOf(app, ps[1]), 3)), size: const Size(1200, 1300));
+    await _shot(tester, 'm6_track_editor_light', app,
+        _OpenAction(run: (ctx) => showTrackItemEditor(ctx, ps[1], app.itemsOf(ps[1].id).firstWhere((i) => i.id == 's3'))), size: const Size(1200, 1100));
+    app.tab = 67;
+    await _shot(tester, 'm7_plans_light', app, const HomeShell(), size: const Size(1440, 1500));
+    await _shot(tester, 'm8_plan_editor_draft_light', app, PlanEditorPage(projectId: ps[4].id), size: const Size(1400, 2600));
+    await _shot(tester, 'm9_plan_editor_approved_dark', app, PlanEditorPage(projectId: ps[1].id), size: const Size(1400, 2800), dark: true);
+    await _shot(tester, 'n0_plan_generate_light', app, _OpenAction(run: (ctx) => showGenerateDialog(ctx, ps[4], replace: true)),
+        size: const Size(1200, 1500));
+    await _shot(tester, 'n1_plan_item_editor_light', app,
+        _OpenAction(run: (ctx) => showPlanItemEditor(ctx, ps[4], app.itemsOf(ps[4].id).firstWhere((i) => i.id == 'w2'))), size: const Size(1200, 1300));
+    await _shot(tester, 'n2_boq_approved_light', app, const BoqEditorPage(sheetId: 'bq1'), size: const Size(1300, 1400));
+    await _shot(tester, 'n3_cycle_status_colors_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 2600));
   });
 
   testWidgets('print center', (tester) async {

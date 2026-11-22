@@ -2,13 +2,13 @@
 
 enum FormStatus { done, wip, todo, na }
 
-/// مسميات الحالات (قابلة للتعديل من الإعدادات الحية).
-final Map<String, String> statusLabels = {'done': 'مكتمل', 'wip': 'قيد الإجراء', 'todo': 'لم يتم', 'na': 'لا ينطبق'};
+/// مسميات الحالات (قابلة للتعديل من الإعدادات الحية). الافتراضية من الترحيل 30: تم، قيد التنفيذ، لم يتم، لا ينطبق.
+final Map<String, String> statusLabels = {'done': 'تم', 'wip': 'قيد التنفيذ', 'todo': 'لم يتم', 'na': 'لا ينطبق'};
 
 extension FormStatusX on FormStatus {
   String get label => statusLabels[name] ?? switch (this) {
-        FormStatus.done => 'مكتمل',
-        FormStatus.wip => 'قيد الإجراء',
+        FormStatus.done => 'تم',
+        FormStatus.wip => 'قيد التنفيذ',
         FormStatus.todo => 'لم يتم',
         FormStatus.na => 'لا ينطبق',
       };
@@ -1016,6 +1016,17 @@ const Map<String, String> auditActionLabels = {
   'boq.create': 'أعدّ مقايسة من لائحة الأسعار',
   'boq.update': 'عدّل مقايسة',
   'boq.delete': 'حذف مقايسة',
+  'boq.approve': 'اعتمد مقايسة',
+  'boq.reopen': 'أعاد فتح مقايسة معتمدة',
+  'pm.item_progress': 'حدّث إنجاز بند في البرنامج الزمني',
+  'pm.plan_save': 'حدّث بداية البرنامج الزمني',
+  'pm.phase_save': 'حفظ مرحلة تنفيذ',
+  'pm.phase_delete': 'حذف مرحلة تنفيذ',
+  'pm.plan_generate': 'ولّد برنامجاً زمنياً من المقايسة',
+  'pm.plan_approve': 'اعتمد البرنامج الزمني وأحاله إلى الإشراف',
+  'pm.plan_reopen': 'أعاد فتح البرنامج الزمني',
+  'risk.auto': 'ترجم التنفيذ إلى سجل المخاطر',
+  'swot.auto': 'ترجم التنفيذ إلى تحليل SWOT',
   'pm.issue_create': 'سجّل مشكلة',
   'pm.issue_update': 'عدّل مشكلة',
   'pm.issue_delete': 'حذف مشكلة',
@@ -1125,6 +1136,10 @@ const Map<String, String> auditActionLabels = {
   'print.template_delete': 'حذف قالب طباعة',
   'export.file': 'استخرج ملفاً من المنظومة',
   'export.print': 'طبع من المنظومة',
+  'export.store': 'حفظ نسخة PDF الأصلية لرمز التحقق',
+  'export.open': 'فتح نسخة PDF أصلية من رمز التحقق',
+  'export.denied': 'رُفض فتح نسخة PDF مقيّدة',
+  'export.unknown': 'رمز تحقق غير معروف',
   'export.media': 'نزّل حزمة وسائط',
   'user.grants': 'عدّل الصلاحيات الدقيقة لمستخدم',
   'ref.scheme_save': 'حفظ صيغة رقم إشاري',

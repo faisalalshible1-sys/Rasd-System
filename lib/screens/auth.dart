@@ -478,6 +478,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 26),
             ],
+            if (app.pendingExportToken != null) ...[
+              const InfoBanner(
+                text: 'سجّل الدخول لفتح المستند الذي مسحت رمز التحقق فيه: تُفتح نسخته الأصلية المحفوظة لمن يحق له الاطلاع عليها.',
+                icon: Icons.qr_code_2_rounded,
+              ),
+              const SizedBox(height: 14),
+            ],
             if (signupsOpen) ...[
               SegmentedButton<bool>(
                 segments: const [

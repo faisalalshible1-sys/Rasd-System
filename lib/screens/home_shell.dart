@@ -44,7 +44,9 @@ import 'ref_numbers.dart';
 import 'security_center.dart';
 import 'risks.dart';
 import 'schedule.dart';
+import 'plans.dart';
 import 'supervision.dart';
+import 'supervision_hub.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
 import 'units.dart';
@@ -97,10 +99,13 @@ class Tabs {
   static const docsMaterials = 64;
   static const docsPrices = 65;
   static const docsBoqSheets = 66;
+  static const docsPlans = 67;
 
   // الإشراف
   static const supReports = 70;
   static const supCoverage = 71;
+  static const supDashboard = 72;
+  static const supItems = 73;
 
   // دليل الاستخدام
   static const manual = 80;
@@ -266,7 +271,8 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
       _Dest(Tabs.pmProjects, 'سجل المشاريع', Icons.view_timeline_outlined, Icons.view_timeline_rounded,
           badge: pm.tracks.values.where((t) => t.perf == 'critical').length),
       _Dest(Tabs.pmProgress, 'التقدم الدوري', Icons.show_chart_outlined, Icons.show_chart_rounded, badge: pm.staleProjects),
-      if (app.v14Ready)
+      // بعد الترحيل 30 انتقلت متابعة الجداول الزمنية إلى «لوحة الإشراف»، وإعدادها إلى «البرامج الزمنية» في الشؤون الفنية
+      if (app.v14Ready && !app.v15Ready)
         _Dest(Tabs.pmSchedule, 'الجداول الزمنية', Icons.date_range_outlined, Icons.date_range_rounded, badge: app.schedule.lateProjects),
       const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
       _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
@@ -291,6 +297,9 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
       const _Dest(Tabs.docsBoq, 'المقايسات', Icons.request_quote_outlined, Icons.request_quote_rounded),
       if (app.v14Ready) ...[
         const _Dest(Tabs.docsBoqSheets, 'مُعِدّ المقايسات', Icons.calculate_outlined, Icons.calculate_rounded),
+        if (app.v15Ready)
+          _Dest(Tabs.docsPlans, 'البرامج الزمنية', Icons.event_note_outlined, Icons.event_note_rounded,
+              badge: app.boqSheets.where((b) => b.approved && b.projectId != null && app.planOf(b.projectId!) == null).map((b) => b.projectId).toSet().length),
         const _Dest(Tabs.docsPrices, 'لائحة الأسعار', Icons.price_change_outlined, Icons.price_change_rounded),
       ],
       _Dest(Tabs.docsLetters, 'المراسلات', Icons.mark_email_read_outlined, Icons.mark_email_read_rounded, badge: late),
@@ -306,6 +315,10 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   if (sec == 'supervision') {
     final unreviewed = app.isDirector ? app.docs.reports.where((r) => !r.reviewed).length : 0;
     return [
+      if (app.v15Ready) ...[
+        _Dest(Tabs.supDashboard, 'لوحة الإشراف', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, badge: app.schedule.lateProjects),
+        const _Dest(Tabs.supItems, 'بنود العقود', Icons.format_list_numbered_outlined, Icons.format_list_numbered_rounded),
+      ],
       _Dest(Tabs.supReports, 'التقارير اليومية', Icons.assignment_outlined, Icons.assignment_rounded, badge: unreviewed),
       const _Dest(Tabs.supCoverage, 'متابعة التغطية', Icons.grid_on_outlined, Icons.grid_on_rounded),
       ..._adminDests(app, 70),
@@ -488,9 +501,12 @@ Widget _page(int id) => switch (id) {
       Tabs.pmSettings => const PmSettingsPage(),
       Tabs.pmGuide => const PmGuidePage(),
       Tabs.pmPresentation => const PmPresentationPage(),
-      Tabs.pmSchedule => const ScheduleDashboardPage(),
+      Tabs.pmSchedule => const _ScheduleOrSupervision(),
       Tabs.docsPrices => const PriceListPage(),
       Tabs.docsBoqSheets => const BoqSheetsPage(),
+      Tabs.docsPlans => const PlansPage(),
+      Tabs.supDashboard => const SupervisionDashboardPage(),
+      Tabs.supItems => const ContractItemsPage(),
       Tabs.swotDashboard => const SwotDashboardPage(),
       Tabs.swotMatrix => const SwotMatrixPage(),
       Tabs.swotFactors => const SwotFactorsPage(),
@@ -1098,6 +1114,15 @@ class _Banners extends StatelessWidget {
     }
     final text = app.settings.announcementText.trim();
     if (text.isNotEmpty) items.add(InfoBanner(text: text, level: app.settings.announcementLevel));
+    final ex = app.exportNotice;
+    if (ex != null) {
+      items.add(InfoBanner(
+        text: ex.text,
+        level: ex.level,
+        icon: Icons.qr_code_2_rounded,
+        action: TextButton(onPressed: app.clearExportNotice, child: const Text('إغلاق')),
+      ));
+    }
     if (items.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
@@ -1185,4 +1210,13 @@ String get appVersionText => 'الإصدار ${AppConfig.appVersion}';
 DateTime _unitToday() {
   final n = DateTime.now();
   return DateTime(n.year, n.month, n.day);
+}
+
+/// الصفحة 52 (الجداول الزمنية) قبل الترحيل 30، ولوحة الإشراف بعده (للروابط القديمة).
+class _ScheduleOrSupervision extends StatelessWidget {
+  const _ScheduleOrSupervision();
+
+  @override
+  Widget build(BuildContext context) =>
+      AppScope.of(context).v15Ready ? const SupervisionDashboardPage() : const ScheduleDashboardPage();
 }

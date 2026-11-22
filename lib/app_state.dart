@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
 import 'config.dart';
 import 'docs.dart';
@@ -117,6 +120,21 @@ class AppState extends ChangeNotifier {
   List<PmItem> pmItems = [];
   bool v14Ready = false;
   ScheduleAnalysis? _schedule;
+
+  // الترحيل 30: البرنامج الزمني ومراحله (تعدّه الشؤون الفنية ويتابعه الإشراف)، واعتماد المقايسات
+  Map<String, PmPlan> pmPlans = {};
+  List<PmPhase> pmPhases = [];
+  bool v15Ready = false;
+
+  // الترحيل 31: ترجمة التنفيذ إلى المخاطر وSWOT (يُحدَّث عند الفتح مرة في الساعة على الأكثر)
+  bool v16Ready = false;
+  bool _autoRefreshed = false;
+
+  // الترحيل 32: نسخ PDF المحفوظة لرمز QR
+  bool v17Ready = false;
+
+  /// تواريخ آخر تحديث لحالات النماذج (لتواريخ مراحل دورة حياة العقد).
+  Map<String, Map<String, DateTime>> formDates = {};
 
   /// آخر نتائج معروضة في صفحة لائحة الأسعار (مصدر تصديرها).
   List<PriceItem> priceResults = [];
@@ -285,6 +303,7 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel9;
   RealtimeChannel? _channel11;
   RealtimeChannel? _channel14;
+  RealtimeChannel? _channel15;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -554,6 +573,124 @@ class AppState extends ChangeNotifier {
     _updateTimer?.cancel();
     _updateTimer = Timer.periodic(const Duration(hours: 3), (_) => checkForUpdate());
     _startHeartbeat();
+    if (pendingExportToken != null) unawaited(openPendingExport());
+  }
+
+  // ---------------------------------------------------------------
+  // رمز QR يفتح نسخة PDF الأصلية المحفوظة (الترحيل 32)
+  // ---------------------------------------------------------------
+
+  /// رمز مستند من رابط QR (?f=...) ينتظر الدخول لفتحه.
+  String? pendingExportToken;
+
+  /// نتيجة فتح المستند لتظهر في أعلى الصفحة (النص، والمستوى).
+  ({String text, String level})? exportNotice;
+
+  void clearExportNotice() {
+    exportNotice = null;
+    _notify();
+  }
+
+  static final RegExp _tokenRe = RegExp(r'^[A-Za-z0-9]{20,40}$');
+
+  /// يقرأ رمز المستند من رابط الويب عند الفتح.
+  void readExportLink(Uri uri) {
+    final f = uri.queryParameters['f'];
+    pendingExportToken = f != null && _tokenRe.hasMatch(f) ? f : null;
+  }
+
+  /// يفتح النسخة المحفوظة لمن يحق له (رابط موقّت في الصفحة نفسها)، ويُبلغ غيره بالرفض.
+  Future<void> openPendingExport() async {
+    final token = pendingExportToken;
+    pendingExportToken = null;
+    if (token == null) return;
+    if (!v17Ready) {
+      exportNotice = (text: 'فتح المستندات من رمز التحقق يعمل بعد تحديث قاعدة البيانات بالترحيل 32.', level: 'warning');
+      _notify();
+      return;
+    }
+    try {
+      final r = Map<String, dynamic>.from(await client.rpc('open_export_file', params: {'p_token': token}) as Map);
+      if (r['ok'] != true) {
+        exportNotice = r['reason'] == 'denied'
+            ? (text: 'المستند «${r['title'] ?? ''}» مقيّد الاطلاع؛ لا تملك صلاحية فتحه. سُجّلت المحاولة في سجل التدقيق.', level: 'critical')
+            : (text: 'رمز التحقق غير معروف: لم يُستخرج هذا المستند من المنظومة أو الرابط ناقص.', level: 'critical');
+        _notify();
+        return;
+      }
+      final url = await client.storage.from('exports').createSignedUrl('${r['path']}', 900);
+      final sha = '${r['sha256'] ?? ''}';
+      exportNotice = (
+        text: 'فُتحت النسخة الأصلية المحفوظة من «${r['title'] ?? ''}»${'${r['ref_no'] ?? ''}'.isEmpty ? '' : ' (${r['ref_no']})'} '
+            'كما استُخرجت ${r['created_by'] == null ? '' : 'بواسطة ${r['created_by']} '}· بصمتها ${sha.length >= 12 ? sha.substring(0, 12) : sha}',
+        level: 'ok'
+      );
+      _notify();
+      await launchUrl(Uri.parse(url), webOnlyWindowName: '_self');
+    } catch (e) {
+      exportNotice = (text: 'تعذّر فتح المستند: ${friendlyError(e)}', level: 'critical');
+      _notify();
+    }
+  }
+
+  String? _webBase;
+
+  /// عنوان المنظومة على الويب لرابط QR: عنوان الصفحة الحالية على الويب، وإلا آخر إصدار ويب منشور.
+  Future<String> webBaseUrl() async {
+    if (kIsWeb) {
+      final b = Uri.base;
+      return Uri(scheme: b.scheme, host: b.host, port: b.hasPort ? b.port : null, path: b.path.isEmpty ? '/' : b.path).toString();
+    }
+    if (_webBase != null) return _webBase!;
+    try {
+      final r = await client.from('app_releases').select('url').eq('platform', 'web').order('build', ascending: false).limit(1).maybeSingle();
+      final u = '${r?['url'] ?? ''}'.trim();
+      if (u.startsWith('https://')) _webBase = u.endsWith('/') ? u : '$u/';
+    } catch (_) {}
+    return _webBase ??= 'https://faisalalshible1-sys.github.io/Rasd-System/';
+  }
+
+  /// رمز عشوائي لمستند (24 حرفاً وأرقاماً).
+  static String newExportToken() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    final r = Random.secure();
+    return List.generate(24, (_) => chars[r.nextInt(chars.length)]).join();
+  }
+
+  /// يحفظ نسخة PDF كما هي ويسجّلها بالرمز؛ false إن تعذّر (فيُطبع رمز التحقق النصي بدلها).
+  Future<bool> storeExportFile({
+    required String token,
+    required Uint8List bytes,
+    required String title,
+    required String refNo,
+    required String source,
+    String? projectId,
+    bool confidential = false,
+  }) async {
+    final uid = me?.id;
+    if (!v17Ready || uid == null) return false;
+    final path = '$uid/$token.pdf';
+    try {
+      await client.storage.from('exports').uploadBinary(path, bytes, fileOptions: const FileOptions(contentType: 'application/pdf', upsert: false));
+      await client.rpc('register_export_file', params: {
+        'p_token': token,
+        'p_data': {
+          'title': title,
+          'ref_no': refNo,
+          'source': source,
+          'project_id': projectId ?? '',
+          'access': confidential ? 'private' : 'members',
+          'sha256': sha256.convert(bytes).toString(),
+          'bytes': bytes.length,
+        },
+      });
+      return true;
+    } catch (_) {
+      try {
+        await client.storage.from('exports').remove([path]);
+      } catch (_) {}
+      return false;
+    }
   }
 
   /// منصة هذه النسخة كما تُسجَّل في جدول الإصدارات.
@@ -604,7 +741,7 @@ class AppState extends ChangeNotifier {
         client.from('departments').select().order('sort'),
         client.from('form_defs').select().order('sort'),
         client.from('projects').select().order('sort_order'),
-        client.from('project_forms').select('project_id, form_key, status'),
+        client.from('project_forms').select('project_id, form_key, status, updated_at'),
         client.from('change_requests').select().order('requested_at', ascending: false).limit(500),
         client.from('profiles').select('id, full_name, email, role, department, active, created_at'),
         client.from('notifications').select().order('created_at', ascending: false).limit(100),
@@ -616,11 +753,15 @@ class AppState extends ChangeNotifier {
       projects = r[2].map(Project.fromMap).toList();
       naReady = r[2].isNotEmpty && r[2].first.containsKey('guarantee_initial_na');
       final st = <String, Map<String, FormStatus>>{};
+      final fd = <String, Map<String, DateTime>>{};
       for (final row in r[3]) {
         final pid = row['project_id'].toString();
         (st[pid] ??= <String, FormStatus>{})[row['form_key'].toString()] = parseStatus(row['status']);
+        final at = DateTime.tryParse('${row['updated_at'] ?? ''}');
+        if (at != null) (fd[pid] ??= <String, DateTime>{})[row['form_key'].toString()] = at.toLocal();
       }
       statuses = st;
+      formDates = fd;
       requests = r[4].map(ChangeRequest.fromMap).toList();
       people = {for (final p in r[5].map(Profile.fromMap)) p.id: p};
       notifications = r[6].map(AppNotification.fromMap).toList();
@@ -638,6 +779,8 @@ class AppState extends ChangeNotifier {
       await _loadV12();
       await _loadV13();
       await _loadV14();
+      await _loadV15();
+      await _loadV17();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -961,6 +1104,48 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// البرامج الزمنية ومراحلها (الترحيل 30)، ثم ترجمة التنفيذ إلى المخاطر وSWOT مرة في الجلسة (الترحيل 31).
+  Future<void> _loadV15() async {
+    if (!v14Ready) {
+      pmPlans = {};
+      pmPhases = [];
+      v15Ready = false;
+      return;
+    }
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('pm_plans').select(),
+        client.from('pm_phases').select().order('sort'),
+      ]);
+      pmPlans = {for (final p in r[0].map(PmPlan.fromMap)) p.projectId: p};
+      pmPhases = r[1].map(PmPhase.fromMap).toList();
+      v15Ready = true;
+    } catch (_) {
+      pmPlans = {};
+      pmPhases = [];
+      v15Ready = false;
+    }
+    if (v15Ready && !_autoRefreshed && role != null) {
+      _autoRefreshed = true;
+      try {
+        await client.rpc('pm_refresh_auto');
+        v16Ready = true;
+      } catch (_) {
+        v16Ready = false;
+      }
+    }
+  }
+
+  /// سجل نسخ PDF المحفوظة (الترحيل 32): وجود الجدول يكفي لتفعيل رمز QR الذي يفتح النسخة الأصلية.
+  Future<void> _loadV17() async {
+    try {
+      await client.from('export_files').select('token').limit(1);
+      v17Ready = true;
+    } catch (_) {
+      v17Ready = false;
+    }
+  }
+
   // ---------------------------------------------------------------
   // لائحة الأسعار والمقايسات (الترحيلان 27 و28)
   // ---------------------------------------------------------------
@@ -1002,6 +1187,74 @@ class AppState extends ChangeNotifier {
   /// من يعدّ المقايسات (كصلاحية مقايسات الشؤون الفنية).
   bool canEditBoq(String? projectId) => v14Ready && canEditDoc('boq', projectId);
 
+  /// رئيس الشؤون الفنية.
+  bool get isTechnicalHead => role == AppRole.deptHead && me?.department == 'technical';
+
+  /// اعتماد المقايسة وإعادة فتحها، واعتماد البرنامج الزمني وإعادة فتحه: رئيس الشؤون الفنية والمدير (الترحيل 30).
+  bool get canApproveBoq => v15Ready && !frozenForMe && (isDirector || isTechnicalHead);
+  bool get canApprovePlan => v15Ready && !frozenForMe && (isDirector || isTechnicalHead);
+
+  /// إعداد البرنامج الزمني (البنود والمراحل والمدد والتوليد): الشؤون الفنية ومكتب المدير والمنح «pm:plan».
+  bool get canPreparePlan =>
+      v15Ready && !frozenForMe && (role == AppRole.director || role == AppRole.officeStaff || isTechnicalHead || hasGrant('pm:plan'));
+
+  /// متابعة التنفيذ (الإنجاز والتواريخ الفعلية و«لا ينطبق»): القسم المشرف على العقد ومكتب المدير والمنح «pm:track».
+  bool canTrackPlan(Project p) =>
+      v15Ready &&
+      !frozenForMe &&
+      (role == AppRole.director ||
+          role == AppRole.officeStaff ||
+          (role == AppRole.deptHead && me?.department != null && me?.department == p.department) ||
+          hasGrant('pm:track'));
+
+  PmPlan? planOf(String projectId) => pmPlans[projectId];
+  List<PmPhase> phasesOf(String projectId) => pmPhases.where((p) => p.projectId == projectId).toList()..sort((a, b) => a.sort.compareTo(b.sort));
+
+  /// المقايسات المعتمدة للعقد (بنودها بنود العقد).
+  List<BoqSheet> approvedBoqsOf(String projectId) => boqSheets.where((s) => s.projectId == projectId && s.approved).toList();
+
+  Future<void> approveBoq(String id, bool approve) async {
+    await client.rpc('approve_boq', params: {'p_id': id, 'p_approve': approve});
+    await _afterV14();
+  }
+
+  Future<void> savePmPlan(String projectId, Map<String, dynamic> data) async {
+    await client.rpc('save_pm_plan', params: {'p_project': projectId, 'p_data': data});
+    await _afterV14();
+  }
+
+  Future<String> savePmPhase(String? id, Map<String, dynamic> data) async {
+    final r = await client.rpc('save_pm_phase', params: {'p_id': id, 'p_data': data});
+    await _afterV14();
+    return r.toString();
+  }
+
+  Future<void> deletePmPhase(String id) async {
+    await client.rpc('delete_pm_phase', params: {'p_id': id});
+    await _afterV14();
+  }
+
+  /// معاينة البرنامج المبدئي من المقايسات المعتمدة: المراحل وبنودها بمددها المقترحة.
+  Future<Map<String, dynamic>> planPreview(String projectId, int totalDays) async {
+    final r = await client.rpc('pm_plan_preview', params: {'p_project': projectId, 'p_total_days': totalDays});
+    return Map<String, dynamic>.from(r as Map);
+  }
+
+  Future<Map<String, dynamic>> planGenerate(String projectId, DateTime start, int totalDays, {bool replace = false}) async {
+    final r = await client.rpc('pm_plan_generate',
+        params: {'p_project': projectId, 'p_start': pmIso(start), 'p_total_days': totalDays, 'p_replace': replace});
+    await _afterV14();
+    return Map<String, dynamic>.from(r as Map);
+  }
+
+  Future<void> setPlanStatus(String projectId, String status) async {
+    await client.rpc('pm_plan_set_status', params: {'p_project': projectId, 'p_status': status});
+    await _afterV14();
+    // الاعتماد وإعادة الفتح يترجمان إلى المخاطر وSWOT (الترحيل 31)
+    await _loadV6();
+    _notify();
+  }
+
   /// حذف المقايسة: المدير، أو من أعدّها ما دامت له الصلاحية.
   bool canDeleteBoq(BoqSheet s) => v14Ready && (isDirector || (s.createdBy == me?.id && canEditBoq(s.projectId)));
 
@@ -1028,23 +1281,36 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------
   // بنود الجدول الزمني (الترحيل 29)
   // ---------------------------------------------------------------
-  ScheduleAnalysis get schedule => _schedule ??= ScheduleAnalysis(projects: projects, items: pmItems, cfg: pmConfig);
+  ScheduleAnalysis get schedule =>
+      _schedule ??= ScheduleAnalysis(projects: projects, items: pmItems, cfg: pmConfig, plans: pmPlans, phases: pmPhases);
+
+  /// جدول عقد للإعداد أو المتابعة (بمسودته أيضاً).
+  ScheduleTrack trackOf(Project p) =>
+      schedule.track(p.id) ??
+      ScheduleTrack(p, itemsOf(p.id), pmConfig.refDay, pmConfig, plan: planOf(p.id), phases: phasesOf(p.id));
 
   List<PmItem> itemsOf(String projectId) =>
       pmItems.where((i) => i.projectId == projectId).toList()..sort((a, b) => a.sort.compareTo(b.sort));
 
   /// بيانات البند: من يحدّث البرنامج الزمني. الإنجاز والتواريخ الفعلية: أيضاً من يحدّث سجل التقدم.
-  bool canEditItems(Project p) => v14Ready && canEditSchedule(p);
-  bool canUpdateItemProgress(Project p) => v14Ready && (canEditSchedule(p) || canEditPm);
+  /// بعد الترحيل 30: البنود للشؤون الفنية على المسودة، والإنجاز للإشراف على البرنامج المعتمد.
+  bool canEditItems(Project p) => v15Ready ? canPreparePlan && planOf(p.id)?.approved != true : v14Ready && canEditSchedule(p);
+  bool canUpdateItemProgress(Project p) =>
+      v15Ready ? canTrackPlan(p) && planOf(p.id)?.approved == true : v14Ready && (canEditSchedule(p) || canEditPm);
 
   Future<void> _afterV14() async {
     await _loadV14();
+    await _loadV15();
     _notify();
   }
 
   Future<void> savePmItem(String? id, Map<String, dynamic> data) async {
     await client.rpc('save_pm_item', params: {'p_id': id, 'p_data': data});
     await _afterV14();
+    if (v16Ready) {
+      await _loadV6();
+      _notify();
+    }
   }
 
   Future<void> deletePmItem(String id) async {
@@ -1348,6 +1614,19 @@ class AppState extends ChangeNotifier {
     }
     ch14.subscribe();
     _channel14 = ch14;
+
+    // قناة الترحيل 30: البرامج الزمنية ومراحلها (بعد التأكد من وجود الجدولين)
+    final old15 = _channel15;
+    if (old15 != null) client.removeChannel(old15);
+    _channel15 = null;
+    if (v15Ready) {
+      final ch15 = client.channel('dc-v15');
+      for (final t in const ['pm_plans', 'pm_phases']) {
+        ch15.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
+      }
+      ch15.subscribe();
+      _channel15 = ch15;
+    }
   }
 
   void scheduleReload() {
@@ -1411,6 +1690,16 @@ class AppState extends ChangeNotifier {
     final old14 = _channel14;
     if (old14 != null) client.removeChannel(old14);
     _channel14 = null;
+    final old15 = _channel15;
+    if (old15 != null) client.removeChannel(old15);
+    _channel15 = null;
+    pmPlans = {};
+    pmPhases = [];
+    v15Ready = false;
+    v16Ready = false;
+    _autoRefreshed = false;
+    v17Ready = false;
+    formDates = {};
     signedUrls.clear();
     _clearV7();
     risks = [];
@@ -1506,6 +1795,8 @@ class AppState extends ChangeNotifier {
     if (old11 != null) client.removeChannel(old11);
     final old14 = _channel14;
     if (old14 != null) client.removeChannel(old14);
+    final old15 = _channel15;
+    if (old15 != null) client.removeChannel(old15);
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();
@@ -1547,7 +1838,7 @@ class AppState extends ChangeNotifier {
     'risks': 20,
     'swot': 30,
     'docs': 60,
-    'supervision': 70,
+    'supervision': 72,
     'manual': 80,
     'heritage': 90,
     'planning_qa': 100,
@@ -1561,6 +1852,8 @@ class AppState extends ChangeNotifier {
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
   void openSection(String s) {
     tab = _lastTab[s] ?? 0;
+    // لوحة الإشراف (الترحيل 30) واجهة القسم؛ قبل الترحيل تبقى التقارير اليومية
+    if (tab == 72 && !v15Ready) tab = 70;
     showHub = false;
     _notify();
   }

@@ -366,7 +366,8 @@ class Sem {
     wipSoft: Color(0xFFFBE5D3),
     todo: Color(0xFFA7ABB1),
     todoSoft: Color(0xFFE6E8EB),
-    na: Color(0xFFC7CBD0),
+    // «لا ينطبق» أسود في الفاتح وأبيض في الداكن (توحيد ألوان الحالة، الترحيل 30)
+    na: Color(0xFF1F2328),
     danger: Color(0xFFB4232F),
     dangerSoft: Color(0xFFF6DDE0),
     surface: Color(0xFFFFFFFF),
@@ -383,7 +384,7 @@ class Sem {
     wipSoft: Color(0xFF3D2C20),
     todo: Color(0xFF66707C),
     todoSoft: Color(0xFF2A3038),
-    na: Color(0xFF3E4650),
+    na: Color(0xFFECEEF1),
     danger: Color(0xFFE57C85),
     dangerSoft: Color(0xFF402429),
     surface: Color(0xFF20252C),
@@ -423,19 +424,23 @@ class Sem {
 
   static Sem of(BuildContext context) => forBrightness(Theme.of(context).brightness);
 
+  /// ألوان الحالات الموحّدة في المنظومة: تم أخضر، قيد التنفيذ برتقالي، لم يتم أحمر، لا ينطبق أسود (فاتح) أو أبيض (داكن).
   Color statusColor(FormStatus s) => switch (s) {
         FormStatus.done => ok,
         FormStatus.wip => wip,
-        FormStatus.todo => todo,
+        FormStatus.todo => danger,
         FormStatus.na => na,
       };
 
   Color statusSoft(FormStatus s) => switch (s) {
         FormStatus.done => okSoft,
         FormStatus.wip => wipSoft,
-        FormStatus.todo => todoSoft,
+        FormStatus.todo => dangerSoft,
         FormStatus.na => surface2,
       };
+
+  /// النص فوق لون الحالة الممتلئ.
+  Color onStatus(FormStatus s) => s == FormStatus.na ? surface : Colors.white;
 
   Color cycleColor(CycleState c) => switch (c) {
         CycleState.complete => ok,

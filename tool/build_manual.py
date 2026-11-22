@@ -112,6 +112,8 @@ for s in ref_schemes:
 count = len(forms)
 req = count - 1
 pm_cfg = settings.get('pm.config') if isinstance(settings.get('pm.config'), dict) else {}
+# أسماء الحالات من الإعدادات الحية (الترحيل 30: تم، قيد التنفيذ، لم يتم، لا ينطبق)
+status_labels = settings.get('ui.status_labels') if isinstance(settings.get('ui.status_labels'), dict) else {}
 values = {
     'APP_VERSION': args.version or 'غير محدد',
     'MANUAL_UPDATED': updated,
@@ -127,6 +129,11 @@ values = {
     'SPI_AHEAD': f"{float(pm_cfg.get('spi_ahead', 1.05)):.2f}",
     'SPI_OK': f"{float(pm_cfg.get('spi_ok', 0.95)):.2f}",
     'SPI_WARN': f"{float(pm_cfg.get('spi_warn', 0.85)):.2f}",
+    'PM_ALERT_DAYS': str(int(pm_cfg.get('alert_days', 7))),
+    'ST_DONE': status_labels.get('done', 'تم'),
+    'ST_WIP': status_labels.get('wip', 'قيد التنفيذ'),
+    'ST_TODO': status_labels.get('todo', 'لم يتم'),
+    'ST_NA': status_labels.get('na', 'لا ينطبق'),
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML

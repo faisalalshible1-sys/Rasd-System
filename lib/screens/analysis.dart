@@ -135,11 +135,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   BarRow(
                     title: '${s + 1}. ${stageNames[s]}',
                     trailing: stageReq[s] == 0 ? '—' : pctText(stageDone[s] / stageReq[s]),
-                    subtitle: 'مكتمل ${stageDone[s]} · قيد الإجراء ${stageWip[s]} · لم يتم ${stageReq[s] - stageDone[s] - stageWip[s]} — من ${stageReq[s]}',
+                    subtitle: '${FormStatus.done.label} ${stageDone[s]} · ${FormStatus.wip.label} ${stageWip[s]} · ${FormStatus.todo.label} ${stageReq[s] - stageDone[s] - stageWip[s]} — من ${stageReq[s]}',
                     meter: SegmentMeter(parts: [
                       (stageDone[s], sem.ok),
                       (stageWip[s], sem.wip),
-                      (stageReq[s] - stageDone[s] - stageWip[s], sem.todo),
+                      (stageReq[s] - stageDone[s] - stageWip[s], sem.statusColor(FormStatus.todo)),
                     ]),
                     onTap: () => app.openProjects(stage: s),
                   ),
@@ -153,7 +153,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Legend(items: [(sem.ok, 'مكتمل'), (sem.wip, 'قيد الإجراء'), (sem.todo, 'لم يتم'), (sem.na, 'لا ينطبق')]),
+                Legend(items: [for (final s in FormStatus.values) (sem.statusColor(s), s.label)]),
                 const SizedBox(height: 6),
                 for (final d in app.formDefs)
                   BarRow(
@@ -162,7 +162,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     meter: SegmentMeter(parts: [
                       (fDone[d.key] ?? 0, sem.ok),
                       (fWip[d.key] ?? 0, sem.wip),
-                      (fTodo[d.key] ?? 0, sem.todo),
+                      (fTodo[d.key] ?? 0, sem.statusColor(FormStatus.todo)),
                       (fNa[d.key] ?? 0, sem.na),
                     ], height: 8),
                     onTap: () => app.openProjects(form: d.key),

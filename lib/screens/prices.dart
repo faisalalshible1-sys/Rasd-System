@@ -9,6 +9,7 @@ import '../print/export_dialog.dart';
 import '../print/model.dart' show ExportFormat;
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'plan_widgets.dart' show StatusChip;
 import 'pm_common.dart';
 import 'schedule.dart' show ScheduleNotReady, itemsText;
 
@@ -402,7 +403,7 @@ class _PriceListPageState extends State<PriceListPage> {
 /// إضافة بند من اللائحة إلى مقايسة: مقايسة قائمة أو جديدة.
 Future<void> addToBoq(BuildContext context, PriceItem it) async {
   final app = AppScope.read(context);
-  final sheets = app.boqSheets.where((s) => app.canEditBoq(s.projectId)).toList();
+  final sheets = app.boqSheets.where((s) => !s.approved && app.canEditBoq(s.projectId)).toList();
   final choice = sheets.isEmpty
       ? ''
       : await showDialog<String>(
@@ -466,6 +467,7 @@ class BoqSheetsPage extends StatelessWidget {
               if (app.people[s.createdBy]?.displayName != null) app.people[s.createdBy]!.displayName,
             ].join(' · '),
             badges: [
+              if (app.v15Ready) StatusChip(s.approved ? FormStatus.done : FormStatus.wip, label: s.approved ? 'معتمدة' : 'مسودة', small: true),
               ToneBadge(itemsText(s.lines.length), color: sem.muted),
               if (s.showPrices) ToneBadge('الإجمالي ${fmtMoney(s.total)}', color: Theme.of(context).colorScheme.primary),
               if (!s.showPrices) ToneBadge('كميات دون أسعار', color: sem.muted),
@@ -697,6 +699,23 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
     }
   }
 
+  Future<void> _approve(bool approve) async {
+    final app = AppScope.read(context);
+    final ok = await confirmDialog(context,
+        title: approve ? 'اعتماد المقايسة' : 'إعادة فتح المقايسة',
+        message: approve
+            ? 'تُعتمد المقايسة فتصير بنودها بنود العقد، ويُبنى منها البرنامج الزمني في «البرامج الزمنية». لا تُعدَّل بعدها إلا بإعادة فتحها.'
+            : 'تعود المقايسة مسودة قابلة للتعديل. لا يُسمح بذلك إن كان البرنامج الزمني المعتمد للعقد مبنياً عليها.',
+        confirmLabel: approve ? 'اعتماد' : 'إعادة فتح');
+    if (!ok || !mounted) return;
+    try {
+      await app.approveBoq(_id!, approve);
+      if (mounted) showToast(context, approve ? 'اعتُمدت المقايسة' : 'أُعيد فتح المقايسة للتعديل');
+    } catch (e) {
+      if (mounted) showToast(context, friendlyError(e), error: true);
+    }
+  }
+
   Future<void> _delete() async {
     final app = AppScope.read(context);
     final ok = await confirmDialog(context,
@@ -725,7 +744,8 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
     final sem = Sem.of(context);
     final saved = _id == null ? null : app.boqSheet(_id!);
     final canEdit = app.canEditBoq(_project.isEmpty ? null : _project);
-    final ro = !canEdit;
+    final approved = saved?.approved ?? false;
+    final ro = !canEdit || approved;
     final list = app.activePriceList;
     final narrow = MediaQuery.sizeOf(context).width < 640;
     return PopScope(
@@ -742,8 +762,15 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
       child: Scaffold(
         appBar: brandAppBar(context, title: Text(_id == null ? 'مقايسة جديدة' : 'المقايسة'), actions: [
           if (_lines.isNotEmpty) IconButton(tooltip: 'تصدير Excel وغيره', icon: const Icon(Icons.ios_share_rounded), onPressed: _export),
-          if (saved != null && app.canDeleteBoq(saved))
+          if (saved != null && !approved && app.canDeleteBoq(saved))
             IconButton(tooltip: 'حذف المقايسة', icon: const Icon(Icons.delete_outline_rounded), onPressed: _delete),
+          if (saved != null && app.canApproveBoq && !_dirty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 6),
+              child: approved
+                  ? OutlinedButton.icon(onPressed: () => _approve(false), icon: const Icon(Icons.lock_open_rounded), label: const Text('إعادة فتح'))
+                  : FilledButton.tonalIcon(onPressed: () => _approve(true), icon: const Icon(Icons.verified_outlined), label: const Text('اعتماد')),
+            ),
           if (!ro)
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 8),
@@ -757,10 +784,26 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
             ),
         ]),
         body: PageBody(maxWidth: 1100, children: [
-          if (ro)
+          if (approved)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InfoBanner(
+                text: 'معتمدة من ${app.people[saved?.approvedBy]?.displayName ?? 'الشؤون الفنية'}'
+                    '${saved?.approvedAt == null ? '' : ' بتاريخ ${fmtDate(saved!.approvedAt)}'}: بنودها بنود العقد ويُبنى منها برنامجه الزمني، '
+                    'ولا تُعدَّل ولا تُحذف إلا بإعادة فتحها (لرئيس الشؤون الفنية والمدير).',
+                level: 'ok',
+                icon: Icons.verified_outlined,
+              ),
+            )
+          else if (ro)
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
               child: InfoBanner(text: 'للقراءة والتصدير فقط: إعداد المقايسات لمكتب المدير ومكتب العقود ورئيسي الشؤون الفنية والمطابقة والاستلام.'),
+            )
+          else if (saved != null && app.v15Ready && !app.canApproveBoq)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: InfoBanner(text: 'مسودة: يعتمدها رئيس الشؤون الفنية أو المدير بعد ربطها بالعقد، فتصير بنودها بنود العقد.'),
             ),
           SectionCard(
             title: 'بيانات المقايسة',

@@ -31,6 +31,10 @@ List<GrantScope> grantCatalog(List<FormDef> forms) => [
               note: f.key == contractFormKey ? 'يشمل البيانات المالية للعقد وأعماله' : (f.engineerField != null ? 'يشمل تكليف المهندس المقابل' : '')),
       for (final e in docKindLabels.entries) GrantScope('docs:${e.key}', e.value, 'الشؤون الفنية'),
       const GrantScope('supervision:reports', 'التقارير اليومية للمواقع', 'الإشراف'),
+      const GrantScope('pm:plan', 'إعداد البرامج الزمنية', 'الشؤون الفنية',
+          note: 'البنود والمراحل والمدد والتوليد من المقايسة المعتمدة، دون الاعتماد'),
+      const GrantScope('pm:track', 'متابعة تنفيذ البرامج الزمنية', 'الإشراف',
+          note: 'الإنجاز والتواريخ الفعلية و«لا ينطبق» على البرامج المعتمدة لكل العقود'),
       for (final k in unitKinds.values) GrantScope('unit:${k.key}', k.label, unitNames[k.unit] ?? k.unit),
       const GrantScope('swot', 'تحليل SWOT', 'التخطيط الاستراتيجي'),
     ];

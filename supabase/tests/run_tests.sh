@@ -94,3 +94,15 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql"
 $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261121000029_schedule_items.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/102_schedule_items_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# إعداد البرنامج الزمني من المقايسة المعتمدة (الشؤون الفنية) ومتابعته (الإشراف) (الترحيل 30)
+$P -d dctest -f "$DIR/migrations/20261122000030_plans_supervision.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000030_plans_supervision.sql"
+$P -d dctest -f "$DIR/migrations/20261122000030_plans_supervision.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000030_plans_supervision.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/103_plans_supervision_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# ترجمة تنفيذ البرنامج الزمني المعتمد إلى سجل المخاطر وSWOT (الترحيل 31)
+$P -d dctest -f "$DIR/migrations/20261122000031_auto_risks_swot.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000031_auto_risks_swot.sql"
+$P -d dctest -f "$DIR/migrations/20261122000031_auto_risks_swot.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000031_auto_risks_swot.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/104_auto_risks_swot_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# رمز QR يفتح نسخة PDF الأصلية المحفوظة بالصلاحية (الترحيل 32)
+$P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql"
+$P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/105_export_files_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

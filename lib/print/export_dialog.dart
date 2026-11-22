@@ -411,12 +411,12 @@ class _ExportDialogState extends State<_ExportDialog> {
           label: const Text('معاينة'),
         ),
         OutlinedButton.icon(
-          onPressed: table == null ? null : () => runExport(context, table, _config, ExportFormat.pdf, print: true),
+          onPressed: table == null ? null : () => runExport(context, table, _config, ExportFormat.pdf, print: true, projectId: _project),
           icon: const Icon(Icons.print_rounded),
           label: const Text('طباعة'),
         ),
         FilledButton.icon(
-          onPressed: table == null ? null : () => runExport(context, table, _config, _format),
+          onPressed: table == null ? null : () => runExport(context, table, _config, _format, projectId: _project),
           icon: Icon(_format.icon),
           label: Text('تصدير ${_format.label}'),
         ),
@@ -479,7 +479,7 @@ class _ExportDialogState extends State<_ExportDialog> {
                 padding: const EdgeInsets.all(12),
                 child: Wrap(spacing: 10, children: [
                   OutlinedButton.icon(
-                    onPressed: () => runExport(context, table, _config, ExportFormat.pdf, print: true),
+                    onPressed: () => runExport(context, table, _config, ExportFormat.pdf, print: true, projectId: _project),
                     icon: const Icon(Icons.picture_as_pdf_outlined),
                     label: const Text('فتح PDF الفعلي'),
                   ),

@@ -49,14 +49,15 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('26_chat', 26, 'المراسلات الداخلية'),
   ManualChapter('27_security', 27, 'مركز الأمن السيبراني'),
   ManualChapter('28_prices', 28, 'لائحة الأسعار الاسترشادية ومُعِدّ المقايسات'),
-  ManualChapter('29_schedule', 29, 'الجداول الزمنية للمشاريع والانحرافات'),
+  ManualChapter('29_schedule', 29, 'البرامج الزمنية: الإعداد من المقايسة ومتابعة الانحرافات'),
+  ManualChapter('30_supervision_hub', 30, 'الإشراف: لوحة المتابعة ودورة حياة العقد وبنود العقود'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/21';
+const String manualUpdated = '2026/11/22';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -115,11 +116,14 @@ const Map<int, String> manualTabAnchors = {
   64: '17_docs',
   65: '28_prices',
   66: '28_prices',
+  67: '29_schedule', // البرامج الزمنية (الإعداد)
   68: '23_admin',
   69: '23_admin',
   // الإشراف
   70: '18_supervision',
   71: '18_supervision',
+  72: '30_supervision_hub', // لوحة الإشراف
+  73: '30_supervision_hub', // بنود العقود
   78: '23_admin',
   79: '23_admin',
   // دليل الاستخدام
@@ -187,7 +191,7 @@ const Map<String, String> manualSectionAnchors = {
   'risks': '08_pm_map',
   'swot': '16_swot',
   'docs': '17_docs',
-  'supervision': '18_supervision',
+  'supervision': '30_supervision_hub',
   'heritage': '19_heritage',
   'planning_qa': '20_planning_qa',
   'safety': '21_safety',

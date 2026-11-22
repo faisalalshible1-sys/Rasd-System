@@ -763,7 +763,7 @@ class PrintTemplate {
 
 /// سياق الطباعة: من طبع ومتى، والرقم المرجعي، والعنوان النهائي.
 class PrintContext {
-  PrintContext({required this.printedBy, required this.orgName, DateTime? at, String? ref, this.issued = false})
+  PrintContext({required this.printedBy, required this.orgName, DateTime? at, String? ref, this.issued = false, this.verifyUrl})
       : at = at ?? DateTime.now(),
         ref = ref ?? _autoRef(at ?? DateTime.now());
 
@@ -778,7 +778,13 @@ class PrintContext {
   /// الرقم كما يظهر في المستند.
   String refText(PrintConfig c) => issued ? ref : '${c.refPrefix}/$ref';
 
-  PrintContext withRef(String r) => PrintContext(printedBy: printedBy, orgName: orgName, at: at, ref: r, issued: true);
+  PrintContext withRef(String r) => PrintContext(printedBy: printedBy, orgName: orgName, at: at, ref: r, issued: true, verifyUrl: verifyUrl);
+
+  /// رابط فتح النسخة الأصلية المحفوظة (الترحيل 32): يصير محتوى رمز QR بدل نص التحقق.
+  final String? verifyUrl;
+
+  PrintContext withVerify(String? url) =>
+      PrintContext(printedBy: printedBy, orgName: orgName, at: at, ref: ref, issued: issued, verifyUrl: url);
 
   static String _autoRef(DateTime t) =>
       '${t.year}/${_two(t.month)}${_two(t.day)}/${_two(t.hour)}${_two(t.minute)}${_two(t.second)}';
@@ -787,6 +793,9 @@ class PrintContext {
 /// العنوان الظاهر للمستند.
 String titleOf(ExportTable t, PrintConfig c) =>
     c.titleMode == 'custom' && c.customTitle.trim().isNotEmpty ? c.customTitle.trim() : t.title;
+
+/// محتوى رمز QR: رابط النسخة الأصلية المحفوظة إن حُفظت، وإلا نص التحقق.
+String qrData(ExportTable t, PrintConfig c, PrintContext ctx) => ctx.verifyUrl ?? verifyText(t, c, ctx);
 
 /// نص رمز التحقق: يكفي لمطابقة النسخة المطبوعة مع سجل التدقيق.
 String verifyText(ExportTable t, PrintConfig c, PrintContext ctx) =>

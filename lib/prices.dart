@@ -186,6 +186,9 @@ class BoqSheet {
     this.total = 0,
     this.createdBy,
     this.updatedAt,
+    this.status = 'draft',
+    this.approvedAt,
+    this.approvedBy,
   });
 
   final String id;
@@ -199,6 +202,13 @@ class BoqSheet {
   final double total;
   final String? createdBy;
   final DateTime? updatedAt;
+
+  /// مسودة، أو معتمدة من الشؤون الفنية (الترحيل 30): المعتمدة لا تُعدَّل، وبنودها بنود العقد.
+  final String status;
+  final DateTime? approvedAt;
+  final String? approvedBy;
+
+  bool get approved => status == 'approved';
 
   factory BoqSheet.fromMap(Map<String, dynamic> m) {
     final id = _str(m['id']);
@@ -219,6 +229,9 @@ class BoqSheet {
       total: _num(m['total']) ?? 0,
       createdBy: m['created_by'] == null ? null : _str(m['created_by']),
       updatedAt: DateTime.tryParse(_str(m['updated_at']))?.toLocal(),
+      status: _str(m['status']).isEmpty ? 'draft' : _str(m['status']),
+      approvedAt: DateTime.tryParse(_str(m['approved_at']))?.toLocal(),
+      approvedBy: m['approved_by'] == null ? null : _str(m['approved_by']),
     );
   }
 }

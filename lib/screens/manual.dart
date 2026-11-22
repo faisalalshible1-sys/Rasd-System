@@ -54,6 +54,11 @@ Map<String, String> manualValues(AppState app) {
     'SPI_AHEAD': app.pmConfig.spiAhead.toStringAsFixed(2),
     'SPI_OK': app.pmConfig.spiOk.toStringAsFixed(2),
     'SPI_WARN': app.pmConfig.spiWarn.toStringAsFixed(2),
+    'PM_ALERT_DAYS': '${app.pmConfig.alertDays}',
+    'ST_DONE': FormStatus.done.label,
+    'ST_WIP': FormStatus.wip.label,
+    'ST_TODO': FormStatus.todo.label,
+    'ST_NA': FormStatus.na.label,
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

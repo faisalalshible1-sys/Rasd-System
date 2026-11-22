@@ -505,7 +505,7 @@ class CycleStrip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: i < cells.length && cells[i] != FormStatus.todo && cells[i] != FormStatus.na
                         ? sem.statusColor(cells[i])
-                        : sem.todoSoft,
+                        : (i < cells.length && cells[i] == FormStatus.todo ? sem.statusSoft(FormStatus.todo) : sem.todoSoft),
                     border: i < cells.length && cells[i] == FormStatus.na ? Border.all(color: sem.na, width: 1) : null,
                     borderRadius: BorderRadius.circular(2),
                   ),

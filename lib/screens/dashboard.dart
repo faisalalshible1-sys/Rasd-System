@@ -428,13 +428,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SegmentMeter(parts: [(st.done, sem.ok), (st.wip, sem.wip), (st.todo, sem.todo)]),
+                    SegmentMeter(parts: [(st.done, sem.ok), (st.wip, sem.wip), (st.todo, sem.statusColor(FormStatus.todo))]),
                     const SizedBox(height: 10),
                     Legend(items: [
-                      (sem.ok, 'مكتمل ${st.done}'),
-                      (sem.wip, 'قيد الإجراء ${st.wip}'),
-                      (sem.todo, 'لم يتم ${st.todo}'),
-                      (sem.na, 'لا ينطبق ${st.na}'),
+                      (sem.ok, '${FormStatus.done.label} ${st.done}'),
+                      (sem.wip, '${FormStatus.wip.label} ${st.wip}'),
+                      (sem.statusColor(FormStatus.todo), '${FormStatus.todo.label} ${st.todo}'),
+                      (sem.na, '${FormStatus.na.label} ${st.na}'),
                     ]),
                     const SizedBox(height: 6),
                     Text('من أصل ${st.req} نموذجاً مطلوباً في $n من ${term('contracts')}', style: TextStyle(color: sem.muted, fontSize: 12)),

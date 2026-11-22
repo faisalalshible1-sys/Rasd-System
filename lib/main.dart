@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,6 +17,8 @@ Future<void> main() async {
     await Supabase.initialize(url: AppConfig.supabaseUrl, anonKey: AppConfig.supabaseAnonKey);
     state = AppState(Supabase.instance.client);
     await state.loadPrefs();
+    // رابط رمز QR (?f=...): يُفتح المستند المحفوظ بعد الدخول لمن يحق له
+    if (kIsWeb) state.readExportLink(Uri.base);
     // بلا «تذكرني»: الدخول السابق لا يُستعاد، ويُطلب الدخول عند كل فتح (إلا رابط استعادة كلمة المرور)
     final auth = Supabase.instance.client.auth;
     if (!state.rememberMe && auth.currentSession != null && !Uri.base.toString().contains('recovery')) {

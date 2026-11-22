@@ -12,7 +12,9 @@ import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'hub.dart' show sectionColor;
 import 'pm_common.dart';
+import 'plan_widgets.dart' show PlanGantt, ganttRows;
 import 'pm_projects.dart' show showScheduleEditor;
+import 'supervision_hub.dart' show openProjectFollow;
 
 // =====================================================================
 // الجداول الزمنية لكل مشروع: لوحة المشاريع المتقدمة والمتأخرة، وصفحة جدول المشروع ببنوده
@@ -228,9 +230,10 @@ class _ScheduleDashboardPageState extends State<ScheduleDashboardPage> {
   }
 }
 
-/// يفتح صفحة الجدول الزمني لعقد.
-Future<void> openProjectSchedule(BuildContext context, String projectId) =>
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectSchedulePage(projectId: projectId)));
+/// يفتح متابعة تنفيذ العقد (بعد الترحيل 30)، أو صفحة الجدول الزمني قبله.
+Future<void> openProjectSchedule(BuildContext context, String projectId) => AppScope.read(context).v15Ready
+    ? openProjectFollow(context, projectId)
+    : Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectSchedulePage(projectId: projectId)));
 
 /// اختيار عقد (بحث بالاسم أو الرقم)، والعقود التي لها جدول أولاً.
 Future<String?> pickScheduleProject(BuildContext context, AppState app) {
@@ -543,8 +546,8 @@ class ProjectSchedulePage extends StatelessWidget {
           SectionCard(
             title: 'المخطط الزمني',
             icon: Icons.view_timeline_rounded,
-            subtitle: 'الشريط الفاتح مدة البند المخططة، والملوّن ما أُنجز منها، والخط العمودي تاريخ الإسناد، والأحمر بعد النهاية تجاوز لبند لم يكتمل.',
-            child: ScheduleGantt(track: track),
+            subtitle: 'من اليمين: الشريط الفاتح مدة البند المخططة، والملوّن ما أُنجز منها، والخط العمودي تاريخ الإسناد، والأحمر بعد النهاية تجاوز لبند لم يكتمل.',
+            child: PlanGantt(rows: ganttRows(context, track), ref: track.ref),
           ),
           const SizedBox(height: 14),
           SectionCard(
@@ -747,173 +750,4 @@ Future<void> showPmItemEditor(BuildContext context, Project p, PmItem? item) asy
     },
   );
   if (ok && context.mounted) showToast(context, item == null ? 'أُضيف البند' : 'حُفظ البند');
-}
-
-// =====================================================================
-// المخطط الزمني (Gantt): الزمن من اليسار إلى اليمين كبقية الرسوم
-// =====================================================================
-class ScheduleGantt extends StatelessWidget {
-  const ScheduleGantt({super.key, required this.track});
-
-  final ScheduleTrack track;
-
-  @override
-  Widget build(BuildContext context) {
-    final sem = Sem.of(context);
-    final t = track;
-    if (t.items.isEmpty) return const SizedBox.shrink();
-    var from = t.start!, to = t.end!;
-    if (t.ref.isBefore(from)) from = t.ref;
-    if (t.ref.isAfter(to)) to = t.ref;
-    from = DateTime(from.year, from.month, 1);
-    to = DateTime(to.year, to.month + 1, 1);
-    final span = math.max(1, daysBetween(to, from));
-    final narrow = MediaQuery.sizeOf(context).width < 600;
-    final labelW = narrow ? 112.0 : 210.0;
-    final colors = _GanttColors(
-      track: sem.todoSoft,
-      plan: sem.muted.withValues(alpha: 0.30),
-      ref: Theme.of(context).colorScheme.primary,
-      over: sem.danger,
-      grid: sem.rule,
-    );
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          SizedBox(width: labelW),
-          Expanded(
-            child: SizedBox(
-              height: 22,
-              child: CustomPaint(
-                  painter: _AxisPainter(
-                      from: from, to: to, span: span, grid: sem.rule,
-                      style: (Theme.of(context).textTheme.labelSmall ?? const TextStyle()).copyWith(fontSize: 10.5, color: sem.muted))),
-            ),
-          ),
-        ]),
-        for (final c in t.calcs)
-          SizedBox(
-            height: 30,
-            child: Row(children: [
-              SizedBox(
-                width: labelW,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Text(
-                    [if (c.item.code.isNotEmpty) c.item.code, c.item.title].join(' '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.rtl,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Tooltip(
-                  message: '${c.item.title}\n${pmDay(c.item.plannedStart)} إلى ${pmDay(c.item.plannedEnd)} · '
-                      'المخطط ${_pct1(c.planned)} · الفعلي ${_pct1(c.actual)}',
-                  child: CustomPaint(
-                    painter: _BarPainter(
-                      calc: c,
-                      from: from,
-                      span: span,
-                      colors: colors,
-                      fill: perfColor(context, c.status),
-                    ),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-      ]),
-    );
-  }
-}
-
-class _GanttColors {
-  const _GanttColors({required this.track, required this.plan, required this.ref, required this.over, required this.grid});
-
-  final Color track, plan, ref, over, grid;
-}
-
-class _AxisPainter extends CustomPainter {
-  _AxisPainter({required this.from, required this.to, required this.span, required this.style, required this.grid});
-
-  final DateTime from, to;
-  final int span;
-  final TextStyle style;
-  final Color grid;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final months = <DateTime>[];
-    for (var d = from; d.isBefore(to); d = DateTime(d.year, d.month + 1, 1)) {
-      months.add(d);
-    }
-    final perMonth = size.width / math.max(1, months.length);
-    final step = math.max(1, (46 / perMonth).ceil());
-    final line = Paint()
-      ..color = grid
-      ..strokeWidth = 1;
-    for (var k = 0; k < months.length; k++) {
-      final x = daysBetween(months[k], from) / span * size.width;
-      canvas.drawLine(Offset(x, size.height - 4), Offset(x, size.height), line);
-      if (k % step != 0) continue;
-      final m = months[k];
-      final tp = TextPainter(
-        text: TextSpan(text: '${m.month}/${m.year % 100}', style: style),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      if (x + tp.width <= size.width) tp.paint(canvas, Offset(x + 2, 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _AxisPainter old) => old.from != from || old.to != to || old.style != style;
-}
-
-class _BarPainter extends CustomPainter {
-  _BarPainter({required this.calc, required this.from, required this.span, required this.colors, required this.fill});
-
-  final ItemCalc calc;
-  final DateTime from;
-  final int span;
-  final _GanttColors colors;
-  final Color fill;
-
-  double _x(DateTime d, double w) => (daysBetween(d, from) / span * w).clamp(0, w).toDouble();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final i = calc.item;
-    final bar = h * 0.42;
-    final top = (h - bar) / 2;
-    final x0 = _x(i.plannedStart, w);
-    final x1 = math.max(x0 + 3, _x(i.plannedEnd, w));
-    final r = Radius.circular(bar / 2);
-    canvas.drawLine(Offset(0, h - 0.5), Offset(w, h - 0.5), Paint()..color = colors.grid.withValues(alpha: 0.5));
-    canvas.drawRRect(RRect.fromLTRBR(x0, top, x1, top + bar, r), Paint()..color = colors.plan);
-    final done = (x1 - x0) * (calc.actual / 100).clamp(0, 1);
-    if (done > 0) {
-      canvas.drawRRect(RRect.fromLTRBR(x0, top + 1.5, x0 + done, top + bar - 1.5, r), Paint()..color = fill);
-    }
-    if (calc.overdueDays != null) {
-      final xo = _x(calc.ref, w);
-      canvas.drawLine(Offset(x1, h / 2), Offset(xo, h / 2), Paint()
-        ..color = colors.over
-        ..strokeWidth = 2.5);
-    }
-    final xr = _x(calc.ref, w);
-    canvas.drawLine(Offset(xr, 0), Offset(xr, h), Paint()
-      ..color = colors.ref
-      ..strokeWidth = 1.5);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BarPainter old) => old.calc != calc || old.fill != fill || old.span != span;
 }

@@ -680,10 +680,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                 ),
                 const SizedBox(height: 10),
                 Legend(items: [
-                  (sem.ok, 'مكتمل ${pr.done}'),
-                  (sem.wip, 'قيد الإجراء ${pr.wip}'),
-                  (sem.todo, 'لم يتم ${pr.todo}'),
-                  (sem.na, 'لا ينطبق ${pr.na}'),
+                  (sem.ok, '${FormStatus.done.label} ${pr.done}'),
+                  (sem.wip, '${FormStatus.wip.label} ${pr.wip}'),
+                  (sem.statusColor(FormStatus.todo), '${FormStatus.todo.label} ${pr.todo}'),
+                  (sem.na, '${FormStatus.na.label} ${pr.na}'),
                 ]),
                 Divider(height: 26, color: sem.rule),
                 LayoutBuilder(builder: (context, c) {

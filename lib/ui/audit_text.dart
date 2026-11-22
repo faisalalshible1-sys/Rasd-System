@@ -232,6 +232,36 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'عدّل المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
     case 'boq.delete':
       return 'حذف المقايسة «${text(d['title'])}» (${text(d['lines'])} بنداً)';
+    case 'boq.approve':
+      return 'اعتمد المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}، فصارت بنودها بنود العقد';
+    case 'boq.reopen':
+      return 'أعاد فتح المقايسة «${text(d['title'])}» للتعديل';
+    case 'pm.item_progress':
+      return 'حدّث تنفيذ البند «${text(d['title'])}»${_changed(d['changes'])}';
+    case 'pm.plan_save':
+      return 'حدّد بداية البرنامج الزمني ${text(d['start_date']).replaceAll('-', '/')}';
+    case 'pm.phase_save':
+      return '${d['new'] == true ? 'أضاف' : 'عدّل'} مرحلة التنفيذ «${text(d['name'])}»${(d['lag_days'] is num && d['lag_days'] != 0) ? ' (الفاصل ${text(d['lag_days'])} يوماً)' : ''}';
+    case 'pm.phase_delete':
+      return 'حذف مرحلة التنفيذ «${text(d['name'])}»';
+    case 'pm.plan_generate':
+      return 'ولّد البرنامج الزمني من المقايسة المعتمدة: ${text(d['phases'])} مراحل و${text(d['items'])} بنداً في ${text(d['total_days'])} يوماً';
+    case 'pm.plan_approve':
+      return 'اعتمد البرنامج الزمني (الإصدار ${text(d['version'])}): ${text(d['items'])} بنداً من ${text(d['start_date']).replaceAll('-', '/')} إلى ${text(d['end_date']).replaceAll('-', '/')}، وأحاله إلى الإشراف';
+    case 'pm.plan_reopen':
+      return 'أعاد فتح البرنامج الزمني (الإصدار ${text(d['version'])}) للتعديل';
+    case 'risk.auto':
+      return 'ترجم تنفيذ البرنامج الزمني إلى سجل المخاطر بتاريخ ${text(d['ref_date']).replaceAll('-', '/')}: فُتح ${text(d['opened'])} وأُغلق ${text(d['closed'])}';
+    case 'swot.auto':
+      return 'ترجم تنفيذ البرنامج الزمني إلى تحليل SWOT بتاريخ ${text(d['ref_date']).replaceAll('-', '/')}: أُضيف ${text(d['added'])} وأُزيل ${text(d['removed'])}';
+    case 'export.store':
+      return 'حفظ النسخة الأصلية من «${text(d['title'])}»${text(d['ref_no']).isEmpty ? '' : ' (${text(d['ref_no'])})'} لرمز التحقق، ${_access(d['access'])}';
+    case 'export.open':
+      return 'فتح النسخة الأصلية من «${text(d['title'])}»${text(d['ref_no']).isEmpty ? '' : ' (${text(d['ref_no'])})'} برمز التحقق';
+    case 'export.denied':
+      return 'رُفض فتح النسخة الأصلية من «${text(d['title'])}» لأنها ${_access(d['access'])}';
+    case 'export.unknown':
+      return 'محاولة فتح مستند برمز تحقق غير معروف';
     case 'pm.issue_create':
       return 'سجّل المشكلة ${text(d['code'])}: ${text(d['description'])}';
     case 'pm.delay_create':
@@ -558,3 +588,10 @@ String _docKind(Object? k) => switch (k?.toString()) { 'boq' => 'المقايس�
 
 String _unitKind(Object? k) => unitKinds[k?.toString()]?.single ?? 'سجلاً';
 String _unitName(Object? u) => unitNames[u?.toString()] ?? 'وحدة';
+
+/// نطاق الاطلاع على نسخة PDF المحفوظة (الترحيل 32).
+String _access(Object? v) => switch (v) {
+      'people' => 'مقيّدة بالمدير ومسؤول الأمن ومن استخرجها',
+      'private' => 'سرية للمدير ومن استخرجها',
+      _ => 'مفتوحة لأعضاء المنظومة',
+    };
