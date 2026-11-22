@@ -32,8 +32,8 @@ typedef LayoutPagesFn = List<LayoutPage> Function(AppState app, String section, 
 /// نسخة قابلة للتعديل من التخصيص، تُعرض حية في شاشة الدخول ولا تُحفظ إلا بالحفظ.
 class HubDraft {
   HubDraft.from(UiLayout l, List<String> defaultOrder)
-      : _default = defaultOrder,
-        order = UiLayout.ordered(defaultOrder, l.sectionOrder, (k) => k),
+      : _default = [...defaultOrder],
+        order = [...UiLayout.ordered(defaultOrder, l.sectionOrder, (k) => k)],
         sections = Map.of(l.sections),
         groups = [...l.groups],
         style = l.style,
