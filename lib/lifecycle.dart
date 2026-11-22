@@ -154,7 +154,7 @@ List<LifePhase> lifecycleOf({
           start = _min([start, ...xs.map((x) => x.submittedOn ?? x.periodFrom)]);
           if (st == FormStatus.done) end = _max([end, ...xs.map((x) => x.paidOn ?? x.approvedOn)]);
           final approved = xs.where((x) => x.status == 'approved' || x.status == 'paid').length;
-          note = '${xs.length} مستخلصاً، المعتمد والمدفوع منها $approved';
+          note = 'المستخلصات المسجلة ${xs.length}، المعتمد والمدفوع منها $approved';
         }
       case 'initial':
         if (op == 'prov_accepted' || op == 'final_accepted') {

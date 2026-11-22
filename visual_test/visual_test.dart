@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dc_app/app_state.dart';
 import 'package:dc_app/chat.dart';
@@ -392,25 +393,31 @@ class _VisualApp extends AppState {
 
   /// معاينة التوليد كما تعيدها قاعدة البيانات لمثال الفصل 29 (124,730 في 120 يوماً).
   @override
-  Future<Map<String, dynamic>> planPreview(String projectId, int totalDays) async => {
-        'total_days': 120,
-        'items': 5,
-        'phases': [
-          {'name': 'الأعمال التمهيدية', 'days': 15, 'cost': 15750, 'items': [
-            {'code': '1.1.1.1', 'title': 'في حدود ± 0.250 م', 'days': 13, 'cost': 6500},
-            {'code': '1.2.1.1', 'title': 'مباني - دور تحت الأرض فقط', 'days': 15, 'cost': 9250},
-          ]},
-          {'name': 'الأعمال الخرسانية', 'days': 72, 'cost': 75230, 'items': [
-            {'code': '3.2.6.5', 'title': 'أعمدة مربعة أو مستطيلة', 'days': 72, 'cost': 75230},
-          ]},
-          {'name': 'أعمال تكسيات الحوائط والأرضيات والوزرات', 'days': 28, 'cost': 28750, 'items': [
-            {'code': '7.2.2.1', 'title': 'رخام من نوع ابيض كراره', 'days': 28, 'cost': 28750},
-          ]},
-          {'name': 'بنود أخرى', 'days': 5, 'cost': 5000, 'items': [
-            {'code': '', 'title': 'تنظيف نهائي للموقع', 'days': 5, 'cost': 5000},
-          ]},
-        ],
-      };
+  Future<Map<String, dynamic>> planPreview(String projectId, int totalDays) async {
+    // معادلات الترحيل 30 نفسها على بنود مثال الفصل 29
+    const phases = [
+      ('الأعمال التمهيدية', [('1.1.1.1', 'في حدود ± 0.250 م', 6500.0), ('1.2.1.1', 'مباني - دور تحت الأرض فقط', 9250.0)]),
+      ('الأعمال الخرسانية', [('3.2.6.5', 'أعمدة مربعة أو مستطيلة', 75230.0)]),
+      ('أعمال تكسيات الحوائط والأرضيات والوزرات', [('7.2.2.1', 'رخام من نوع ابيض كراره', 28750.0)]),
+      ('بنود أخرى', [('', 'تنظيف نهائي للموقع', 5000.0)]),
+    ];
+    const total = 124730.0;
+    final out = <Map<String, dynamic>>[];
+    var sum = 0;
+    for (final (name, items) in phases) {
+      final cost = items.fold<double>(0, (a, i) => a + i.$3);
+      final maxc = items.map((i) => i.$3).reduce(math.max);
+      final days = math.max(3, (totalDays * cost / total).round());
+      sum += days;
+      out.add({
+        'name': name,
+        'days': days,
+        'cost': cost,
+        'items': [for (final i in items) {'code': i.$1, 'title': i.$2, 'cost': i.$3, 'days': math.max(1, (days * math.sqrt(i.$3 / maxc)).round())}],
+      });
+    }
+    return {'total_days': sum, 'items': 5, 'phases': out};
+  }
 }
 
 /// البرامج الزمنية من المقايسة المعتمدة ومتابعة الإشراف (الترحيلات 30–32): مقايسة معتمدة، وبرنامج معتمد بمراحل

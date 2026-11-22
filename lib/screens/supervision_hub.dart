@@ -476,7 +476,7 @@ class _ContractItemsPageState extends State<ContractItemsPage> {
         PageHeader(
           title: 'بنود العقود',
           subtitle: 'بنود كل عقد هي بنود مقايسته المعتمدة من الشؤون الفنية وما أُضيف إليها مما ليس فيها، مرتبطة بعقدها وبرنامجه الزمني. '
-              'المشروع ← العقد ← البنود ← حالة تنفيذ كل بند.',
+              'من المشروع إلى العقد إلى بنوده وحالة تنفيذ كل بند.',
           icon: Icons.format_list_numbered_rounded,
         ),
         Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -982,7 +982,8 @@ Future<void> showLifePhaseSheet(BuildContext context, Project p, ProjectFollow f
               Text(x.def.key.toUpperCase(), style: TextStyle(color: sem.muted, fontWeight: FontWeight.w700, fontSize: 12)),
               const SizedBox(width: 8),
               Expanded(child: Text(x.def.name, style: const TextStyle(height: 1.35))),
-              if (x.at != null) Text(pmDay(x.at), style: TextStyle(color: sem.muted, fontSize: 12)),
+              if (x.at != null && (x.status == FormStatus.done || x.status == FormStatus.wip))
+                Text(pmDay(x.at), style: TextStyle(color: sem.muted, fontSize: 12)),
               const SizedBox(width: 8),
               StatusChip(x.status, small: true),
             ]),

@@ -180,7 +180,7 @@ class _PlanRow extends StatelessWidget {
               Wrap(spacing: 12, runSpacing: 2, children: [
                 Text('مقايسات معتمدة: ${boqs.length}${boqs.isEmpty ? '' : ' · ${fmtMoney(boqs.fold<double>(0, (a, s) => a + s.total))}'}',
                     style: TextStyle(color: sem.muted, fontSize: 12.5)),
-                if (plan != null) Text('${itemsText(items.length)} · ${app.phasesOf(p.id).length} مراحل', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+                if (plan != null) Text('${itemsText(items.length)} · ${phasesText(app.phasesOf(p.id).length)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
                 if (layout != null && items.isNotEmpty)
                   Text('${pmDay(layout.start)} إلى ${pmDay(layout.end)} · ${daysWord(layout.totalDays)}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
                 if (plan?.approved == true) Text('الإصدار ${plan!.version}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
@@ -453,6 +453,15 @@ class PlanEditorPage extends StatelessWidget {
     );
   }
 }
+
+/// عدد المراحل بصيغته العربية.
+String phasesText(int n) => switch (n) {
+      0 => 'دون مراحل',
+      1 => 'مرحلة واحدة',
+      2 => 'مرحلتان',
+      <= 10 => '$n مراحل',
+      _ => '$n مرحلة',
+    };
 
 String fmtQty(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '');
 
@@ -762,7 +771,7 @@ Future<void> showGenerateDialog(BuildContext context, Project p, {bool replace =
               if (preview != null && !busy) ...[
                 const SizedBox(height: 12),
                 InfoBanner(
-                  text: '${phases.length} مراحل · ${preview!['items']} بنداً · المدة الإجمالية ${daysWord((preview!['total_days'] as num).toInt())} '
+                  text: '${phasesText(phases.length)} · ${itemsText((preview!['items'] as num).toInt())} · المدة الإجمالية ${daysWord((preview!['total_days'] as num).toInt())} '
                       '(من ${pmDay(start)} إلى ${pmDay(addDays(start, (preview!['total_days'] as num).toInt()))})',
                   level: 'ok',
                 ),
