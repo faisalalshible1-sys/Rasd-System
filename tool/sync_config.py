@@ -21,6 +21,10 @@ REPO = os.environ.get("REPO", "")
 CATEGORY = {"feature": "ميزة جديدة", "design": "التصميم والشكل", "data": "البيانات والتقارير",
             "security": "الأمان", "bug": "خلل يحتاج إصلاحاً", "other": "أخرى"}
 PRIORITY = {"low": "منخفضة", "normal": "عادية", "high": "عالية", "urgent": "عاجلة"}
+SECTIONS = {"cycle": "الدورة المستندية", "risks": "المخاطر ومتابعة المشاريع", "swot": "تحليل SWOT", "docs": "الشؤون الفنية",
+            "supervision": "الإشراف", "heritage": "الترميم والمباني التاريخية", "planning_qa": "مكتب التخطيط وضمان الجودة",
+            "safety": "مكتب السلامة المهنية", "acceptance": "المطابقة والاستلام", "chat": "المراسلات الداخلية",
+            "security": "الأمن السيبراني", "print": "الطباعة والتصدير", "manual": "دليل الاستخدام"}
 
 if not URL or not KEY:
     print("::notice title=المزامنة::السرّان SUPABASE_URL و SUPABASE_SERVICE_KEY غير موجودين؛ لم تتم المزامنة.")
@@ -80,7 +84,11 @@ write("config/live-settings.json", cfg)
 print(f"الإعدادات: {len(cfg.get('settings', {}))} إعداداً، {len(cfg.get('forms', []))} نموذجاً، {len(cfg.get('custom_fields', []))} حقلاً")
 
 # 2. الأفكار ← مهام في المستودع
-code, ideas = sb("GET", "/rest/v1/ideas?select=id,title,body,category,priority,status,response,created_at,updated_at,github_issue,github_url&order=created_at.asc")
+_IDEA_COLS = "id,title,body,category,priority,status,response,created_at,updated_at,github_issue,github_url"
+# القسم والصفحة اللذان كُتبت منهما الفكرة (الترحيل 33)؛ قبل الترحيل تُقرأ الأعمدة القديمة وحدها
+code, ideas = sb("GET", f"/rest/v1/ideas?select={_IDEA_COLS},section,page_id,page_label&order=created_at.asc")
+if code != 200:
+    code, ideas = sb("GET", f"/rest/v1/ideas?select={_IDEA_COLS}&order=created_at.asc")
 if code != 200 or not isinstance(ideas, list):
     print(f"::warning title=الأفكار::تعذّر قراءة الأفكار: {code} {ideas}")
     ideas = []
@@ -93,13 +101,17 @@ for idea in ideas:
     num = idea.get("github_issue")
     if not num and status not in ("done", "rejected"):
         body = (idea.get("body") or "").strip()
+        sec = SECTIONS.get(idea.get("section") or "", "")
+        place = (sec + (f" › {idea['page_label']}" if idea.get("page_label") else "")) if sec else "عامة للمنظومة"
         text = (body + "\n\n---\n" if body else "") + \
+            f"- المكان: {place}\n" \
             f"- النوع: {CATEGORY.get(idea.get('category'), idea.get('category'))}\n" \
             f"- الأولوية: {PRIORITY.get(idea.get('priority'), idea.get('priority'))}\n" \
             f"- تاريخ الإرسال: {(idea.get('created_at') or '')[:10]}\n" \
             f"- معرّف الفكرة: `{idea['id']}`\n\n" \
             "_أُنشئت تلقائياً من قسم «الأفكار والتطوير» في التطبيق._"
-        c, issue = gh("POST", f"/repos/{REPO}/issues", {"title": f"[فكرة] {idea.get('title', '')}", "body": text})
+        tag = f"فكرة · {sec}" if sec else "فكرة"
+        c, issue = gh("POST", f"/repos/{REPO}/issues", {"title": f"[{tag}] {idea.get('title', '')}", "body": text})
         if c == 201 and isinstance(issue, dict):
             idea["github_issue"] = issue["number"]
             idea["github_url"] = issue["html_url"]

@@ -1,12 +1,16 @@
 import 'dart:convert';
 
 import 'package:archive/archive.dart';
+import 'package:dc_app/app_state.dart' show AppState;
 import 'package:dc_app/models.dart';
 import 'package:dc_app/print/model.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/print/xlsx_writer.dart';
 import 'package:dc_app/rasd.dart';
+import 'package:dc_app/screens/home_shell.dart' show Tabs;
+import 'package:dc_app/screens/hub_editor.dart' show HubDraft;
 import 'package:dc_app/screens/security_center.dart' show postureScore;
+import 'package:dc_app/ui/layout_catalog.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// اختبارات «منظومة رصد»: الرقم الإشاري (يطابق ref_format في قاعدة البيانات)، والمعادلات وExcel الحي،
@@ -125,6 +129,81 @@ void main() {
       expect(UiLayout.ordered(['cycle', 'risks', 'swot'], back.sectionOrder, (k) => k), ['risks', 'cycle', 'swot']);
       expect(UiLayout.ordered([40, 41, 42], const <int>[], (k) => k), [40, 41, 42]);
       expect(UiLayout.fromJson(null).isEmpty, isTrue);
+    });
+
+    test('المجموعات ونمط العرض والأيقونات والألوان ونقل الصفحات (الترحيل 33)', () {
+      const l = UiLayout(
+        groups: [LayoutGroup('g1', 'الأقسام الهندسية')],
+        hubStyle: 'icons',
+        sections: {'docs': SectionCustom(icon: 'engineering', color: 'teal', group: 'g1')},
+        pages: {65: PageCustom(section: 'supervision', icon: 'price_change'), 72: PageCustom()},
+      );
+      final j = l.toJson();
+      expect(j['groups'], [{'key': 'g1', 'name': 'الأقسام الهندسية'}]);
+      expect(j['hub_style'], 'icons');
+      expect(j['sections'], {'docs': {'icon': 'engineering', 'color': 'teal', 'group': 'g1'}});
+      expect(j['pages'], {'65': {'icon': 'price_change', 'section': 'supervision'}});
+      final back = UiLayout.fromJson(jsonDecode(jsonEncode(j)));
+      expect(back.style, 'icons');
+      expect(back.group('g1')?.name, 'الأقسام الهندسية');
+      expect(back.movedPages, {65: 'supervision'});
+      expect(back.isEmpty, isFalse);
+      // نمط «بطاقات» هو الافتراضي فلا يُحفظ، ومجموعة بمفتاح غير صالح تُهمل
+      expect(const UiLayout(hubStyle: 'cards').toJson(), isEmpty);
+      expect(const UiLayout(hubStyle: 'cards').isEmpty, isTrue);
+      expect(UiLayout.fromJson({'groups': [{'key': 'x', 'name': 'أ'}, {'key': 'g2', 'name': ''}], 'hub_style': 'grid'}).groups, isEmpty);
+      expect(UiLayout.fromJson({'hub_style': 'grid'}).style, 'cards');
+    });
+
+    test('مفاتيح الأيقونات والألوان بالصيغة التي تقبلها قاعدة البيانات', () {
+      for (final k in layoutIcons.keys) {
+        expect(RegExp(r'^[a-z0-9_]{1,40}$').hasMatch(k), isTrue, reason: k);
+      }
+      for (final k in layoutColors.keys) {
+        expect(RegExp(r'^[a-z0-9_]{1,20}$').hasMatch(k), isTrue, reason: k);
+      }
+    });
+
+    test('محرر الواجهة: السحب والمجموعات والترتيب', () {
+      const keys = ['cycle', 'risks', 'swot', 'docs', 'supervision'];
+      final d = HubDraft.from(UiLayout.empty, keys);
+      final g = d.addGroup('الأقسام الهندسية');
+      expect(g, 'g1');
+      d.moveToGroup('docs', g);
+      d.moveToGroup('supervision', g);
+      expect(d.groupOf('docs'), 'g1');
+      expect(d.order.sublist(d.order.length - 2), ['docs', 'supervision']);
+      // الإفلات على بطاقة: قبلها وفي مجموعتها
+      d.moveBefore('cycle', 'supervision');
+      expect(d.groupOf('cycle'), 'g1');
+      expect(d.order.indexOf('cycle'), d.order.indexOf('supervision') - 1);
+      // التقديم والتأخير داخل المجموعة وحدها
+      d.shift('supervision', -1);
+      expect([for (final k in d.order) if (d.groupOf(k) == 'g1') k], ['docs', 'supervision', 'cycle']);
+      d.shift('docs', -1);
+      expect([for (final k in d.order) if (d.groupOf(k) == 'g1') k], ['docs', 'supervision', 'cycle']);
+      final l = d.toLayout();
+      expect(l.groups.single.name, 'الأقسام الهندسية');
+      expect(l.sections['docs']?.group, 'g1');
+      expect(l.sectionOrder, isNotEmpty);
+      // حذف المجموعة يبقي أقسامها دون مجموعة
+      d.deleteGroup(g);
+      expect(d.groupOf('docs'), '');
+      expect(d.toLayout().sections.containsKey('docs'), isFalse);
+      // الترتيب الافتراضي لا يُحفظ
+      expect(HubDraft.from(UiLayout.empty, keys).toLayout().sectionOrder, isEmpty);
+    });
+
+    test('أرقام صفحات الأفكار في كل قسم وأقسامها', () {
+      expect(AppState.ideasTabOf('cycle'), 4);
+      expect(AppState.ideasTabOf('risks'), Tabs.ideasRisks);
+      expect(AppState.ideasTabOf('manual'), Tabs.ideasManual);
+      expect(AppState.ideasSections.length, Tabs.ideasManual - Tabs.ideasRisks + 1);
+      for (final s in AppState.ideasSections) {
+        expect(AppState.sectionOf(AppState.ideasTabOf(s)), s);
+      }
+      expect(AppState.sectionOf(Tabs.secPolicies), 'security');
+      expect(AppState.sectionOf(Tabs.supItems), 'supervision');
     });
   });
 

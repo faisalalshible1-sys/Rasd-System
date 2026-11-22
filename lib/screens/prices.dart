@@ -718,15 +718,24 @@ class _BoqEditorPageState extends State<BoqEditorPage> {
 
   Future<void> _delete() async {
     final app = AppScope.read(context);
-    final ok = await confirmDialog(context,
-        title: 'حذف المقايسة', message: 'تُحذف المقايسة نهائياً، ويبقى أثرها في سجل التدقيق.', confirmLabel: 'حذف', danger: true);
+    final prompt = boqDeletePrompt(app, _id!);
+    if (prompt.blocked != null) {
+      showToast(context, prompt.blocked!, error: true);
+      return;
+    }
+    final ok = await confirmDialog(context, title: prompt.title, message: prompt.message, confirmLabel: 'حذف', danger: true);
     if (!ok || !mounted) return;
     try {
-      await app.deleteBoq(_id!);
+      final r = await app.deleteBoq(_id!);
       if (!mounted) return;
       _dirty = false;
       Navigator.of(context).pop();
-      showToast(context, 'حُذفت المقايسة');
+      showToast(
+          context,
+          r.items == 0
+              ? 'حُذفت المقايسة'
+              : 'حُذفت المقايسة و${itemsText(r.items)} من البرنامج الزمني والإشراف'
+                  '${r.planRemoved ? '، وحُذف البرنامج المسودة' : ''}');
     } catch (e) {
       if (mounted) showToast(context, friendlyError(e), error: true);
     }
@@ -1025,4 +1034,31 @@ class _Hit {
   const _Hit(this.item);
 
   final PriceItem item;
+}
+
+/// نص تأكيد حذف المقايسة: بنود البرنامج الزمني المأخوذة منها تُحذف معها من الشؤون الفنية ومن متابعة الإشراف
+/// (الترحيل 33)، أو سبب المنع إن كان البرنامج المعتمد مبنياً عليها.
+({String title, String message, String? blocked}) boqDeletePrompt(AppState app, String id) {
+  final items = app.pmItems.where((i) => i.boqSheetId == id).toList();
+  final tracked = items.where((i) => i.progress > 0 || i.actualStart != null || i.actualEnd != null).length;
+  final projectIds = items.map((i) => i.projectId).toSet();
+  if (projectIds.any((p) => app.planOf(p)?.approved ?? false)) {
+    return (
+      title: 'حذف المقايسة',
+      message: '',
+      blocked: 'البرنامج الزمني المعتمد مبني على هذه المقايسة؛ أعد فتحه من «البرامج الزمنية» قبل حذفها',
+    );
+  }
+  if (items.isEmpty) {
+    return (title: 'حذف المقايسة', message: 'تُحذف المقايسة نهائياً، ويبقى أثرها في سجل التدقيق.', blocked: null);
+  }
+  final emptiesPlan = projectIds.every((p) => app.pmItems.where((i) => i.projectId == p).every((i) => i.boqSheetId == id));
+  return (
+    title: 'حذف المقايسة وبنودها من البرنامج الزمني',
+    message: 'تُحذف المقايسة نهائياً، ومعها ${itemsText(items.length)} من البرنامج الزمني للعقد في الشؤون الفنية وفي متابعة الإشراف'
+        '${tracked > 0 ? '، منها ${itemsText(tracked)} عليه إنجاز مسجّل سيُحذف أيضاً' : ''}.'
+        '${emptiesPlan ? ' ولن يبقى في البرنامج بند، فيُحذف البرنامج المسودة ومراحله.' : ' وتُحذف المراحل التي تفرغ، ويُعاد حساب البرنامج.'}'
+        '\n\nيبقى أثر ذلك كله في سجل التدقيق.',
+    blocked: null,
+  );
 }

@@ -38,6 +38,9 @@ import 'package:dc_app/screens/units.dart';
 import 'package:dc_app/units.dart';
 import 'package:dc_app/screens/finance.dart';
 import 'package:dc_app/screens/home_shell.dart';
+import 'package:dc_app/screens/hub.dart' show appSections, defaultSectionColor;
+import 'package:dc_app/screens/hub_editor.dart' show HubDraft, showPagesEditor, showSectionEditor;
+import 'package:dc_app/screens/ideas.dart' show IdeasPage, showIdeaComposer;
 import 'package:dc_app/screens/manual.dart';
 import 'package:dc_app/screens/project_detail.dart';
 import 'package:dc_app/screens/pm_contractors.dart';
@@ -58,6 +61,7 @@ import 'package:dc_app/screens/swot.dart';
 import 'package:dc_app/screens/swot_presentation.dart';
 import 'package:dc_app/ui/slideshow.dart';
 import 'package:dc_app/ui/theme.dart';
+import 'package:dc_app/ui/widgets.dart' show confirmDialog;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -547,6 +551,78 @@ void _supervisionPlans(AppState app) {
   app.v15Ready = true;
   app.v16Ready = true;
   app.v17Ready = true;
+}
+
+/// تخصيص الواجهة والأفكار بالقسم والصفحة، ومقايسة مسودة بنودها في برنامج مسودة (الترحيل 33).
+void _layoutIdeas(AppState app, {String style = 'icons'}) {
+  final ps = app.projects;
+  app.v11Ready = true;
+  app.v18Ready = true;
+  app.settings = LiveSettings({
+    ...app.settings.raw,
+    'ui.layout': {
+      'groups': [
+        {'key': 'g1', 'name': 'الأقسام الهندسية'},
+        {'key': 'g2', 'name': 'المكاتب والأدوات'},
+      ],
+      'hub_style': style,
+      'section_order': ['supervision', 'docs', 'cycle', 'risks', 'heritage', 'acceptance', 'swot', 'planning_qa', 'safety', 'print', 'chat', 'manual', 'security'],
+      'sections': {
+        'supervision': {'group': 'g1', 'color': 'indigo'},
+        'docs': {'group': 'g1', 'icon': 'architecture', 'name': 'الشؤون الفنية والتصاميم'},
+        'cycle': {'group': 'g1'},
+        'risks': {'group': 'g1'},
+        'heritage': {'group': 'g1', 'color': 'brown'},
+        'acceptance': {'group': 'g1'},
+        'planning_qa': {'group': 'g2'},
+        'safety': {'group': 'g2'},
+        'print': {'group': 'g2'},
+        'chat': {'group': 'g2'},
+        'manual': {'group': 'g2', 'hidden': true},
+      },
+      'pages': {
+        '65': {'section': 'supervision', 'label': 'لائحة الأسعار المرجعية'},
+        '73': {'icon': 'checklist'},
+      },
+      'page_order': {
+        'supervision': [72, 73, 65, 70, 71],
+      },
+    },
+  });
+  app.settings.applyGlobals();
+  Idea idea(String id, String title, String status, String? section,
+          {int? page, String label = '', String category = 'feature', String priority = 'normal', int days = 3, String body = ''}) =>
+      Idea.fromMap({
+        'id': id, 'title': title, 'body': body, 'category': category, 'priority': priority, 'status': status, 'response': '',
+        'created_by': 'u-dir', 'created_at': _iso(days), 'updated_at': _iso(days), 'github_url': '',
+        'section': section, 'page_id': page, 'page_label': label,
+      });
+  app.ideas = [
+    idea('i1', 'منحنى المستخلصات المعتمدة مقابل الإنجاز في لوحة الإشراف', 'new', 'supervision', page: 72, label: 'لوحة الإشراف',
+        priority: 'high', days: 1, body: 'منحنى تراكمي شهري لكل عقد: قيمة المستخلصات المعتمدة مقابل الإنجاز المخطط والفعلي.'),
+    idea('i2', 'تصفية بنود العقود بمرحلة التنفيذ', 'planned', 'supervision', page: 73, label: 'بنود العقود', days: 4),
+    idea('i3', 'تنبيه حين يتأخر التقرير اليومي أكثر من يومين', 'in_progress', 'supervision', page: 70, label: 'التقارير اليومية', days: 9, category: 'data'),
+    idea('i4', 'نسخ مقايسة سابقة نقطةَ بداية لمقايسة جديدة', 'new', 'docs', page: 66, label: 'مُعِدّ المقايسات', days: 2),
+    idea('i5', 'إظهار سعر 2025 بجانب سعر 2026', 'done', 'docs', page: 65, label: 'لائحة الأسعار', days: 30),
+    idea('i6', 'لوحة عرض مختصرة لاجتماع اللجنة', 'new', 'risks', page: 51, label: 'لوحة العرض', category: 'design', days: 5),
+    idea('i7', 'ربط المخالفة بصورة من الموقع', 'planned', 'safety', page: 113, label: 'المخالفات', days: 12),
+    idea('i8', 'وضع ليلي تلقائي بحسب الوقت', 'new', null, category: 'design', priority: 'low', days: 6),
+    idea('i9', 'تصدير سجل العقود بقالب اللجنة', 'rejected', 'cycle', page: 1, label: 'العقود', days: 40),
+    idea('i10', 'إسناد الفكرة إلى مسؤول تنفيذها', 'new', 'supervision', days: 2),
+  ];
+  // مقايسة مسودة بنودها في البرنامج المسودة للعقد الخامس (لنافذة تأكيد الحذف)
+  app.boqSheets = [
+    for (final b in app.boqSheets)
+      b.id == 'bq3'
+          ? BoqSheet.fromMap({
+              'id': b.id, 'project_id': b.projectId, 'list_id': b.listId, 'title': b.title, 'ref_no': b.refNo, 'show_prices': true,
+              'created_by': 'u-dir', 'updated_at': _iso(1), 'status': 'draft',
+              'lines': [for (final l in b.lines) {'seq': l.seq, 'chapter': l.chapter, 'code': l.code, 'desc': l.desc, 'unit': l.unit, 'price': l.price, 'qty': l.qty, 'notes': l.notes}],
+              'total': b.total,
+            })
+          : b,
+  ];
+  app.pmItems = [for (final i in app.pmItems) i.projectId == ps[4].id && i.source == 'boq' ? i.copyWith(boqSheetId: 'bq3') : i];
 }
 
 /// بيانات تجريبية لبنود الجداول الزمنية ولائحة الأسعار والمقايسات (الترحيلات 27–29).
@@ -1475,6 +1551,56 @@ void main() {
         _OpenAction(run: (ctx) => showPlanItemEditor(ctx, ps[4], app.itemsOf(ps[4].id).firstWhere((i) => i.id == 'w2'))), size: const Size(1200, 1300));
     await _shot(tester, 'n2_boq_approved_light', app, const BoqEditorPage(sheetId: 'bq1'), size: const Size(1300, 1400));
     await _shot(tester, 'n3_cycle_status_colors_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 2600));
+  });
+
+  testWidgets('layout and ideas', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _planning(app);
+    _supervisionPlans(app);
+    _layoutIdeas(app);
+    final keys = [for (final s in appSections) s.$1];
+    app.showHub = true;
+    await _shot(tester, 'o0_hub_groups_icons_light', app, const HomeShell(), size: const Size(1440, 1300));
+    app.hubEditRequested = true;
+    await _shot(tester, 'o1_hub_edit_icons_light', app, const HomeShell(), size: const Size(1440, 1700));
+    await _shot(tester, 'o2_section_editor_light', app, _OpenAction(run: (ctx) {
+      final docs = appSections.firstWhere((s) => s.$1 == 'docs');
+      showSectionEditor(ctx,
+          app: app,
+          draft: HubDraft.from(app.layout, keys),
+          sectionKey: 'docs',
+          defaultName: docs.$2,
+          defaultDesc: docs.$3,
+          defaultIcon: docs.$4,
+          defaultColor: defaultSectionColor(ctx, 'docs'),
+          pagesOf: layoutPagesFor,
+          onChanged: () {});
+    }), size: const Size(1200, 1900));
+    await _shot(tester, 'o3_pages_editor_light', app, _OpenAction(run: (ctx) {
+      showPagesEditor(ctx,
+          app: app, draft: HubDraft.from(app.layout, keys), sectionKey: 'supervision', sectionName: 'الإشراف', pagesOf: layoutPagesFor, onChanged: () {});
+    }), size: const Size(1200, 1200));
+    _layoutIdeas(app, style: 'compact');
+    await _shot(tester, 'o4_hub_compact_dark_mobile', app, const HomeShell(), size: const Size(400, 1900), dark: true);
+    _layoutIdeas(app, style: 'cards');
+    await _shot(tester, 'o5_hub_cards_groups_light', app, const HomeShell(), size: const Size(1440, 2300));
+    app.showHub = false;
+    app.tab = 72;
+    await _shot(tester, 'o6_supervision_menu_moved_light', app, const HomeShell(), size: const Size(1440, 1200));
+    app.tab = Tabs.ideas;
+    await _shot(tester, 'o7_ideas_map_light', app, const HomeShell(), size: const Size(1440, 2400));
+    app.tab = Tabs.ideasSupervision;
+    await _shot(tester, 'o8_ideas_supervision_light', app, const HomeShell(), size: const Size(1440, 2200));
+    await _shot(tester, 'o9_ideas_supervision_dark_mobile', app, _scaffold(const IdeasPage(section: 'supervision')), size: const Size(400, 3000), dark: true);
+    await _shot(tester, 'p0_idea_composer_light', app,
+        _OpenAction(run: (ctx) => showIdeaComposer(ctx, section: 'supervision', pageId: 72, pageLabel: 'لوحة الإشراف')), size: const Size(1200, 1300));
+    await _shot(tester, 'p1_boq_delete_confirm_light', app, _OpenAction(run: (ctx) {
+      final p = boqDeletePrompt(app, 'bq3');
+      confirmDialog(ctx, title: p.title, message: p.message, confirmLabel: 'حذف', danger: true);
+    }), size: const Size(1200, 900));
+    await _shot(tester, 'p2_customize_launcher_light', app,
+        _scaffold(ListView(padding: const EdgeInsets.all(20), children: const [LayoutEditor()])), size: const Size(1200, 900));
   });
 
   testWidgets('print center', (tester) async {

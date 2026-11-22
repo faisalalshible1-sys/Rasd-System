@@ -11,6 +11,7 @@ import '../models.dart';
 import '../print/export_dialog.dart' show showExportDialog;
 import '../print/sources.dart' show exportSourceForTab;
 import '../rasd.dart' show UiLayout;
+import '../ui/layout_catalog.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/update.dart';
@@ -25,6 +26,7 @@ import 'dashboard.dart';
 import 'docs.dart';
 import 'finance.dart';
 import 'hub.dart';
+import 'hub_editor.dart' show LayoutPage;
 import 'ideas.dart';
 import 'manual.dart';
 import 'project_detail.dart';
@@ -155,6 +157,20 @@ class Tabs {
   static const secChat = 157;
   static const secIncidents = 160;
   static const secPolicies = 161;
+
+  // الأفكار والتطوير في كل قسم (الدورة المستندية: ideas = 4)، بترتيب AppState.ideasSections
+  static const ideasRisks = 171;
+  static const ideasSwot = 172;
+  static const ideasDocs = 173;
+  static const ideasSupervision = 174;
+  static const ideasHeritage = 175;
+  static const ideasPlanningQa = 176;
+  static const ideasSafety = 177;
+  static const ideasAcceptance = 178;
+  static const ideasChat = 179;
+  static const ideasSecurity = 180;
+  static const ideasPrint = 181;
+  static const ideasManual = 182;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -182,7 +198,7 @@ const List<(String, String, IconData)> navCatalog = [
 ];
 
 class _Dest {
-  const _Dest(this.id, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.admin = false});
+  const _Dest(this.id, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.admin = false, this.tail = false});
 
   final int id;
   final String label;
@@ -191,7 +207,17 @@ class _Dest {
   final int badge;
   final bool admin;
 
-  _Dest withLabel(String? l) => l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin);
+  /// صفحة ثابتة في ذيل كل قسم قبل صفحات الإدارة (الأفكار والتطوير).
+  final bool tail;
+
+  _Dest withLabel(String? l) =>
+      l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin, tail: tail);
+
+  /// الاسم والأيقونة بعد تخصيص المدير.
+  _Dest withCustom(String? l, IconData? i) {
+    final d = withLabel(l);
+    return i == null ? d : _Dest(d.id, d.label, i, i, badge: d.badge, admin: d.admin, tail: d.tail);
+  }
 }
 
 /// صفحات الإدارة الثابتة في كل الأقسام (المساعد ولوحة التحكم أو التدقيق).
@@ -208,25 +234,64 @@ List<_Dest> _adminDests(AppState app, [int base = 0]) {
   ];
 }
 
-/// القائمة بعد تخصيص المدير (ui.layout): أسماء الصفحات وترتيبها وإخفاؤها عن الموظفين، في كل الأقسام.
+/// القائمة بعد تخصيص المدير (ui.layout): أسماء الصفحات وأيقوناتها وترتيبها وإخفاؤها عن الموظفين،
+/// والصفحات التي نقلها من قسم إلى آخر، في كل الأقسام.
 List<_Dest> _destinations(AppState app) {
-  final raw = _sectionDestinations(app);
+  final sec = app.section;
+  final raw = _sectionDestinations(app, sec);
   final l = app.layout;
-  if (l.pages.isEmpty && (l.pageOrder[app.section] ?? const []).isEmpty) return raw;
-  final normal = [
+  final moved = l.movedPages;
+  if (l.pages.isEmpty && (l.pageOrder[sec] ?? const []).isEmpty) return raw;
+  final own = [
     for (final d in raw)
-      if (!d.admin && (app.isDirector || !(l.pages[d.id]?.hidden ?? false))) d.withLabel(l.pages[d.id]?.label),
+      if (!d.admin && !d.tail && (sec == 'security' || (moved[d.id] ?? sec) == sec)) d,
   ];
-  final ordered = UiLayout.ordered(normal, l.pageOrder[app.section] ?? const [], (d) => d.id);
-  return [...ordered, ...raw.where((d) => d.admin)];
+  final incoming = <_Dest>[];
+  if (sec != 'security' && moved.containsValue(sec)) {
+    final sources = {for (final e in moved.entries) if (e.value == sec) AppState.sectionOf(e.key)}
+      ..remove(sec)
+      ..remove('security');
+    for (final s in sources) {
+      for (final d in _sectionDestinations(app, s)) {
+        if (!d.admin && !d.tail && moved[d.id] == sec) incoming.add(d);
+      }
+    }
+  }
+  final normal = [
+    for (final d in [...own, ...incoming])
+      if (app.isDirector || !(l.pages[d.id]?.hidden ?? false)) d.withCustom(l.pages[d.id]?.label, layoutIcons[l.pages[d.id]?.icon ?? '']),
+  ];
+  final ordered = UiLayout.ordered(normal, l.pageOrder[sec] ?? const [], (d) => d.id);
+  return [...ordered, ...raw.where((d) => d.tail), ...raw.where((d) => d.admin)];
 }
 
 /// صفحات القسم كما تعرّفها المنظومة (قبل تخصيص المدير). تُستعمل أيضاً في شاشة التخصيص.
 List<(int, String, IconData)> sectionPageCatalog(AppState app, String section) =>
-    [for (final d in _sectionDestinations(app, section)) if (!d.admin) (d.id, d.label, d.icon)];
+    [for (final d in _sectionDestinations(app, section)) if (!d.admin && !d.tail) (d.id, d.label, d.icon)];
 
+/// صفحات قسم في محرر الواجهة بعد النقل: صفحاته غير المنقولة، والمنقولة إليه من الأقسام الأخرى.
+List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> moved) => [
+      for (final p in sectionPageCatalog(app, section))
+        if (section == 'security' || (moved[p.$1] ?? section) == section) LayoutPage(p.$1, p.$2, p.$3, section),
+      if (section != 'security')
+        for (final s in appSections)
+          if (s.$1 != section && s.$1 != 'security')
+            for (final p in sectionPageCatalog(app, s.$1))
+              if (moved[p.$1] == section) LayoutPage(p.$1, p.$2, p.$3, s.$1),
+    ];
+
+/// صفحة «الأفكار والتطوير» في ذيل كل قسم (عدا الدورة المستندية: صفحتها في قائمتها).
 List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final sec = section ?? app.section;
+  final base = _baseDestinations(app, sec);
+  if (sec == 'cycle' || !app.v2Ready) return base;
+  final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
+      badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
+  final i = base.indexWhere((d) => d.admin);
+  return i < 0 ? [...base, ideas] : [...base.sublist(0, i), ideas, ...base.sublist(i)];
+}
+
+List<_Dest> _baseDestinations(AppState app, String sec) {
   if (sec == 'chat') {
     final c = app.chat;
     return [
@@ -436,7 +501,8 @@ Widget _page(int id) => switch (id) {
       Tabs.projects => const ProjectsPage(),
       Tabs.requests => const RequestsPage(),
       Tabs.analysis => const AnalysisPage(),
-      Tabs.ideas => const IdeasPage(),
+      Tabs.ideas => const IdeasPage(key: ValueKey('ideas-all')),
+      >= Tabs.ideasRisks && <= Tabs.ideasManual => IdeasPage(key: ValueKey('ideas-$id'), section: AppState.ideasSections[id - Tabs.ideasRisks]),
       Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 => const ControlPanelPage(),
       Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 => const AssistantPage(),
       Tabs.printRefs => const RefNumbersPage(),
@@ -566,6 +632,8 @@ class _HomeShellState extends State<HomeShell> {
     final app = AppScope.of(context);
     final dests = _destinations(app);
     final current = dests.firstWhere((d) => d.id == app.tab, orElse: () => dests.first);
+    // الصفحة المطلوبة ليست في هذا القسم (نُقلت أو لم تعد متاحة): تُثبَّت الصفحة المعروضة فعلاً
+    if (app.loadedOnce && !app.showHub && current.id != app.tab) app.settleTab(current.id);
     final width = MediaQuery.sizeOf(context).width;
     final layout = width >= 1100 ? 2 : (width >= 720 ? 1 : 0);
 
@@ -586,7 +654,7 @@ class _HomeShellState extends State<HomeShell> {
               const _TopBar(title: 'الأقسام الرئيسية', compact: true, hub: true),
               if (release != null && !app.updateDismissed) UpdateBanner(app: app, release: release),
               _Banners(app: app),
-              const Expanded(child: SectionHub()),
+              const Expanded(child: SectionHub(pagesOf: layoutPagesFor)),
             ]),
           ),
         ),
@@ -787,6 +855,11 @@ class _Sidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               children: [
                 for (var i = 0; i < dests.length; i++) ...[
+                  if (dests[i].tail && (i == 0 || !dests[i - 1].tail))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
+                      child: Text('التطوير والتحسين', style: t.labelSmall?.copyWith(color: sem.muted, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                    ),
                   if (dests[i].admin && (i == 0 || !dests[i - 1].admin))
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
@@ -947,10 +1020,21 @@ class _TopBar extends StatelessWidget {
   final bool compact;
   final bool hub;
 
+  /// زر «فكرة» في كل صفحة: يفتح نافذة الفكرة مربوطة بالقسم والصفحة الحاليين (وفي شاشة الدخول فكرة عامة).
+  bool _ideaButton(AppState app) =>
+      app.v2Ready &&
+      (app.isDirector || app.settings.feature('ideas_for_all')) &&
+      (hub || (app.tab != Tabs.ideas && !(app.tab >= Tabs.ideasRisks && app.tab <= Tabs.ideasManual)));
+
+  void _openIdea(BuildContext context, AppState app) => hub
+      ? showIdeaComposer(context)
+      : showIdeaComposer(context, section: app.section, pageId: app.tab, pageLabel: title);
+
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
+    final idea = _ideaButton(app);
     return Material(
       color: toneOf(context).bar,
       child: Column(
@@ -1022,9 +1106,20 @@ class _TopBar extends StatelessWidget {
                             showExportDialog(context, sourceId: exportSourceForTab(app.tab));
                           case 'refresh':
                             app.loadAll();
+                          case 'idea':
+                            _openIdea(context, app);
                         }
                       },
                       itemBuilder: (_) => [
+                        if (idea)
+                          const PopupMenuItem(
+                            value: 'idea',
+                            child: ListTile(
+                                leading: Icon(Icons.lightbulb_outline_rounded),
+                                title: Text('فكرة لتطوير هذه الصفحة'),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero),
+                          ),
                         if (app.section != 'manual')
                           const PopupMenuItem(
                             value: 'help',
@@ -1041,6 +1136,12 @@ class _TopBar extends StatelessWidget {
                       ],
                     )
                   else ...[
+                    if (idea)
+                      IconButton(
+                        tooltip: hub ? 'فكرة لتطوير المنظومة' : 'فكرة لتطوير هذه الصفحة',
+                        onPressed: () => _openIdea(context, app),
+                        icon: const Icon(Icons.lightbulb_outline_rounded),
+                      ),
                     if (!hub && app.section != 'manual')
                       IconButton(
                         tooltip: 'شرح هذه الصفحة في دليل الاستخدام',

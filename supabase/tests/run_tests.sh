@@ -106,3 +106,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql"
 $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000032_export_files.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/105_export_files_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# حذف المقايسة يحذف بنودها من البرنامج الزمني والإشراف، والأفكار بالقسم والصفحة، وتخصيص الواجهة الموسّع (الترحيل 33)
+$P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql"
+$P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/106_boq_cascade_ideas_layout_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

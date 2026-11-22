@@ -119,7 +119,7 @@ class PmItem {
         notApplicable: m['not_applicable'] == true,
       );
 
-  PmItem copyWith({int? durationDays, int? offsetDays, String? phaseId, String? dependsOn, bool clearDepends = false}) => PmItem(
+  PmItem copyWith({int? durationDays, int? offsetDays, String? phaseId, String? dependsOn, bool clearDepends = false, String? boqSheetId}) => PmItem(
         id: id,
         projectId: projectId,
         workId: workId,
@@ -139,7 +139,7 @@ class PmItem {
         offsetDays: offsetDays ?? this.offsetDays,
         dependsOn: clearDepends ? null : (dependsOn ?? this.dependsOn),
         source: source,
-        boqSheetId: boqSheetId,
+        boqSheetId: boqSheetId ?? this.boqSheetId,
         boqLine: boqLine,
         priceSeq: priceSeq,
         unit: unit,

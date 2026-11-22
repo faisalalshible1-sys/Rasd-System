@@ -226,57 +226,179 @@ class RefLogEntry {
 // ---------------------------------------------------------------------
 
 class SectionCustom {
-  const SectionCustom({this.name = '', this.desc = '', this.hidden = false});
+  const SectionCustom({this.name = '', this.desc = '', this.hidden = false, this.icon = '', this.color = '', this.group = ''});
 
   final String name;
   final String desc;
   final bool hidden;
 
-  bool get isEmpty => name.trim().isEmpty && desc.trim().isEmpty && !hidden;
+  /// مفتاح أيقونة من layoutIcons (فارغ = الافتراضية).
+  final String icon;
+
+  /// مفتاح لون من layoutColors (فارغ = لون القسم).
+  final String color;
+
+  /// مفتاح مجموعته في شاشة الدخول (فارغ = دون مجموعة).
+  final String group;
+
+  bool get isEmpty =>
+      name.trim().isEmpty && desc.trim().isEmpty && !hidden && icon.isEmpty && color.isEmpty && group.isEmpty;
+
+  SectionCustom copyWith({String? name, String? desc, bool? hidden, String? icon, String? color, String? group}) => SectionCustom(
+        name: name ?? this.name,
+        desc: desc ?? this.desc,
+        hidden: hidden ?? this.hidden,
+        icon: icon ?? this.icon,
+        color: color ?? this.color,
+        group: group ?? this.group,
+      );
 
   Map<String, dynamic> toJson() => {
         if (name.trim().isNotEmpty) 'name': name.trim(),
         if (desc.trim().isNotEmpty) 'desc': desc.trim(),
         if (hidden) 'hidden': true,
+        if (icon.isNotEmpty) 'icon': icon,
+        if (color.isNotEmpty) 'color': color,
+        if (group.isNotEmpty) 'group': group,
       };
 
   factory SectionCustom.fromJson(Object? v) {
     if (v is! Map) return const SectionCustom();
-    return SectionCustom(name: (v['name'] ?? '').toString(), desc: (v['desc'] ?? '').toString(), hidden: v['hidden'] == true);
+    return SectionCustom(
+      name: (v['name'] ?? '').toString(),
+      desc: (v['desc'] ?? '').toString(),
+      hidden: v['hidden'] == true,
+      icon: (v['icon'] ?? '').toString(),
+      color: (v['color'] ?? '').toString(),
+      group: (v['group'] ?? '').toString(),
+    );
   }
 }
 
 class PageCustom {
-  const PageCustom({this.label = '', this.hidden = false});
+  const PageCustom({this.label = '', this.hidden = false, this.icon = '', this.section = ''});
 
   final String label;
   final bool hidden;
 
-  bool get isEmpty => label.trim().isEmpty && !hidden;
+  /// مفتاح أيقونة من layoutIcons (فارغ = الافتراضية).
+  final String icon;
+
+  /// القسم المنقولة إليه الصفحة (فارغ = قسمها الأصلي).
+  final String section;
+
+  bool get isEmpty => label.trim().isEmpty && !hidden && icon.isEmpty && section.isEmpty;
+
+  PageCustom copyWith({String? label, bool? hidden, String? icon, String? section}) => PageCustom(
+        label: label ?? this.label,
+        hidden: hidden ?? this.hidden,
+        icon: icon ?? this.icon,
+        section: section ?? this.section,
+      );
 
   Map<String, dynamic> toJson() => {
         if (label.trim().isNotEmpty) 'label': label.trim(),
         if (hidden) 'hidden': true,
+        if (icon.isNotEmpty) 'icon': icon,
+        if (section.isNotEmpty) 'section': section,
       };
 
   factory PageCustom.fromJson(Object? v) {
     if (v is! Map) return const PageCustom();
-    return PageCustom(label: (v['label'] ?? '').toString(), hidden: v['hidden'] == true);
+    return PageCustom(
+      label: (v['label'] ?? '').toString(),
+      hidden: v['hidden'] == true,
+      icon: (v['icon'] ?? '').toString(),
+      section: (v['section'] ?? '').toString(),
+    );
   }
 }
 
+/// مجموعة أقسام في شاشة الدخول بعنوانها.
+class LayoutGroup {
+  const LayoutGroup(this.key, this.name);
+
+  final String key;
+  final String name;
+
+  Map<String, dynamic> toJson() => {'key': key, 'name': name.trim()};
+
+  static LayoutGroup? fromJson(Object? v) {
+    if (v is! Map) return null;
+    final k = (v['key'] ?? '').toString();
+    final n = (v['name'] ?? '').toString().trim();
+    if (!RegExp(r'^g[a-z0-9]{1,12}$').hasMatch(k) || n.isEmpty) return null;
+    return LayoutGroup(k, n);
+  }
+}
+
+/// الأسماء الافتراضية لأقسام المنظومة (كما في شاشة الدخول قبل تخصيص المدير).
+const Map<String, String> sectionDefaultNames = {
+  'cycle': 'الدورة المستندية',
+  'risks': 'المخاطر ومتابعة المشاريع',
+  'swot': 'تحليل SWOT',
+  'docs': 'الشؤون الفنية',
+  'supervision': 'الإشراف',
+  'heritage': 'الترميم والمباني التاريخية',
+  'planning_qa': 'مكتب التخطيط وضمان الجودة',
+  'safety': 'مكتب السلامة المهنية',
+  'acceptance': 'المطابقة والاستلام',
+  'chat': 'المراسلات الداخلية',
+  'security': 'الأمن السيبراني',
+  'print': 'الطباعة والتصدير',
+  'manual': 'دليل الاستخدام',
+};
+
+/// أنماط عرض شاشة الدخول: بطاقات بمؤشراتها، ومدمجة، وأيقونات.
+const Map<String, String> hubStyleLabels = {'cards': 'بطاقات بالمؤشرات', 'compact': 'بطاقات مدمجة', 'icons': 'أيقونات'};
+
 /// تخصيص المدير لأسماء الأقسام والصفحات وأوصافها وترتيبها وإخفائها، يطبَّق على الجميع فوراً.
 class UiLayout {
-  const UiLayout({this.sections = const {}, this.sectionOrder = const [], this.pages = const {}, this.pageOrder = const {}});
+  const UiLayout({
+    this.sections = const {},
+    this.sectionOrder = const [],
+    this.pages = const {},
+    this.pageOrder = const {},
+    this.groups = const [],
+    this.hubStyle = '',
+  });
 
   final Map<String, SectionCustom> sections;
   final List<String> sectionOrder;
   final Map<int, PageCustom> pages;
   final Map<String, List<int>> pageOrder;
 
+  /// مجموعات شاشة الدخول بترتيبها.
+  final List<LayoutGroup> groups;
+
+  /// نمط عرض شاشة الدخول (فارغ = بطاقات بالمؤشرات).
+  final String hubStyle;
+
   static const empty = UiLayout();
 
-  bool get isEmpty => sections.isEmpty && sectionOrder.isEmpty && pages.isEmpty && pageOrder.isEmpty;
+  bool get isEmpty =>
+      sections.values.every((s) => s.isEmpty) &&
+      sectionOrder.isEmpty &&
+      pages.values.every((p) => p.isEmpty) &&
+      pageOrder.isEmpty &&
+      groups.isEmpty &&
+      (hubStyle.isEmpty || hubStyle == 'cards');
+
+  /// نمط العرض الفعلي.
+  String get style => hubStyleLabels.containsKey(hubStyle) ? hubStyle : 'cards';
+
+  /// الصفحات المنقولة إلى غير أقسامها: رقم الصفحة ← القسم.
+  Map<int, String> get movedPages => {
+        for (final e in pages.entries)
+          if (e.value.section.isNotEmpty) e.key: e.value.section,
+      };
+
+  LayoutGroup? group(String key) {
+    for (final g in groups) {
+      if (g.key == key) return g;
+    }
+    return null;
+  }
 
   factory UiLayout.fromJson(Object? v) {
     if (v is! Map) return empty;
@@ -284,6 +406,7 @@ class UiLayout {
     final p = v['pages'];
     final so = v['section_order'];
     final po = v['page_order'];
+    final g = v['groups'];
     return UiLayout(
       sections: s is Map ? {for (final e in s.entries) e.key.toString(): SectionCustom.fromJson(e.value)} : const {},
       sectionOrder: so is List ? [for (final x in so) x.toString()] : const [],
@@ -299,6 +422,8 @@ class UiLayout {
                 if (e.value is List) e.key.toString(): [for (final x in e.value as List) if (x is num) x.toInt()]
             }
           : const {},
+      groups: g is List ? [for (final x in g) if (LayoutGroup.fromJson(x) case final lg?) lg] : const [],
+      hubStyle: (v['hub_style'] ?? '').toString(),
     );
   }
 
@@ -311,6 +436,8 @@ class UiLayout {
       if (sectionOrder.isNotEmpty) 'section_order': sectionOrder,
       if (p.isNotEmpty) 'pages': p,
       if (po.isNotEmpty) 'page_order': po,
+      if (groups.isNotEmpty) 'groups': [for (final x in groups) x.toJson()],
+      if (hubStyle.isNotEmpty && hubStyle != 'cards') 'hub_style': hubStyle,
     };
   }
 
@@ -319,12 +446,16 @@ class UiLayout {
     List<String>? sectionOrder,
     Map<int, PageCustom>? pages,
     Map<String, List<int>>? pageOrder,
+    List<LayoutGroup>? groups,
+    String? hubStyle,
   }) =>
       UiLayout(
         sections: sections ?? this.sections,
         sectionOrder: sectionOrder ?? this.sectionOrder,
         pages: pages ?? this.pages,
         pageOrder: pageOrder ?? this.pageOrder,
+        groups: groups ?? this.groups,
+        hubStyle: hubStyle ?? this.hubStyle,
       );
 
   /// يرتب عناصر حسب قائمة مفاتيح: المرتبة أولاً بترتيبها، والباقي بترتيبه الأصلي بعدها.

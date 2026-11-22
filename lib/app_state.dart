@@ -133,6 +133,9 @@ class AppState extends ChangeNotifier {
   // الترحيل 32: نسخ PDF المحفوظة لرمز QR
   bool v17Ready = false;
 
+  // الترحيل 33: الأفكار بالقسم والصفحة، وحذف المقايسة يحذف بنودها من البرنامج الزمني
+  bool v18Ready = false;
+
   /// تواريخ آخر تحديث لحالات النماذج (لتواريخ مراحل دورة حياة العقد).
   Map<String, Map<String, DateTime>> formDates = {};
 
@@ -274,7 +277,18 @@ class AppState extends ChangeNotifier {
   String? loadError;
 
   // التنقل والتصفية المشتركة بين الشاشات
-  int tab = 0;
+  int _tab = 0;
+  String _section = 'cycle';
+
+  /// الصفحة الحالية. تعيينها يضع المستخدم في قسمها (بعد نقل المدير للصفحات بين الأقسام).
+  int get tab => _tab;
+  set tab(int v) {
+    _tab = v;
+    _section = sectionForTab(v);
+  }
+
+  /// القسم الحالي: قسم الصفحة، أو القسم الذي فتحه المستخدم.
+  String get section => _section;
 
   /// شاشة الأقسام الرئيسية الثلاثة تظهر عند الدخول، ثم يعمل كل قسم بقائمته.
   bool showHub = true;
@@ -357,8 +371,21 @@ class AppState extends ChangeNotifier {
   /// الصلاحيات الدقيقة لمستخدم.
   Set<String> grantsOf(String userId) => grants[userId] ?? const {};
 
-  /// تخصيص المدير للأقسام والصفحات.
-  UiLayout get layout => UiLayout.fromJson(settings.raw['ui.layout']);
+  /// تخصيص المدير للأقسام والصفحات (يُقرأ مرة لكل نسخة من الإعدادات).
+  UiLayout get layout {
+    final raw = settings.raw['ui.layout'];
+    if (!identical(raw, _layoutRaw) || _layoutCache == null) {
+      _layoutRaw = raw;
+      _layoutCache = UiLayout.fromJson(raw);
+    }
+    return _layoutCache!;
+  }
+
+  Object? _layoutRaw;
+  UiLayout? _layoutCache;
+
+  /// معاينة التخصيص أثناء تحريره في شاشة الدخول (لا تُحفظ إلا بالحفظ).
+  bool hubEditRequested = false;
 
   bool canEditForm(Project p, FormDef d) =>
       d.active ? hasToken(p, d.responsible) || hasGrant('form:${d.key}') : isDirector;
@@ -781,6 +808,7 @@ class AppState extends ChangeNotifier {
       await _loadV14();
       await _loadV15();
       await _loadV17();
+      await _loadV18();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1136,6 +1164,20 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// الأفكار بالقسم والصفحة (الترحيل 33): وجود العمود يكفي.
+  Future<void> _loadV18() async {
+    if (!v2Ready) {
+      v18Ready = false;
+      return;
+    }
+    try {
+      await client.from('ideas').select('section').limit(1);
+      v18Ready = true;
+    } catch (_) {
+      v18Ready = false;
+    }
+  }
+
   /// سجل نسخ PDF المحفوظة (الترحيل 32): وجود الجدول يكفي لتفعيل رمز QR الذي يفتح النسخة الأصلية.
   Future<void> _loadV17() async {
     try {
@@ -1272,10 +1314,14 @@ class AppState extends ChangeNotifier {
     return r.toString();
   }
 
-  Future<void> deleteBoq(String id) async {
-    await client.rpc('delete_boq', params: {'p_id': id});
-    await _loadV14();
+  /// حذف المقايسة؛ بعد الترحيل 33 تُحذف معها بنودها من البرنامج الزمني ومتابعة الإشراف (تعيد الأعداد).
+  Future<({int items, int tracked, bool planRemoved})> deleteBoq(String id) async {
+    final r = await client.rpc('delete_boq', params: {'p_id': id});
+    await _afterV14();
+    if (v16Ready) await _loadV6();
     _notify();
+    int n(Object? v) => v is num ? v.toInt() : 0;
+    return r is Map ? (items: n(r['items']), tracked: n(r['tracked']), planRemoved: n(r['plans']) > 0) : (items: 0, tracked: 0, planRemoved: false);
   }
 
   // ---------------------------------------------------------------
@@ -1699,6 +1745,8 @@ class AppState extends ChangeNotifier {
     v16Ready = false;
     _autoRefreshed = false;
     v17Ready = false;
+    v18Ready = false;
+    hubEditRequested = false;
     formDates = {};
     signedUrls.clear();
     _clearV7();
@@ -1752,7 +1800,8 @@ class AppState extends ChangeNotifier {
     notifications = [];
     loadedOnce = false;
     loadError = null;
-    tab = 0;
+    _tab = 0;
+    _section = 'cycle';
     _progressCache.clear();
     _notify();
   }
@@ -1808,8 +1857,34 @@ class AppState extends ChangeNotifier {
   void setTab(int i) {
     tab = i;
     showHub = false;
-    _lastTab[sectionOf(i)] = i;
+    _lastTab[_section] = i;
     _notify();
+  }
+
+  /// تثبيت الصفحة المعروضة فعلاً في القسم الحالي (حين لا تكون الصفحة المطلوبة فيه)، دون تغيير القسم.
+  void settleTab(int i) {
+    if (_tab == i) return;
+    _tab = i;
+    _lastTab[_section] = i;
+  }
+
+  /// أقسام صفحات «الأفكار والتطوير» في كل قسم بترتيب أرقامها (171–182)؛ الدورة المستندية صفحتها 4.
+  static const List<String> ideasSections = [
+    'risks', 'swot', 'docs', 'supervision', 'heritage', 'planning_qa', 'safety', 'acceptance', 'chat', 'security', 'print', 'manual', //
+  ];
+
+  /// رقم صفحة «الأفكار والتطوير» في قسم.
+  static int ideasTabOf(String section) {
+    final i = ideasSections.indexOf(section);
+    return i < 0 ? 4 : 171 + i;
+  }
+
+  /// قسم الصفحة بعد تخصيص المدير: المنقولة إلى قسم آخر تُفتح فيه، وإلا فقسمها الأصلي.
+  String sectionForTab(int t) {
+    final home = sectionOf(t);
+    if (home == 'security') return home;
+    final moved = layout.pages[t]?.section ?? '';
+    return moved.isNotEmpty && moved != 'security' && _lastTab.containsKey(moved) ? moved : home;
   }
 
   /// القسم الرئيسي من رقم الصفحة: الدورة المستندية (0–19)، المخاطر ومتابعة المشاريع (20–29 و40–59)، SWOT (30–39)،
@@ -1817,6 +1892,7 @@ class AppState extends ChangeNotifier {
   /// مكتب التخطيط وضمان الجودة (100–109)، مكتب السلامة المهنية (110–119)، المطابقة والاستلام (120–129)،
   /// الطباعة والتصدير (130–139)، المراسلات الداخلية (140–149)، الأمن السيبراني (150–169).
   static String sectionOf(int t) => switch (t) {
+        >= 171 && <= 182 => ideasSections[t - 171],
         >= 150 && < 170 => 'security',
         >= 140 && < 150 => 'chat',
         >= 130 && < 140 => 'print',
@@ -1832,7 +1908,6 @@ class AppState extends ChangeNotifier {
         >= 20 && < 30 => 'risks',
         _ => 'cycle',
       };
-  String get section => sectionOf(tab);
   final Map<String, int> _lastTab = {
     'cycle': 0,
     'risks': 20,
@@ -1851,15 +1926,19 @@ class AppState extends ChangeNotifier {
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
   void openSection(String s) {
-    tab = _lastTab[s] ?? 0;
+    var t = _lastTab[s] ?? 0;
     // لوحة الإشراف (الترحيل 30) واجهة القسم؛ قبل الترحيل تبقى التقارير اليومية
-    if (tab == 72 && !v15Ready) tab = 70;
+    if (t == 72 && !v15Ready) t = 70;
+    _section = s;
+    // صفحة نقلها المدير إلى قسم آخر: يعرض القسم أول صفحاته ويثبّتها الهيكل
+    _tab = sectionForTab(t) == s ? t : -1;
     showHub = false;
     _notify();
   }
 
-  void openHub() {
+  void openHub({bool edit = false}) {
     showHub = true;
+    if (edit) hubEditRequested = true;
     _notify();
   }
 
@@ -3052,9 +3131,62 @@ class AppState extends ChangeNotifier {
     await loadAll();
   }
 
-  Future<void> submitIdea({required String title, required String body, required String category, required String priority}) async {
-    await client.rpc('submit_idea', params: {'p_title': title, 'p_body': body, 'p_category': category, 'p_priority': priority});
+  Future<void> submitIdea({
+    required String title,
+    required String body,
+    required String category,
+    required String priority,
+    String? section,
+    int? pageId,
+    String pageLabel = '',
+  }) async {
+    await client.rpc('submit_idea', params: {
+      'p_title': title,
+      'p_body': body,
+      'p_category': category,
+      'p_priority': priority,
+      if (v18Ready && section != null) ...{
+        'p_section': section,
+        'p_page': pageId,
+        'p_page_label': pageId == null ? null : pageLabel,
+      },
+    });
     await loadAll();
+  }
+
+  /// نقل فكرة إلى قسم أو صفحة (المدير). القسم الفارغ يجعلها عامة.
+  Future<void> moveIdea(String id, {String? section, int? pageId, String pageLabel = ''}) async {
+    await client.rpc('move_idea', params: {
+      'p_id': id,
+      'p_section': section,
+      'p_page': section == null ? null : pageId,
+      'p_page_label': section == null || pageId == null ? null : pageLabel,
+    });
+    await loadAll();
+  }
+
+  /// الأفكار المفتوحة (جديدة أو مخططة أو قيد التنفيذ) في قسم، أو كلها.
+  List<Idea> openIdeas([String? section]) => [
+        for (final i in ideas)
+          if (i.isOpen && (section == null || i.section == section)) i,
+      ];
+
+  /// الأفكار الجديدة التي لم يطّلع عليها المدير في قسم.
+  int newIdeasIn(String section) => ideas.where((i) => i.status == 'new' && i.section == section).length;
+
+  /// طلب فتح «الأفكار والتطوير» مصفّاة على قسم (تستهلكه الصفحة مرة واحدة).
+  String? ideasFocus;
+
+  /// فتح أفكار قسم: صفحة «الأفكار والتطوير» في القسم نفسه، وللدورة المستندية الصفحة العامة مصفّاة عليها.
+  void openIdeasFor(String section) {
+    ideasFocus = section;
+    setTab(ideasTabOf(section));
+  }
+
+  String? takeIdeasFocus() {
+    final s = ideasFocus;
+    ideasFocus = null;
+    return s;
   }
 
   Future<void> updateIdea(String id, {String? status, String? priority, String? response}) async {

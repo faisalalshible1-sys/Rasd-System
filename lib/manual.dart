@@ -51,6 +51,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('28_prices', 28, 'لائحة الأسعار الاسترشادية ومُعِدّ المقايسات'),
   ManualChapter('29_schedule', 29, 'البرامج الزمنية: الإعداد من المقايسة ومتابعة الانحرافات'),
   ManualChapter('30_supervision_hub', 30, 'الإشراف: لوحة المتابعة ودورة حياة العقد وبنود العقود'),
+  ManualChapter('31_customize_ideas', 31, 'تخصيص الواجهة والأفكار والتطوير'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -73,7 +74,7 @@ const Map<int, String> manualTabAnchors = {
   1: '04_cycle', // العقود
   2: '06_approvals', // الاعتمادات / طلباتي
   3: '05_progress', // التحليل
-  4: '23_admin', // الأفكار والتطوير
+  4: '31_customize_ideas', // الأفكار والتطوير (العامة)
   5: '23_admin', // لوحة التحكم
   6: '23_admin', // مساعد Claude
   7: '07_finance', // المالية
@@ -183,6 +184,19 @@ const Map<int, String> manualTabAnchors = {
   161: '27_security',
   168: '23_admin',
   169: '23_admin',
+  // الأفكار والتطوير في كل قسم
+  171: '31_customize_ideas',
+  172: '31_customize_ideas',
+  173: '31_customize_ideas',
+  174: '31_customize_ideas',
+  175: '31_customize_ideas',
+  176: '31_customize_ideas',
+  177: '31_customize_ideas',
+  178: '31_customize_ideas',
+  179: '31_customize_ideas',
+  180: '31_customize_ideas',
+  181: '31_customize_ideas',
+  182: '31_customize_ideas',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).

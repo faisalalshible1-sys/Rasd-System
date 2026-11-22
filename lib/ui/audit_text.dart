@@ -1,7 +1,7 @@
 import '../app_state.dart';
 import '../docs.dart' show fmtBytes;
 import '../models.dart';
-import '../rasd.dart' show grantLabel;
+import '../rasd.dart' show grantLabel, sectionDefaultNames;
 import '../registers.dart';
 import '../units.dart';
 
@@ -86,7 +86,15 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'config.field':
       return 'عرّف حقلاً إضافياً «${e.projectLabel}»';
     case 'idea.create':
-      return 'أرسل فكرة: ${e.projectLabel}';
+      final where = [_sectionName(d['section']), text(d['page'])].where((x) => x.isNotEmpty).join(' › ');
+      return 'أرسل فكرة: ${e.projectLabel}${where.isEmpty ? '' : ' ($where)'}';
+    case 'idea.move':
+      String place(Object? v) {
+        if (v is! Map) return 'عامة';
+        final w = [_sectionName(v['section']), text(v['page'])].where((x) => x.isNotEmpty).join(' › ');
+        return w.isEmpty ? 'عامة' : w;
+      }
+      return 'نقل الفكرة «${e.projectLabel}» من ${place(d['from'])} إلى ${place(d['to'])}';
     case 'idea.update':
       return 'حدّث فكرة: ${e.projectLabel}';
     case 'idea.delete':
@@ -231,7 +239,13 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'boq.update':
       return 'عدّل المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
     case 'boq.delete':
-      return 'حذف المقايسة «${text(d['title'])}» (${text(d['lines'])} بنداً)';
+      final items = d['plan_items'] is num ? (d['plan_items'] as num).toInt() : 0;
+      final tracked = d['tracked_items'] is num ? (d['tracked_items'] as num).toInt() : 0;
+      return 'حذف المقايسة «${text(d['title'])}» (${text(d['lines'])} بنداً)'
+          '${items > 0 ? '، وحذف معها $items من بنود البرنامج الزمني ومتابعة الإشراف${tracked > 0 ? ' (منها $tracked عليها إنجاز مسجّل)' : ''}' : ''}'
+          '${d['plan_removed'] == true ? '، وحذف البرنامج المسودة الذي فرغ' : ''}';
+    case 'pm.boq_orphans':
+      return 'حذف ${text(d['items'])} من بنود البرنامج الزمني بقيت من مقايسات محذوفة${(d['plans'] is num && d['plans'] != 0) ? '، والبرنامج المسودة الذي فرغ' : ''}';
     case 'boq.approve':
       return 'اعتمد المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}، فصارت بنودها بنود العقد';
     case 'boq.reopen':
@@ -595,3 +609,6 @@ String _access(Object? v) => switch (v) {
       'private' => 'سرية للمدير ومن استخرجها',
       _ => 'مفتوحة لأعضاء المنظومة',
     };
+
+/// اسم القسم في وصف سجل التدقيق (الاسم الافتراضي؛ السجل لا يتغير بتخصيص الواجهة).
+String _sectionName(Object? key) => sectionDefaultNames[key] ?? '';

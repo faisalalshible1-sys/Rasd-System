@@ -10,6 +10,7 @@ import '../docs.dart';
 import '../models.dart';
 import '../pm.dart';
 import '../prices.dart';
+import '../rasd.dart' show sectionDefaultNames;
 import '../registers.dart';
 import '../schedule.dart';
 import '../units.dart';
@@ -456,6 +457,7 @@ List<ExportSource> _all(AppState app) => [
           _C('category', 'التصنيف', flex: 0.9),
           _C('priority', 'الأولوية', flex: 0.7),
           _C('status', 'الحالة', flex: 0.8),
+          _C('place', 'المكان', flex: 1.3),
           _C('by', 'المقترِح', flex: 1.1),
           _C('body', 'التفاصيل', type: ColType.long, on: false),
           _C('response', 'الرد', type: ColType.long, on: false),
@@ -466,6 +468,14 @@ List<ExportSource> _all(AppState app) => [
           ideaCategoryLabels[x.category] ?? x.category,
           ideaPriorityLabels[x.priority] ?? x.priority,
           ideaStatusLabels[x.status] ?? x.status,
+          x.section == null
+              ? 'عامة للمنظومة'
+              : [
+                  (a.layout.sections[x.section]?.name ?? '').trim().isNotEmpty
+                      ? a.layout.sections[x.section]!.name.trim()
+                      : (sectionDefaultNames[x.section] ?? ''),
+                  if (x.pageLabel.isNotEmpty) x.pageLabel,
+                ].join(' › '),
           _who(a, x.createdBy),
           x.body,
           x.response,
@@ -1221,7 +1231,7 @@ String? exportSourceForTab(int tab) => switch (tab) {
       0 || 1 => 'cycle:contracts',
       2 => 'cycle:requests',
       3 || 8 => 'cycle:forms',
-      4 => 'cycle:ideas',
+      4 || >= 171 && <= 182 => 'cycle:ideas',
       7 => 'cycle:finance',
       20 || 21 || 22 => 'risks:register',
       40 || 41 || 48 || 51 => 'risks:projects',

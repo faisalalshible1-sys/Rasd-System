@@ -1016,6 +1016,7 @@ const Map<String, String> auditActionLabels = {
   'boq.create': 'أعدّ مقايسة من لائحة الأسعار',
   'boq.update': 'عدّل مقايسة',
   'boq.delete': 'حذف مقايسة',
+  'pm.boq_orphans': 'حذف بنود مقايسات محذوفة من البرنامج الزمني',
   'boq.approve': 'اعتمد مقايسة',
   'boq.reopen': 'أعاد فتح مقايسة معتمدة',
   'pm.item_progress': 'حدّث إنجاز بند في البرنامج الزمني',
@@ -1080,6 +1081,7 @@ const Map<String, String> auditActionLabels = {
   'idea.create': 'أرسل فكرة',
   'idea.update': 'حدّث فكرة',
   'idea.delete': 'حذف فكرة',
+  'idea.move': 'نقل فكرة إلى قسم أو صفحة',
   'user.delete': 'حذف مستخدماً',
   'contract.work_add': 'أضاف عملاً إلى العقد',
   'contract.work_update': 'عدّل عملاً في العقد',
@@ -1450,6 +1452,9 @@ class Idea {
     required this.createdAt,
     required this.updatedAt,
     required this.githubUrl,
+    this.section,
+    this.pageId,
+    this.pageLabel = '',
   });
 
   final String id;
@@ -1464,6 +1469,16 @@ class Idea {
   final DateTime? updatedAt;
   final String githubUrl;
 
+  /// القسم الذي كُتبت منه الفكرة أو نقلها إليه المدير (null = فكرة عامة للمنظومة). الترحيل 33.
+  final String? section;
+
+  /// الصفحة داخل القسم (null = للقسم كله)، واسمها كما ظهر لكاتبها.
+  final int? pageId;
+  final String pageLabel;
+
+  /// جديدة أو مخططة أو قيد التنفيذ.
+  bool get isOpen => status == 'new' || status == 'planned' || status == 'in_progress';
+
   factory Idea.fromMap(Map<String, dynamic> m) => Idea(
         id: _str(m['id']),
         title: _str(m['title']),
@@ -1476,6 +1491,9 @@ class Idea {
         createdAt: _date(m['created_at']),
         updatedAt: _date(m['updated_at']),
         githubUrl: _str(m['github_url']),
+        section: (m['section'] as String?)?.trim().isEmpty ?? true ? null : (m['section'] as String).trim(),
+        pageId: (m['page_id'] as num?)?.toInt(),
+        pageLabel: _str(m['page_label']),
       );
 }
 
