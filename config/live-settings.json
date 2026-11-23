@@ -711,7 +711,23 @@
       "quality_notes": true
     },
     "ui.labels": {},
-    "ui.layout": {},
+    "ui.layout": {
+      "section_order": [
+        "cycle",
+        "risks",
+        "swot",
+        "docs",
+        "supervision",
+        "heritage",
+        "acceptance",
+        "planning_qa",
+        "safety",
+        "security",
+        "chat",
+        "print",
+        "manual"
+      ]
+    },
     "ui.motion": "full",
     "ui.nav": {
       "hidden": [],
