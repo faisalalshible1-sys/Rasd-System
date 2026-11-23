@@ -19,6 +19,7 @@ import '../ui/widgets.dart';
 import '../units.dart' show UnitStats;
 import 'account.dart';
 import 'analysis.dart';
+import 'assigned_work.dart';
 import 'assistant.dart';
 import 'control/control_panel.dart';
 import 'cycle_guide.dart';
@@ -171,6 +172,14 @@ class Tabs {
   static const ideasSecurity = 180;
   static const ideasPrint = 181;
   static const ideasManual = 182;
+
+  // المهام المسندة في أقسام من لا يرى الدورة المستندية (الترحيل 34)، بترتيب AppState.assignedSections
+  static const assignedDocs = 183;
+  static const assignedSupervision = 184;
+  static const assignedHeritage = 185;
+  static const assignedPlanningQa = 186;
+  static const assignedSafety = 187;
+  static const assignedAcceptance = 188;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -198,7 +207,7 @@ const List<(String, String, IconData)> navCatalog = [
 ];
 
 class _Dest {
-  const _Dest(this.id, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.admin = false, this.tail = false});
+  const _Dest(this.id, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.admin = false, this.tail = false, this.lead = false});
 
   final int id;
   final String label;
@@ -210,13 +219,16 @@ class _Dest {
   /// صفحة ثابتة في ذيل كل قسم قبل صفحات الإدارة (الأفكار والتطوير).
   final bool tail;
 
+  /// صفحة ثابتة في رأس القسم لهذا المستخدم وحده (المهام المسندة)، لا تدخل في تخصيص المدير.
+  final bool lead;
+
   _Dest withLabel(String? l) =>
-      l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin, tail: tail);
+      l == null || l.trim().isEmpty ? this : _Dest(id, l.trim(), icon, selectedIcon, badge: badge, admin: admin, tail: tail, lead: lead);
 
   /// الاسم والأيقونة بعد تخصيص المدير.
   _Dest withCustom(String? l, IconData? i) {
     final d = withLabel(l);
-    return i == null ? d : _Dest(d.id, d.label, i, i, badge: d.badge, admin: d.admin, tail: d.tail);
+    return i == null ? d : _Dest(d.id, d.label, i, i, badge: d.badge, admin: d.admin, tail: d.tail, lead: d.lead);
   }
 }
 
@@ -244,7 +256,7 @@ List<_Dest> _destinations(AppState app) {
   if (l.pages.isEmpty && (l.pageOrder[sec] ?? const []).isEmpty) return raw;
   final own = [
     for (final d in raw)
-      if (!d.admin && !d.tail && (sec == 'security' || (moved[d.id] ?? sec) == sec)) d,
+      if (!d.admin && !d.tail && !d.lead && (sec == 'security' || (moved[d.id] ?? sec) == sec)) d,
   ];
   final incoming = <_Dest>[];
   if (sec != 'security' && moved.containsValue(sec)) {
@@ -253,7 +265,7 @@ List<_Dest> _destinations(AppState app) {
       ..remove('security');
     for (final s in sources) {
       for (final d in _sectionDestinations(app, s)) {
-        if (!d.admin && !d.tail && moved[d.id] == sec) incoming.add(d);
+        if (!d.admin && !d.tail && !d.lead && moved[d.id] == sec) incoming.add(d);
       }
     }
   }
@@ -262,12 +274,12 @@ List<_Dest> _destinations(AppState app) {
       if (app.isDirector || !(l.pages[d.id]?.hidden ?? false)) d.withCustom(l.pages[d.id]?.label, layoutIcons[l.pages[d.id]?.icon ?? '']),
   ];
   final ordered = UiLayout.ordered(normal, l.pageOrder[sec] ?? const [], (d) => d.id);
-  return [...ordered, ...raw.where((d) => d.tail), ...raw.where((d) => d.admin)];
+  return [...raw.where((d) => d.lead), ...ordered, ...raw.where((d) => d.tail), ...raw.where((d) => d.admin)];
 }
 
 /// صفحات القسم كما تعرّفها المنظومة (قبل تخصيص المدير). تُستعمل أيضاً في شاشة التخصيص.
 List<(int, String, IconData)> sectionPageCatalog(AppState app, String section) =>
-    [for (final d in _sectionDestinations(app, section)) if (!d.admin && !d.tail) (d.id, d.label, d.icon)];
+    [for (final d in _sectionDestinations(app, section)) if (!d.admin && !d.tail && !d.lead) (d.id, d.label, d.icon)];
 
 /// صفحات قسم في محرر الواجهة بعد النقل: صفحاته غير المنقولة، والمنقولة إليه من الأقسام الأخرى.
 List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> moved) => [
@@ -288,7 +300,14 @@ List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
       badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
   final i = base.indexWhere((d) => d.admin);
-  return i < 0 ? [...base, ideas] : [...base.sublist(0, i), ideas, ...base.sublist(i)];
+  final withIdeas = i < 0 ? [...base, ideas] : [...base.sublist(0, i), ideas, ...base.sublist(i)];
+  // المهام المسندة (نماذج الدورة وإجراءات SWOT) في رأس أقسام من لا يرى الدورة المستندية
+  final assigned = AppState.assignedTabOf(sec);
+  if (assigned < 0 || !app.hasAssignedWork) return withIdeas;
+  return [
+    _Dest(assigned, 'المهام المسندة', Icons.assignment_ind_outlined, Icons.assignment_ind_rounded, badge: app.assignedPending, lead: true),
+    ...withIdeas,
+  ];
 }
 
 List<_Dest> _baseDestinations(AppState app, String sec) {
@@ -369,7 +388,7 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       ],
       _Dest(Tabs.docsLetters, 'المراسلات', Icons.mark_email_read_outlined, Icons.mark_email_read_rounded, badge: late),
       const _Dest(Tabs.docsDesigns, 'التصاميم', Icons.architecture_outlined, Icons.architecture_rounded),
-      if (app.v9Ready)
+      if (app.v9Ready && app.seesUnit('technical'))
         _Dest(Tabs.docsMaterials, 'اعتماد المواد', Icons.inventory_2_outlined, Icons.inventory_2_rounded,
             badge: UnitStats(app.units, _unitToday()).overdueMaterials),
       if (app.canAudit || app.role == AppRole.officeStaff)
@@ -404,9 +423,11 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
     final s = UnitStats(app.units, today);
     return [
       const _Dest(Tabs.pqOverview, 'لوحة المكتب', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
-      _Dest(Tabs.pqPlanning, 'قسم التخطيط', Icons.flag_outlined, Icons.flag_rounded, badge: s.overduePlans),
-      _Dest(Tabs.pqQuality, 'قسم ضمان الجودة', Icons.verified_outlined, Icons.verified_rounded, badge: s.auditsOpen),
-      _Dest(Tabs.pqFollowUp, 'قسم المتابعة', Icons.track_changes_outlined, Icons.track_changes_rounded, badge: s.overdueTasks),
+      if (app.seesUnit('planning')) _Dest(Tabs.pqPlanning, 'قسم التخطيط', Icons.flag_outlined, Icons.flag_rounded, badge: s.overduePlans),
+      if (app.seesUnit('quality_assurance'))
+        _Dest(Tabs.pqQuality, 'قسم ضمان الجودة', Icons.verified_outlined, Icons.verified_rounded, badge: s.auditsOpen),
+      if (app.seesUnit('follow_up'))
+        _Dest(Tabs.pqFollowUp, 'قسم المتابعة', Icons.track_changes_outlined, Icons.track_changes_rounded, badge: s.overdueTasks),
       ..._adminDests(app, 100),
     ];
   }
@@ -427,8 +448,10 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
     final s = UnitStats(app.units, today);
     return [
       const _Dest(Tabs.accOverview, 'لوحة القسم', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
-      _Dest(Tabs.accReceiving, 'وحدة الاستلام', Icons.handshake_outlined, Icons.handshake_rounded, badge: s.overduePunch),
-      _Dest(Tabs.accQuality, 'وحدة ضبط الجودة', Icons.science_outlined, Icons.science_rounded, badge: s.overdueNcr),
+      if (app.seesUnit('receiving'))
+        _Dest(Tabs.accReceiving, 'وحدة الاستلام', Icons.handshake_outlined, Icons.handshake_rounded, badge: s.overduePunch),
+      if (app.seesUnit('quality_control'))
+        _Dest(Tabs.accQuality, 'وحدة ضبط الجودة', Icons.science_outlined, Icons.science_rounded, badge: s.overdueNcr),
       ..._adminDests(app, 120),
     ];
   }
@@ -503,6 +526,8 @@ Widget _page(int id) => switch (id) {
       Tabs.analysis => const AnalysisPage(),
       Tabs.ideas => const IdeasPage(key: ValueKey('ideas-all')),
       >= Tabs.ideasRisks && <= Tabs.ideasManual => IdeasPage(key: ValueKey('ideas-$id'), section: AppState.ideasSections[id - Tabs.ideasRisks]),
+      >= Tabs.assignedDocs && <= Tabs.assignedAcceptance =>
+        AssignedWorkPage(key: ValueKey('assigned-$id'), section: AppState.assignedSections[id - Tabs.assignedDocs]),
       Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 => const ControlPanelPage(),
       Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 => const AssistantPage(),
       Tabs.printRefs => const RefNumbersPage(),
@@ -630,6 +655,8 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    // قسم لا يظهر لهذا المستخدم (عزل الأقسام أو إخفاء المدير): يعود إلى الأقسام الرئيسية
+    if (app.loadedOnce && !app.showHub && !sectionVisible(app, app.section)) app.showHub = true;
     final dests = _destinations(app);
     final current = dests.firstWhere((d) => d.id == app.tab, orElse: () => dests.first);
     // الصفحة المطلوبة ليست في هذا القسم (نُقلت أو لم تعد متاحة): تُثبَّت الصفحة المعروضة فعلاً

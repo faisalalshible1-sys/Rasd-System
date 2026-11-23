@@ -20,7 +20,9 @@ import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/rasd.dart';
 import 'package:dc_app/schedule.dart';
+import 'package:dc_app/scope.dart';
 import 'package:dc_app/registers.dart';
+import 'package:dc_app/screens/assigned_work.dart';
 import 'package:dc_app/screens/assistant.dart';
 import 'package:dc_app/screens/chat.dart';
 import 'package:dc_app/screens/control/layout_editor.dart';
@@ -554,6 +556,29 @@ void _supervisionPlans(AppState app) {
 }
 
 /// تخصيص الواجهة والأفكار بالقسم والصفحة، ومقايسة مسودة بنودها في برنامج مسودة (الترحيل 33).
+/// ما تحجبه قاعدة البيانات عن مستخدم معزول في قسمه (الترحيل 34): العقود خارج إشرافه أساسيات وحدها،
+/// وحالات النماذج غير المسندة إليه لا تُقرأ.
+void _isolateAs(AppState app, Profile me, UserScope scope, List<Project> all, Map<String, Map<String, FormStatus>> statuses) {
+  app.me = me;
+  app.people = {...app.people, me.id: me};
+  app.scope = scope;
+  app.projects = [
+    for (final p in all)
+      scope.allProjects || scope.supervised.contains(p.id)
+          ? p
+          : Project.ref({
+              'id': p.id, 'assign_no': p.assignNo, 'code': p.code, 'name': p.name, 'owner': p.owner, 'company': p.company,
+              'department': p.department, 'contract_no': p.contractNo, 'sort_order': p.sortOrder,
+            }),
+  ];
+  app.statuses = {
+    for (final e in statuses.entries)
+      e.key: scope.allProjects || scope.supervised.contains(e.key)
+          ? {...e.value}
+          : {for (final f in e.value.entries) if (scope.forms.contains(f.key)) f.key: f.value},
+  };
+}
+
 void _layoutIdeas(AppState app, {String style = 'icons'}) {
   final ps = app.projects;
   app.v11Ready = true;
@@ -1601,6 +1626,47 @@ void main() {
     }), size: const Size(1200, 900));
     await _shot(tester, 'p2_customize_launcher_light', app,
         _scaffold(ListView(padding: const EdgeInsets.all(20), children: const [LayoutEditor()])), size: const Size(1200, 900));
+  });
+
+  testWidgets('section isolation', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _planning(app);
+    _supervisionPlans(app);
+    _documents(app);
+    _units(app);
+    final allProjects = [...app.projects];
+    final allStatuses = {for (final e in app.statuses.entries) e.key: {...e.value}};
+    // رئيس الشؤون الفنية: قسمه وحده، وأساسيات العقود، ونماذجه المسندة، وإجراءات SWOT لقسمه
+    _isolateAs(
+        app,
+        Profile.fromMap({'id': 'u-tech', 'full_name': 'م. عبد السلام الورفلي', 'email': 'tech@office.ly', 'role': 'dept_head', 'department': 'technical', 'active': true}),
+        const UserScope(sections: {'docs', 'chat', 'manual', 'print'}, units: {'technical'}, forms: {'f20', 'f19'}),
+        allProjects,
+        allStatuses);
+    app.showHub = true;
+    await _shot(tester, 'q0_tech_hub_light', app, const HomeShell(), size: const Size(1440, 1000));
+    app.showHub = false;
+    app.tab = Tabs.assignedDocs;
+    await _shot(tester, 'q1_tech_assigned_light', app, const HomeShell(), size: const Size(1440, 1900));
+    await _shot(tester, 'q2_tech_assigned_dark_mobile', app, _scaffold(const AssignedWorkPage(section: 'docs')), size: const Size(400, 2600), dark: true);
+    await _shot(tester, 'q3_limited_contract_light', app, ProjectDetailPage(projectId: app.projects.first.id), size: const Size(1200, 1500));
+    app.tab = Tabs.manual;
+    await _shot(tester, 'q4_tech_manual_light', app, const HomeShell(), size: const Size(1440, 1100));
+    // رئيس الإشراف: عقود قسمه وحدها بتفاصيلها
+    final sup = {for (final p in allProjects) if (p.department == 'supervision') p.id};
+    _isolateAs(app, app.people['u-3']!, UserScope(sections: const {'supervision', 'chat', 'manual', 'print'}, supervised: sup), allProjects, allStatuses);
+    app.tab = Tabs.supDashboard;
+    await _shot(tester, 'q5_sup_dashboard_light', app, const HomeShell(), size: const Size(1440, 1700));
+    // مسؤول الأمن السيبراني: قسمه والأدوات المشتركة
+    _isolateAs(
+        app,
+        Profile.fromMap({'id': 'u-ciso', 'full_name': 'م. خالد الأمن', 'email': 'ciso@office.ly', 'role': 'security_auditor', 'active': true}),
+        const UserScope(sections: {'security', 'chat', 'manual', 'print'}),
+        allProjects,
+        allStatuses);
+    app.showHub = true;
+    await _shot(tester, 'q6_ciso_hub_dark_mobile', app, const HomeShell(), size: const Size(400, 1300), dark: true);
   });
 
   testWidgets('print center', (tester) async {

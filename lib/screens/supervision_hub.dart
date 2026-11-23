@@ -117,7 +117,7 @@ class _SupervisionDashboardPageState extends State<SupervisionDashboardPage> {
     final accent = sectionColor(context, 'supervision');
     final narrow = MediaQuery.sizeOf(context).width < 700;
     final ref = app.pmConfig.refDay;
-    final all = [for (final p in app.projects) followOf(app, p)];
+    final all = [for (final p in app.siteProjects) followOf(app, p)];
     final companies = {for (final f in all) if (f.project.company.trim().isNotEmpty) f.project.company.trim()}.toList()..sort();
     final locations = {for (final f in all) if ((f.schedule?.location ?? '').trim().isNotEmpty) f.schedule!.location.trim()}.toList()..sort();
     final range = _range(ref);

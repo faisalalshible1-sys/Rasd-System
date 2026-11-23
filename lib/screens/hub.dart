@@ -87,6 +87,8 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
 bool sectionVisible(AppState app, String key, [UiLayout? layout]) {
   if (key == 'security') return app.canAudit;
   if (app.isDirector) return true;
+  // عزل الأقسام (الترحيل 34): كل مستخدم يرى قسمه والأدوات المشتركة، ومكتب المدير كل الأقسام
+  if (!app.seesSection(key)) return false;
   return !((layout ?? app.layout).sections[key]?.hidden ?? false);
 }
 
@@ -721,9 +723,9 @@ List<(String, String, Color?)> hubStats(BuildContext context, AppState app, Stri
       ];
     case 'manual':
       return [
-        ('${manualChapters.length}', 'فصلاً', null),
+        ('${manualChaptersFor(app.seesSection).length}', 'فصلاً', null),
         (AppConfig.appVersion, 'إصدار الدليل', Theme.of(context).colorScheme.primary),
-        ('PDF', 'نسخة للطباعة', null),
+        if (!app.isolated) ('PDF', 'نسخة للطباعة', null),
       ];
     case 'swot':
       if (!app.v6Ready) return const [];

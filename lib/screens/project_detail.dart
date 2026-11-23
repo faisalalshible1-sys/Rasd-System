@@ -491,6 +491,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         ),
       );
     }
+    // أساسيات العقد وحدها (الترحيل 34): نماذج المستخدم المسندة فيه دون بقية الدورة وتفاصيل العقد
+    if (p.limited) return _limitedView(context, app, p);
     final pr = app.progressOf(p);
     final width = MediaQuery.sizeOf(context).width;
     final side = math.max(16.0, (width - 900) / 2);
@@ -506,7 +508,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         VariationsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
       _cycleCard(context, app, p, pr),
       if (app.v7Ready) ProjectTrackCard(project: p),
-      if (app.v8Ready) ContractDocsCard(project: p),
+      // مستندات الشؤون الفنية للعقد: لمكتب المدير وللشؤون الفنية وللقسم المشرف عليه (الترحيل 34)
+      if (app.v8Ready && (!app.isolated || app.seesSection('docs') || (app.scope?.supervised.contains(p.id) ?? false)))
+        ContractDocsCard(project: p),
       if (app.activeFields.isNotEmpty) _extraCard(context, app, p),
       _notesCard(context, app, p),
       if (app.isDirector || app.settings.feature('quality_notes')) _qualityCard(context, app, p),
@@ -524,6 +528,80 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             IconButton(tooltip: 'حذف العقد', icon: const Icon(Icons.delete_outline), onPressed: () => _delete(p)),
         ],
       ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await app.loadAll();
+          await _loadSide();
+        },
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(side, 16, side, 36),
+          children: staggered([
+            for (final s in sections) Padding(padding: const EdgeInsets.only(bottom: 14), child: s),
+          ], stepMs: 70, maxSteps: 6),
+        ),
+      ),
+    );
+  }
+
+  // ---- عقد بأساسياته وحدها: نماذج المستخدم المسندة فيه ----
+  Widget _limitedView(BuildContext context, AppState app, Project p) {
+    final sem = Sem.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final width = MediaQuery.sizeOf(context).width;
+    final side = math.max(16.0, (width - 900) / 2);
+    final forms = [for (final d in app.formDefs) if (app.formAssigned(p, d)) d];
+    final pr = app.progressOf(p);
+    Widget fact(IconData icon, String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, size: 17, color: sem.muted),
+            const SizedBox(width: 8),
+            SizedBox(width: 108, child: Text(k, style: TextStyle(color: sem.muted, fontSize: 13))),
+            Expanded(child: Text(v.trim().isEmpty ? '—' : v, style: const TextStyle(fontWeight: FontWeight.w600))),
+          ]),
+        );
+    final sections = <Widget>[
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: sem.rule),
+          gradient: LinearGradient(
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd,
+            colors: [cs.primaryContainer, sem.surface],
+          ),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ContractTag(p, large: true),
+          const SizedBox(height: 10),
+          Text(p.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          fact(Icons.tag_rounded, 'رقم التكليف', p.assignNo),
+          fact(Icons.qr_code_2_rounded, 'رمز المشروع', p.code),
+          fact(Icons.account_balance_outlined, 'مالك المشروع', p.owner),
+          fact(Icons.business_outlined, term('company'), p.company),
+          fact(Icons.apartment_rounded, 'القسم المشرف', app.departmentName(p.department)),
+        ]),
+      ),
+      const InfoBanner(
+        icon: Icons.lock_outline_rounded,
+        text: 'تظهر لك أساسيات العقد ونماذجك المسندة فيه وحدها. تفاصيله وماليته وبقية دورته لمكتب المدير ومكتب العقود والقسم المشرف عليه.',
+      ),
+      SectionCard(
+        title: 'نماذجك في هذا العقد',
+        icon: Icons.fact_check_outlined,
+        subtitle: 'ما أُسند إلى قسمك من الدورة المستندية. النماذج الحساسة تُرفع لاعتماد مدير المكتب.',
+        child: forms.isEmpty
+            ? Text('لا نماذج مسندة إليك في هذا العقد.', style: TextStyle(color: sem.muted))
+            : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final d in forms) Padding(padding: const EdgeInsets.only(bottom: 8), child: _formRow(context, app, p, pr, d, showNext: false)),
+              ]),
+      ),
+      if (app.canAddQualityNote && (app.isDirector || app.settings.feature('quality_notes'))) _qualityCard(context, app, p),
+    ];
+    return Scaffold(
+      appBar: brandAppBar(context, title: Text(p.contractTitle)),
       body: RefreshIndicator(
         onRefresh: () async {
           await app.loadAll();
@@ -1263,12 +1341,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     ];
   }
 
-  Widget _formRow(BuildContext context, AppState app, Project p, Progress pr, FormDef d) {
+  Widget _formRow(BuildContext context, AppState app, Project p, Progress pr, FormDef d, {bool showNext = true}) {
     final sem = Sem.of(context);
     final cs = Theme.of(context).colorScheme;
     final status = app.statusOf(p.id, d.key);
     final canEdit = app.canEditForm(p, d);
-    final isNext = pr.next?.key == d.key;
+    final isNext = showNext && pr.next?.key == d.key;
     final pending = app.pendingFor(p.id, d.key);
     final field = d.engineerField;
 

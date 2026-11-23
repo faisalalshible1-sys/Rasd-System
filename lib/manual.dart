@@ -52,13 +52,47 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('29_schedule', 29, 'البرامج الزمنية: الإعداد من المقايسة ومتابعة الانحرافات'),
   ManualChapter('30_supervision_hub', 30, 'الإشراف: لوحة المتابعة ودورة حياة العقد وبنود العقود'),
   ManualChapter('31_customize_ideas', 31, 'تخصيص الواجهة والأفكار والتطوير'),
+  ManualChapter('32_section_isolation', 32, 'عزل الأقسام والمهام المسندة'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
+
+/// أقسام الفصول الخاصة بقسم (البقية عامة لكل المستخدمين): يرى كل مستخدم فصول أقسامه وحدها (الترحيل 34).
+const Map<String, List<String>> manualChapterSections = {
+  '04_cycle': ['cycle'],
+  '05_progress': ['cycle'],
+  '06_approvals': ['cycle'],
+  '07_finance': ['cycle'],
+  '08_pm_map': ['risks'],
+  '09_risk_register': ['risks'],
+  '10_risk_review': ['risks'],
+  '11_risk_board': ['risks'],
+  '12_pm_projects': ['risks'],
+  '13_pm_registers': ['risks'],
+  '14_contractors': ['risks'],
+  '15_pm_dashboard': ['risks'],
+  '16_swot': ['swot'],
+  '17_docs': ['docs'],
+  '28_prices': ['docs'],
+  '29_schedule': ['docs', 'supervision'],
+  '18_supervision': ['supervision'],
+  '30_supervision_hub': ['supervision'],
+  '19_heritage': ['heritage'],
+  '20_planning_qa': ['planning_qa'],
+  '21_safety': ['safety'],
+  '22_acceptance': ['acceptance'],
+  '27_security': ['security'],
+};
+
+/// فصول الدليل لمستخدم: العامة، وفصول الأقسام التي يراها.
+List<ManualChapter> manualChaptersFor(bool Function(String section) sees) => [
+      for (final c in manualChapters)
+        if ((manualChapterSections[c.id] ?? const <String>[]).isEmpty || manualChapterSections[c.id]!.any(sees)) c,
+    ];
 
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/22';
+const String manualUpdated = '2026/11/23';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -197,6 +231,13 @@ const Map<int, String> manualTabAnchors = {
   180: '31_customize_ideas',
   181: '31_customize_ideas',
   182: '31_customize_ideas',
+  // المهام المسندة في أقسام من لا يرى الدورة المستندية (الترحيل 34)
+  183: '32_section_isolation',
+  184: '32_section_isolation',
+  185: '32_section_isolation',
+  186: '32_section_isolation',
+  187: '32_section_isolation',
+  188: '32_section_isolation',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).

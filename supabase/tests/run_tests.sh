@@ -110,3 +110,7 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql"
 $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261122000033_boq_cascade_ideas_layout.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/106_boq_cascade_ideas_layout_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# عزل الأقسام: كل قسم يطّلع على عمله وحده، وأساسيات العقود للربط، والنماذج المسندة (الترحيل 34)
+$P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql"
+$P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/107_section_isolation_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'

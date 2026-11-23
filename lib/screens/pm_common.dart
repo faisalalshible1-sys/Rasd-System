@@ -25,8 +25,8 @@ String pmProjectName(AppState app, String? id) {
 }
 
 /// خيارات العقود القائمة مرتبة كما في سجل العقود.
-List<(String, String)> pmProjectOptions(AppState app, {String? general}) {
-  final list = [...app.projects]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+List<(String, String)> pmProjectOptions(AppState app, {String? general, List<Project>? from}) {
+  final list = [...from ?? app.projects]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   return [
     if (general != null) ('', general),
     for (final p in list) (p.id, [p.assignNo, p.name].where((x) => x.trim().isNotEmpty).join(' · ')),

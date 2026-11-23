@@ -684,7 +684,10 @@ class UnitOverviewPage extends StatelessWidget {
     if (!app.v9Ready) return UnitsNotReady(title: name, icon: unitIcon(section));
     final today = _today();
     final stats = UnitStats(app.units, today);
-    final units = unitsOfSection(section);
+    // وحدات القسم التي يطّلع عليها المستخدم وحدها (الترحيل 34)
+    final all = unitsOfSection(section);
+    final seen = [for (final u in all) if (app.seesUnit(u)) u];
+    final units = seen.isEmpty ? all : seen;
     final late = stats.overdueInSection(section);
     final recent = [for (final u in units) ...app.units.ofUnit(u)]
       ..sort((a, b) => (b.updatedAt ?? b.createdAt ?? DateTime(2000)).compareTo(a.updatedAt ?? a.createdAt ?? DateTime(2000)));

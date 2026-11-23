@@ -162,14 +162,25 @@ DateTime _today() {
   return DateTime(n.year, n.month, n.day);
 }
 
-/// كل المصادر المتاحة لهذا المستخدم الآن (ما لم تُطبَّق ترحيلاته لا يظهر).
-List<ExportSource> exportSources(AppState app) => [for (final s in _all(app)) if (s.ready(app)) s];
+/// كل المصادر المتاحة لهذا المستخدم الآن (ما لم تُطبَّق ترحيلاته لا يظهر)، من أقسامه ووحداته وحدها (الترحيل 34).
+List<ExportSource> exportSources(AppState app) => [for (final s in _all(app)) if (s.ready(app) && _visible(app, s)) s];
 
 ExportSource? exportSource(AppState app, String id) {
   for (final s in _all(app)) {
-    if (s.id == id) return s.ready(app) ? s : null;
+    if (s.id == id) return s.ready(app) && _visible(app, s) ? s : null;
   }
   return null;
+}
+
+/// المصدر من قسم يراه المستخدم (وسجل الوحدة من وحدة يطّلع عليها). سجل المستخدمين لمن يدقق أصلاً.
+bool _visible(AppState app, ExportSource s) {
+  if (s.id == 'cycle:users') return true;
+  if (!app.seesSection(s.section)) return false;
+  if (s.id.startsWith('unit:')) {
+    final k = unitKinds[s.id.substring(5)];
+    return k == null || app.seesUnit(k.unit);
+  }
+  return true;
 }
 
 List<ExportSource> _all(AppState app) => [

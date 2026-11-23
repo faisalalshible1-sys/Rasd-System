@@ -327,6 +327,7 @@ class Project {
     this.extra = const {},
     this.updatedAt,
     this.updatedBy,
+    this.limited = false,
   });
 
   final String id;
@@ -369,6 +370,10 @@ class Project {
   final Map<String, dynamic> extra; // قيم الحقول الإضافية
   final DateTime? updatedAt;
   final String? updatedBy;
+
+  /// أساسيات العقد وحدها للربط (الترحيل 34): الرقم والاسم والشركة والجهة والقسم، دون المالية والتفاصيل،
+  /// لمن لا يرى العقد بتفاصيله من قسمه (تُقرأ من project_refs()).
+  final bool limited;
 
   String get title => name.trim().isNotEmpty ? name.trim() : 'مشروع بدون اسم';
   String get label => [if (contractNo.isNotEmpty) 'عقد $contractNo' else assignNo, name].where((s) => s.trim().isNotEmpty).join(' — ');
@@ -466,6 +471,22 @@ class Project {
         extra: m['extra'] is Map ? Map<String, dynamic>.from(m['extra'] as Map) : const {},
         updatedAt: _date(m['updated_at']),
         updatedBy: m['updated_by'] as String?,
+      );
+
+  /// أساسيات عقد من project_refs() (للربط دون التفاصيل).
+  factory Project.ref(Map<String, dynamic> m) => Project(
+        id: _str(m['id']),
+        assignNo: _str(m['assign_no']),
+        code: _str(m['code']),
+        name: _str(m['name']),
+        owner: _str(m['owner']),
+        company: _str(m['company']),
+        department: _str(m['department']).isEmpty ? 'supervision' : _str(m['department']),
+        notes: '',
+        engineers: const {'eng_sup': '', 'eng_qty': '', 'eng_fol': '', 'eng_saf': ''},
+        sortOrder: (m['sort_order'] as num?)?.toInt() ?? 0,
+        contractNo: _str(m['contract_no']),
+        limited: true,
       );
 }
 

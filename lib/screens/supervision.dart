@@ -42,7 +42,7 @@ String dayLetter(DateTime d) => const ['ن', 'ث', 'ر', 'خ', 'ج', 'س', 'ح']
 /// أو عقود بلا برنامج زمني لم تكتمل دورتها المستندية.
 List<String> activeSiteProjects(AppState app) {
   final out = <String>[];
-  for (final p in app.projects) {
+  for (final p in app.siteProjects) {
     final s = app.v7Ready ? app.schedules[p.id] : null;
     if (s != null) {
       if (s.opStatus == 'running') out.add(p.id);
@@ -263,7 +263,7 @@ class _SiteReportsPageState extends State<SiteReportsPage> {
       searchHint: 'بحث في الأعمال والمعوقات والمعدات والعقد',
       onSearch: () => setState(() {}),
       filters: [
-        pmFilter('العقد', _project, [('', 'كل العقود'), ...pmProjectOptions(app)], (v) => setState(() => _project = v), width: 300),
+        pmFilter('العقد', _project, [('', 'كل العقود'), ...pmProjectOptions(app, from: app.siteProjects)], (v) => setState(() => _project = v), width: 300),
         pmFilter('الفترة', _period, const [('7', 'آخر 7 أيام'), ('30', 'آخر 30 يوماً'), ('90', 'آخر 90 يوماً'), ('', 'الكل')],
             (v) => setState(() => _period = v)),
         pmFilter(

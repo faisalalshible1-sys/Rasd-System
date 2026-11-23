@@ -20,6 +20,7 @@ import 'services/doc_files.dart';
 import 'chat.dart';
 import 'print/model.dart';
 import 'rasd.dart';
+import 'scope.dart';
 import 'units.dart';
 import 'ui/appearance.dart';
 
@@ -135,6 +136,9 @@ class AppState extends ChangeNotifier {
 
   // الترحيل 33: الأفكار بالقسم والصفحة، وحذف المقايسة يحذف بنودها من البرنامج الزمني
   bool v18Ready = false;
+
+  /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
+  UserScope? scope;
 
   /// تواريخ آخر تحديث لحالات النماذج (لتواريخ مراحل دورة حياة العقد).
   Map<String, Map<String, DateTime>> formDates = {};
@@ -762,8 +766,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadAll() async {
     loading = true;
+    final first = !loadedOnce;
     _notify();
     try {
+      final scopeF = _loadScope();
       final List<Future<List<Map<String, dynamic>>>> queries = [
         client.from('departments').select().order('sort'),
         client.from('form_defs').select().order('sort'),
@@ -777,8 +783,9 @@ class AppState extends ChangeNotifier {
       departments = r[0].map(Department.fromMap).toList();
       allFormDefs = r[1].map(FormDef.fromMap).toList()..sort((a, b) => a.sort.compareTo(b.sort));
       formDefs = allFormDefs.where((d) => d.active).toList();
-      projects = r[2].map(Project.fromMap).toList();
-      naReady = r[2].isNotEmpty && r[2].first.containsKey('guarantee_initial_na');
+      scope = await scopeF;
+      projects = await _withRefs(r[2].map(Project.fromMap).toList());
+      naReady = r[2].isNotEmpty ? r[2].first.containsKey('guarantee_initial_na') : await _probeNa();
       final st = <String, Map<String, FormStatus>>{};
       final fd = <String, Map<String, DateTime>>{};
       for (final row in r[3]) {
@@ -812,6 +819,7 @@ class AppState extends ChangeNotifier {
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
+      if (first) _landInSection();
       dataVersion++;
       unawaited(checkForUpdate());
     } catch (e) {
@@ -820,6 +828,144 @@ class AppState extends ChangeNotifier {
       loading = false;
       _notify();
     }
+  }
+
+  /// نطاق المستخدم من قاعدة البيانات (الترحيل 34)؛ null قبل الترحيل.
+  Future<UserScope?> _loadScope() async {
+    try {
+      return UserScope.fromJson(await client.rpc('my_scope'));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// العقود بتفاصيلها، وأساسيات بقية العقود للربط لمن لا يراها كلها من قسمه.
+  Future<List<Project>> _withRefs(List<Project> full) async {
+    final sc = scope;
+    if (sc == null || sc.allProjects) return full;
+    try {
+      final refs = await client.rpc('project_refs');
+      final have = {for (final p in full) p.id};
+      final out = [...full];
+      if (refs is List) {
+        for (final m in refs) {
+          if (m is Map && !have.contains('${m['id']}')) out.add(Project.ref(Map<String, dynamic>.from(m)));
+        }
+      }
+      out.sort((a, b) => a.sortOrder != b.sortOrder ? a.sortOrder.compareTo(b.sortOrder) : a.name.compareTo(b.name));
+      return out;
+    } catch (_) {
+      return full;
+    }
+  }
+
+  /// خيار «لا ينطبق» للضمان الابتدائي (الترحيل 18) حين لا يرى المستخدم عقداً بتفاصيله.
+  Future<bool> _probeNa() async {
+    try {
+      await client.from('projects').select('guarantee_initial_na').limit(1);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// بعد الدخول: من له قسم عمل واحد يدخله مباشرة (واجهة قسمه وحدها).
+  void _landInSection() {
+    final sc = scope;
+    if (sc == null || sc.full) return;
+    final work = [
+      for (final s in sc.workSections) if (!(layout.sections[s]?.hidden ?? false)) s,
+      if (canAudit) 'security',
+    ];
+    if (!showHub || work.length != 1) return;
+    final s = work.single;
+    var t = _lastTab[s] ?? 0;
+    if (t == 72 && !v15Ready) t = 70;
+    _section = s;
+    _tab = sectionForTab(t) == s ? t : -1;
+    showHub = false;
+  }
+
+  // ---------------------------------------------------------------
+  // عزل الأقسام (الترحيل 34)
+  // ---------------------------------------------------------------
+
+  /// هل يرى المستخدم هذا القسم؟ الأمن السيبراني للمدير وCISO، والمشتركة للجميع، والبقية بحسب النطاق.
+  bool seesSection(String s) {
+    if (s == 'security') return canAudit;
+    final sc = scope;
+    if (sc == null) return true;
+    return sharedSections.contains(s) || sc.sections.contains(s);
+  }
+
+  /// هل يطّلع على سجلات هذه الوحدة؟
+  bool seesUnit(String unit) => scope?.units.contains(unit) ?? true;
+
+  /// المستخدم معزول في قسمه (ليس من مكتب المدير).
+  bool get isolated => scope != null && !scope!.full;
+
+  /// العقود بتفاصيلها (دون الأساسيات وحدها).
+  List<Project> get fullProjects => [for (final p in projects) if (!p.limited) p];
+
+  /// العقود التي يتابعها الإشراف من هذا الحساب: كلها لمكتب المدير والعقود ومن مُنح التقارير أو المتابعة،
+  /// وعقود قسمه لرئيس القسم المشرف.
+  List<Project> get siteProjects {
+    final sc = scope;
+    if (sc == null || sc.allProjects || (grants[me?.id]?.any((g) => g == 'supervision:reports' || g == 'pm:track') ?? false)) {
+      return projects;
+    }
+    return fullProjects;
+  }
+
+  /// هل النموذج مسند إلى المستخدم في هذا العقد (بالاختصاص أو بصلاحية دقيقة)؟ لا يتأثر بالتجميد.
+  bool formAssigned(Project p, FormDef d) {
+    final r = role;
+    if (r == null || r == AppRole.securityAuditor) return false;
+    if (r == AppRole.director || r == AppRole.officeStaff) return true;
+    final t = d.responsible;
+    final dep = me?.department;
+    final byRole = switch (r) {
+      AppRole.contracts => t.contains('contracts'),
+      AppRole.planningQa => t.contains('planning_qa'),
+      AppRole.deptHead => (t.contains('head:supervising') && dep == p.department && !p.limited) ||
+          (t.contains('head:technical') && dep == 'technical') ||
+          (t.contains('head:acceptance') && dep == 'acceptance'),
+      _ => false,
+    };
+    return byRole || (v11Ready && (grants[me?.id]?.contains('form:${d.key}') ?? false));
+  }
+
+  /// نماذج الدورة المسندة إلى من لا يرى الدورة المستندية: كل عقد ونماذجه المسندة إليه فيه.
+  List<(Project, List<FormDef>)> get assignedForms {
+    if (!isolated || seesSection('cycle')) return const [];
+    final out = <(Project, List<FormDef>)>[];
+    for (final p in projects) {
+      final ds = [for (final d in formDefs) if (formAssigned(p, d)) d];
+      if (ds.isNotEmpty) out.add((p, ds));
+    }
+    return out;
+  }
+
+  /// إجراءات خطة SWOT المسندة إلى قسم رئيسه (لمن لا يرى قسم SWOT).
+  List<SwotAction> get assignedSwot {
+    if (!isolated || seesSection('swot') || role != AppRole.deptHead) return const [];
+    final dn = departmentName(me?.department);
+    return [for (final x in swotActions) if (x.department == 'جميع الأقسام' || x.department == 'قسم $dn' || x.department == dn) x];
+  }
+
+  /// صفحة «المهام المسندة» في أقسام من أُسندت إليه نماذج من الدورة أو إجراءات من خطة SWOT.
+  bool get hasAssignedWork => assignedForms.isNotEmpty || assignedSwot.isNotEmpty;
+
+  /// النماذج المسندة التي لم تكتمل (لا «تم» ولا «لا ينطبق») وإجراءات SWOT غير المكتملة: شارة الصفحة.
+  int get assignedPending {
+    var n = 0;
+    for (final (p, ds) in assignedForms) {
+      for (final d in ds) {
+        final st = statusOf(p.id, d.key);
+        if (st != FormStatus.done && st != FormStatus.na) n++;
+      }
+    }
+    return n + assignedSwot.where((x) => x.status != 'completed').length;
   }
 
   /// جداول الإصدار الثاني؛ يعمل التطبيق بدونها إن لم يُطبَّق ملف قاعدة البيانات بعد.
@@ -1746,6 +1892,7 @@ class AppState extends ChangeNotifier {
     _autoRefreshed = false;
     v17Ready = false;
     v18Ready = false;
+    scope = null;
     hubEditRequested = false;
     formDates = {};
     signedUrls.clear();
@@ -1879,6 +2026,15 @@ class AppState extends ChangeNotifier {
     return i < 0 ? 4 : 171 + i;
   }
 
+  /// أقسام صفحة «المهام المسندة» بترتيب أرقامها (183–188): النماذج المسندة من الدورة وإجراءات SWOT لقسم المستخدم.
+  static const List<String> assignedSections = ['docs', 'supervision', 'heritage', 'planning_qa', 'safety', 'acceptance'];
+
+  /// رقم صفحة «المهام المسندة» في قسم (أو -1 إن لم تكن له).
+  static int assignedTabOf(String section) {
+    final i = assignedSections.indexOf(section);
+    return i < 0 ? -1 : 183 + i;
+  }
+
   /// قسم الصفحة بعد تخصيص المدير: المنقولة إلى قسم آخر تُفتح فيه، وإلا فقسمها الأصلي.
   String sectionForTab(int t) {
     final home = sectionOf(t);
@@ -1893,6 +2049,7 @@ class AppState extends ChangeNotifier {
   /// الطباعة والتصدير (130–139)، المراسلات الداخلية (140–149)، الأمن السيبراني (150–169).
   static String sectionOf(int t) => switch (t) {
         >= 171 && <= 182 => ideasSections[t - 171],
+        >= 183 && <= 188 => assignedSections[t - 183],
         >= 150 && < 170 => 'security',
         >= 140 && < 150 => 'chat',
         >= 130 && < 140 => 'print',

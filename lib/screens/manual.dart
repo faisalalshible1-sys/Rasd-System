@@ -157,19 +157,21 @@ class _ManualPageState extends State<ManualPage> {
         }
         final values = manualValues(app);
         final q = _search.text.trim();
-        final counts = {for (final c in manualChapters) c.id: q.isEmpty ? 0 : manualCount(manualPlain(texts[c.id] ?? ''), q)};
-        final chapters = q.isEmpty ? manualChapters : manualChapters.where((c) => counts[c.id]! > 0).toList();
-        if (q.isNotEmpty && chapters.isNotEmpty && !chapters.any((c) => c.id == _chapter)) {
-          _chapter = chapters.first.id;
+        // فصول أقسام المستخدم وحدها والفصول العامة (الترحيل 34)
+        final mine = manualChaptersFor(app.seesSection);
+        final counts = {for (final c in mine) c.id: q.isEmpty ? 0 : manualCount(manualPlain(texts[c.id] ?? ''), q)};
+        final chapters = q.isEmpty ? mine : mine.where((c) => counts[c.id]! > 0).toList();
+        if (!mine.any((c) => c.id == _chapter) || (q.isNotEmpty && chapters.isNotEmpty && !chapters.any((c) => c.id == _chapter))) {
+          _chapter = (chapters.isEmpty ? mine : chapters).first.id;
         }
-        final current = manualChapter(_chapter) ?? manualChapters.first;
+        final current = manualChapter(_chapter) ?? mine.first;
         final blocks = parseManual(applyManualValues(texts[current.id] ?? '', values));
         final sections = <(int, String)>[
           for (final (i, b) in blocks.indexed)
             if (b is MHeading && b.level == 2) (i, b.text),
         ];
         final wide = MediaQuery.sizeOf(context).width >= 1000;
-        final idx = manualChapters.indexOf(current);
+        final idx = mine.indexOf(current);
 
         final toc = _Toc(
           chapters: chapters,
@@ -216,7 +218,9 @@ class _ManualPageState extends State<ManualPage> {
                 icon: const Icon(Icons.toc_rounded),
                 label: const Text('الفهرس'),
               ),
-            OutlinedButton.icon(onPressed: () => openManualPdf(context), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('نسخة PDF')),
+            // نسخة PDF تضم الدليل كاملاً: لمكتب المدير ومن يرى كل الأقسام
+            if (!app.isolated)
+              OutlinedButton.icon(onPressed: () => openManualPdf(context), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('نسخة PDF')),
             TextButton.icon(onPressed: () => app.setTab(81), icon: const Icon(Icons.new_releases_outlined), label: const Text('ما الجديد')),
             if (q.isNotEmpty)
               Text(chapters.isEmpty ? 'لا نتائج' : '${counts.values.fold<int>(0, (a, b) => a + b)} نتيجة في ${chapters.length} فصل',
@@ -244,22 +248,22 @@ class _ManualPageState extends State<ManualPage> {
                           ? Align(
                               alignment: AlignmentDirectional.centerStart,
                               child: TextButton.icon(
-                                onPressed: () => _open(manualChapters[idx - 1].id),
+                                onPressed: () => _open(mine[idx - 1].id),
                                 icon: const Icon(Icons.chevron_right_rounded),
-                                label: Text(manualChapters[idx - 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                label: Text(mine[idx - 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
                               ),
                             )
                           : const SizedBox.shrink(),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: idx < manualChapters.length - 1
+                      child: idx < mine.length - 1
                           ? Align(
                               alignment: AlignmentDirectional.centerEnd,
                               child: TextButton.icon(
-                                onPressed: () => _open(manualChapters[idx + 1].id),
+                                onPressed: () => _open(mine[idx + 1].id),
                                 icon: const Icon(Icons.chevron_left_rounded),
-                                label: Text(manualChapters[idx + 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                label: Text(mine[idx + 1].label, maxLines: 1, overflow: TextOverflow.ellipsis),
                               ),
                             )
                           : const SizedBox.shrink(),
