@@ -66,8 +66,8 @@ class _AssignedWorkPageState extends State<AssignedWorkPage> {
           StatCard(label: 'نماذج مكتملة', value: '$done', icon: Icons.task_alt_rounded, color: sem.ok),
           if (swot.isNotEmpty)
             StatCard(
-              label: 'إجراءات SWOT المسندة',
-              value: '${swot.where((x) => x.status != 'completed').length} / ${swot.length}',
+              label: 'إجراءات SWOT غير المكتملة',
+              value: '${swot.where((x) => x.status != 'completed').length} من ${swot.length}',
               icon: Icons.insights_outlined,
             ),
         ]),

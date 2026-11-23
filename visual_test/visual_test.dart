@@ -1635,6 +1635,21 @@ void main() {
     _supervisionPlans(app);
     _documents(app);
     _units(app);
+    // جهات النماذج كما في قاعدة البيانات (الترحيل 19)
+    const heads = {
+      'f20': 'head:technical', 'f19': 'head:technical', //
+      'f04': 'head:supervising', 'f07': 'head:supervising', 'f08': 'head:supervising', 'f09': 'head:supervising', //
+      'f05': 'head:acceptance', 'f10': 'head:acceptance', 'f11': 'head:acceptance', 'f22': 'head:acceptance', 'f12': 'head:acceptance',
+      'f13': 'head:acceptance', 'f16': 'head:acceptance', 'f17': 'head:acceptance', 'f06': 'planning_qa',
+    };
+    app.allFormDefs = [
+      for (final d in app.allFormDefs)
+        FormDef.fromMap({
+          'key': d.key, 'name': d.name, 'stage': d.stage, 'sort': d.sort, 'sensitive': d.sensitive, 'engineer_field': d.engineerField,
+          'responsible': ['office_staff', heads[d.key] ?? 'contracts'],
+        }),
+    ];
+    app.formDefs = app.allFormDefs;
     final allProjects = [...app.projects];
     final allStatuses = {for (final e in app.statuses.entries) e.key: {...e.value}};
     // رئيس الشؤون الفنية: قسمه وحده، وأساسيات العقود، ونماذجه المسندة، وإجراءات SWOT لقسمه
