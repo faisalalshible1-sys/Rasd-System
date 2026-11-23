@@ -593,11 +593,69 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- 5. الصلاحيات على الدوال
+-- 5. دوال القراءة الخاصة بحدود القسم نفسها
+-- ---------------------------------------------------------------------
+
+-- سجل المالية من سجل التدقيق: لمن يرى العقد بتفاصيله (ومكتب المدير وCISO)
+create or replace function public.finance_history(p_project uuid default null, p_limit integer default 300)
+returns setof jsonb
+language sql stable security definer set search_path = public
+as $$
+  select to_jsonb(a)
+    from public.audit_log a
+   where public.is_member()
+     and (p_project is null or a.project_id = p_project)
+     and (a.action like 'finance.%'
+          or a.action in ('contract.merge', 'contract.unmerge')
+          or (a.action = 'project.update' and a.detail ?| array['contract_value', 'executed_value', 'payment_first',
+                                                                'payment_second', 'payment_final', 'deductions'])
+          or (a.action = 'setting.update' and a.detail ->> 'key' like 'finance.%'))
+     and (public.can_audit()
+          or (a.project_id is not null and (public.project_full_all() or a.project_id = any (public.my_supervised())))
+          or (a.project_id is null and a.action = 'setting.update' and public.project_full_all()))
+   order by a.at desc
+   limit least(greatest(coalesce(p_limit, 300), 1), 2000)
+$$;
+
+-- العقود المدمجة في عقد: لمن يرى العقد الهدف بتفاصيله
+create or replace function public.merged_sources(p_target uuid)
+returns setof jsonb
+language sql stable security definer set search_path = public
+as $$
+  select jsonb_build_object('id', p.id, 'assign_no', p.assign_no, 'contract_no', p.contract_no, 'name', p.name,
+                            'company', p.company, 'merged_at', p.merged_at)
+    from public.projects p
+   where p.merged_into = p_target and public.is_member()
+     and (public.project_full_all() or p_target = any (public.my_supervised()))
+   order by p.merged_at, p.sort_order
+$$;
+
+-- معاينة توليد البرنامج الزمني (بنود المقايسة وتكلفتها): للشؤون الفنية ومكتب المدير ومكتب العقود
+do $$
+begin
+  if not exists (select 1 from pg_proc where proname = 'pm_plan_preview_v34' and pronamespace = 'public'::regnamespace) then
+    alter function public.pm_plan_preview(uuid, integer) rename to pm_plan_preview_v34;
+  end if;
+end $$;
+
+create or replace function public.pm_plan_preview(p_project uuid, p_total_days integer)
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  if public.is_member() and not (public.sees_section('docs') or public.project_full_all()) then
+    raise exception 'معاينة البرنامج الزمني لقسم الشؤون الفنية' using errcode = '42501';
+  end if;
+  return public.pm_plan_preview_v34(p_project, p_total_days);
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- 6. الصلاحيات على الدوال
 -- ---------------------------------------------------------------------
 revoke execute on function
   public.pm_sync_auto_v34(uuid), public.pm_sync_auto(uuid), public.submit_idea_v34(text, text, text, text, text, integer, text),
-  public.pm_guard_project(), public.pm_guard_review()
+  public.pm_plan_preview_v34(uuid, integer), public.pm_guard_project(), public.pm_guard_review()
 from public, anon, authenticated;
 revoke execute on function
   public.full_view(), public.project_full_all(), public.my_supervised(), public.supervises(uuid), public.unit_app_section(text),
@@ -605,7 +663,8 @@ revoke execute on function
   public.my_scope(), public.project_refs(),
   public.export_source_section(text), public.export_can_open(text, uuid, text), public.export_can_open(text, uuid),
   public.export_can_open_path(text), public.open_export_file(text), public.doc_can_edit(text, uuid), public.can_edit_risks(),
-  public.pm_row_ok(uuid), public.submit_idea(text, text, text, text, text, integer, text)
+  public.pm_row_ok(uuid), public.submit_idea(text, text, text, text, text, integer, text),
+  public.finance_history(uuid, integer), public.merged_sources(uuid), public.pm_plan_preview(uuid, integer)
 from public, anon;
 grant execute on function
   public.full_view(), public.project_full_all(), public.my_supervised(), public.supervises(uuid), public.unit_app_section(text),
@@ -613,5 +672,6 @@ grant execute on function
   public.my_scope(), public.project_refs(),
   public.export_source_section(text), public.export_can_open(text, uuid, text), public.export_can_open(text, uuid),
   public.export_can_open_path(text), public.open_export_file(text), public.doc_can_edit(text, uuid), public.can_edit_risks(),
-  public.pm_row_ok(uuid), public.submit_idea(text, text, text, text, text, integer, text)
+  public.pm_row_ok(uuid), public.submit_idea(text, text, text, text, text, integer, text),
+  public.finance_history(uuid, integer), public.merged_sources(uuid), public.pm_plan_preview(uuid, integer)
 to authenticated;

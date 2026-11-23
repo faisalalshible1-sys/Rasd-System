@@ -53,7 +53,7 @@ create or replace function pg_temp.id(p_k text) returns uuid language sql as $$ 
 grant execute on all functions in schema pg_temp to authenticated, anon;
 
 -- ---------------------------------------------------------------- بيانات: عقد للإشراف وعقد للترميم
-delete from projects where assign_no in ('T34-S', 'T34-R');
+delete from projects where assign_no in ('T34-M', 'T34-S', 'T34-R');
 delete from unit_records where title like '% عزل الأقسام';
 insert into projects (assign_no, name, owner, company, department) values ('T34-S', 'عقد عزل الإشراف', 'المالك', 'شركة الإشراف', 'supervision');
 insert into projects (assign_no, name, owner, company, department) values ('T34-R', 'عقد عزل الترميم', 'المالك', 'شركة الترميم', 'restoration');
@@ -161,6 +161,27 @@ select pg_temp.check((select count(*) from projects) + (select count(*) from uni
                      + (select count(*) from risks) + (select count(*) from project_forms) = 0 and public.project_refs() = '[]'::jsonb,
                      'ولا يرى بيانات الأقسام');
 select pg_temp.check((select count(*) from audit_log) = pg_temp.total('select count(*) from audit_log'), 'ويرى سجل التدقيق كاملاً');
+
+-- ---------------------------------------------------------------- دوال القراءة بحدود القسم
+select pg_temp.as_user('k.headtech@test.ly');
+select pg_temp.check((select count(*) from public.finance_history(null, 2000)) = 0, 'سجل المالية لا يُقرأ من خارج العقود');
+reset role;
+insert into projects (assign_no, name, owner, company, department) values ('T34-M', 'عقد مدمج للعزل', 'المالك', 'شركة الدمج', 'supervision');
+select from set_config('app.trusted', 'on', false);
+update projects set merged_into = pg_temp.id('s'), merged_at = now() where assign_no = 'T34-M';
+select from set_config('app.trusted', '', false);
+set role authenticated;
+select pg_temp.check((select count(*) from public.merged_sources(pg_temp.id('s'))) = 0, 'ولا العقود المدمجة في عقد لا يراه');
+select pg_temp.as_user('k.headsup@test.ly');
+select pg_temp.check((select count(*) from public.merged_sources(pg_temp.id('s'))) = 1, 'ويراها القسم المشرف على العقد');
+select pg_temp.as_user('k.headtech@test.ly');
+select pg_temp.check(public.pm_plan_preview(pg_temp.id('s'), 60) is not null, 'ومعاينة البرنامج الزمني لقسمه');
+select pg_temp.as_user('k.headsup@test.ly');
+select pg_temp.expect_error($$select public.pm_plan_preview(pg_temp.id('s'), 60)$$, 'معاينة البرنامج الزمني للشؤون الفنية وحدها');
+select pg_temp.as_user('k.contracts@test.ly');
+select pg_temp.check((select count(*) from public.finance_history(null, 2000) h where h ->> 'action' like 'finance.%')
+                       = pg_temp.total($q$select count(*) from audit_log where action like 'finance.%' and project_id is not null$q$),
+                     'ومكتب العقود يقرأ سجل المالية كاملاً');
 
 -- ---------------------------------------------------------------- الأفكار
 select pg_temp.as_user('k.headtech@test.ly');
