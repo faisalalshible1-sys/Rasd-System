@@ -10,6 +10,7 @@ import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_finance.dart';
 import 'contract_files.dart' show ContractFilesCard, showAttachmentEditor;
+import 'contract_v3.dart' show CommitteesCard, ContractDashboardCard, GuaranteesStrip;
 import 'docs.dart' show ContractDocsCard, DocDetailPage;
 import 'pm_projects.dart' show ProjectTrackCard;
 import 'projects.dart';
@@ -500,6 +501,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
 
     final sections = <Widget>[
       _hero(context, app, p, pr),
+      // لوحة معلومات العقد في أعلى صفحته (الإصدار 1.6.0)
+      if (app.v21Ready) ContractDashboardCard(project: p),
       if (app.v3Ready) _worksCard(context, app, p),
       if (app.v3Ready) _engineersCard(context, app, p),
       // ملف العقد: لمكتب المدير ومكتب العقود وللقسم المشرف عليه (الترحيل 35)
@@ -509,6 +512,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         ExtractsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
       if (app.v4Ready)
         VariationsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
+      if (app.seesCommittees(p.id)) CommitteesCard(project: p),
       _cycleCard(context, app, p, pr),
       if (app.v7Ready) ProjectTrackCard(project: p),
       // مستندات الشؤون الفنية للعقد: لمكتب المدير وللشؤون الفنية وللقسم المشرف عليه (الترحيل 34)
@@ -1211,7 +1215,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (v4) ...[
+            if (app.v21Ready) ...[
+              GuaranteesStrip(project: p, onChanged: _loadSide),
+              Divider(height: 28, color: sem.rule),
+              Text('القيم اليدوية والدفعات', style: TextStyle(color: sem.muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+            ] else if (v4) ...[
               ContractFinanceOverview(project: p),
               Divider(height: 28, color: sem.rule),
               Text('القيم اليدوية والدفعات', style: TextStyle(color: sem.muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
@@ -1244,11 +1253,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             const SizedBox(height: 14),
             group([field('payment_first'), field('payment_second'), field('payment_final')]),
             const SizedBox(height: 10),
-            group([
-              computed('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', gInitial, text: gNa ? 'لا ينطبق' : null),
-              computed('الضمان النهائي ${rateText(guaranteeFinalRate)}', gFinal),
-            ]),
-            if (app.naReady) ...[
+            if (!app.v21Ready)
+              group([
+                computed('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', gInitial, text: gNa ? 'لا ينطبق' : null),
+                computed('الضمان النهائي ${rateText(guaranteeFinalRate)}', gFinal),
+              ]),
+            if (app.naReady && !app.v21Ready) ...[
               const SizedBox(height: 10),
               Wrap(
                 spacing: 12,
@@ -1273,7 +1283,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             group([field('deductions'), computed(v4 ? 'الدفعات المسجلة يدوياً' : 'إجمالي الدفعات', paid)]),
             const SizedBox(height: 8),
             Text(
-              '$guaranteeRule${v3 ? 'قيمة الأعمال المنفذة' : 'قيمة التعاقد'}.'
+              '${app.v21Ready ? '' : '$guaranteeRule${v3 ? 'قيمة الأعمال المنفذة' : 'قيمة التعاقد'}.'}'
               '${!canEdit && contractDef != null ? ' يحدّث البيانات المالية: ${app.responsibleText(p, contractDef)}.' : ''}',
               style: TextStyle(fontSize: 11.5, color: sem.muted),
             ),

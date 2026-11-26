@@ -101,9 +101,10 @@ double? _money(Object? v) => v == null ? null : (v is num ? v.toDouble() : doubl
 /// نموذج «أمر بالتعاقد»: من يختص به يحدّث البيانات المالية للعقد.
 const String contractFormKey = 'f01';
 
-/// الضمان الابتدائي والنهائي نسبةً من قيمة التعاقد (تحسبهما قاعدة البيانات بالنسبتين نفسيهما).
-double guaranteeInitialRate = 0.05;
-double guaranteeFinalRate = 0.02;
+/// النسبتان الافتراضيتان للضمانين في العقود الجديدة (من الإعدادات الحية). لكل عقد نسبتاه الثابتتان منذ الترحيل 37،
+/// ويُحسب المبلغان في قاعدة البيانات من قيمة الأعمال المنفذة.
+double guaranteeInitialRate = 0.02;
+double guaranteeFinalRate = 0.05;
 
 /// رمز العملة المعروض (من الإعدادات الحية).
 String currencyLabel = 'د.ل';
@@ -313,6 +314,14 @@ class Project {
     this.guaranteeInitial,
     this.guaranteeFinal,
     this.guaranteeInitialNa = false,
+    this.initialGuaranteeRate,
+    this.finalGuaranteeRate,
+    this.guaranteeFinalNa = false,
+    this.retentionDeduct = true,
+    this.contractRetentionRate,
+    this.variationsAdd = 0,
+    this.variationsDeduct = 0,
+    this.extractsSubmitted = 0,
     this.valueSource = 'manual',
     this.executedSource = 'manual',
     this.variationsNet = 0,
@@ -350,10 +359,23 @@ class Project {
   final double? paymentSecond;
   final double? paymentFinal;
   final double? deductions;
-  final double? guaranteeInitial; // 5% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات (فارغ إن لم ينطبق)
+  final double? guaranteeInitial; // نسبة العقد من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات (فارغ إن لم ينطبق)
   /// الضمان الابتدائي لا ينطبق على هذا العقد (الترحيل 18)
   final bool guaranteeInitialNa;
-  final double? guaranteeFinal; // 2% من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات
+  final double? guaranteeFinal; // نسبة العقد من قيمة الأعمال المنفذة، تحسبه قاعدة البيانات (فارغ إن لم ينطبق)
+
+  // ضمانات العقد وتأميناته (الترحيل 37): نسب ثابتة لكل عقد
+  final double? initialGuaranteeRate;
+  final double? finalGuaranteeRate;
+  /// الضمان النهائي لا ينطبق على هذا العقد.
+  final bool guaranteeFinalNa;
+  /// خصم التأمينات من المستخلصات مفعّل.
+  final bool retentionDeduct;
+  /// نسبة التأمين المحتجز المقترحة في مستخلصات هذا العقد.
+  final double? contractRetentionRate;
+  final double variationsAdd; // الزيادة المعتمدة في أوامر التغيير
+  final double variationsDeduct; // النقص المعتمد في أوامر التغيير
+  final double extractsSubmitted; // إجمالي المستخلصات المقدمة (المقدَّم والمعتمد والمحال والمدفوع)
 
   // المالية الموسعة (تحسبها قاعدة البيانات من البنود والمستخلصات وأوامر التغيير)
   final String valueSource; // manual | items
@@ -390,6 +412,26 @@ class Project {
   String engineer(String field) => engineers[field] ?? '';
 
   double get paymentsTotal => (paymentFirst ?? 0) + (paymentSecond ?? 0) + (paymentFinal ?? 0);
+
+  /// نسبتا الضمانين في هذا العقد (الافتراضيتان إن لم تُحدَّدا بعد).
+  double get initialRate => initialGuaranteeRate ?? guaranteeInitialRate;
+  double get finalRate => finalGuaranteeRate ?? guaranteeFinalRate;
+
+  /// نسبة التأمين المقترحة في مستخلص جديد (صفر إن كان الخصم معطّلاً).
+  double retentionRateOr(double fallback) => retentionDeduct ? (contractRetentionRate ?? fallback) : 0;
+
+  /// المستحق من المستخلصات المعتمدة قبل الاستقطاعات وبعد المدفوع.
+  double get unpaidGross => (extractsGross - extractsPaid).clamp(0, double.infinity).toDouble();
+
+  /// استقطاعات المستخلصات المعتمدة عدا استرداد الدفعة المقدمة (التأمين المحتجز والغرامات والضرائب وغيرها).
+  double get extractDeductions => (extractsGross - extractsNet - advanceRecovered).clamp(0, double.infinity).toDouble();
+
+  /// نسبة الإنجاز المالي = المستخلصات المعتمدة ÷ القيمة المعدلة.
+  double? get financialProgress {
+    final a = adjustedValue;
+    if (a == null || a <= 0) return null;
+    return extractsGross / a;
+  }
 
   /// القيمة التعاقدية تُحسب من قيم البنود.
   bool get valueFromItems => valueSource == 'items';
@@ -464,6 +506,14 @@ class Project {
         guaranteeInitial: _money(m['guarantee_initial']),
         guaranteeFinal: _money(m['guarantee_final']),
         guaranteeInitialNa: m['guarantee_initial_na'] == true,
+        initialGuaranteeRate: _money(m['guarantee_initial_rate']),
+        finalGuaranteeRate: _money(m['guarantee_final_rate']),
+        guaranteeFinalNa: m['guarantee_final_na'] == true,
+        retentionDeduct: m['retention_deduct'] != false,
+        contractRetentionRate: _money(m['retention_rate']),
+        variationsAdd: _money(m['variations_add']) ?? 0,
+        variationsDeduct: _money(m['variations_deduct']) ?? 0,
+        extractsSubmitted: _money(m['extracts_submitted']) ?? 0,
         valueSource: _str(m['value_source']).isEmpty ? 'manual' : _str(m['value_source']),
         executedSource: _str(m['executed_source']).isEmpty ? 'manual' : _str(m['executed_source']),
         variationsNet: _money(m['variations_net']) ?? 0,
@@ -545,7 +595,10 @@ class ContractWork {
       );
 }
 
-/// أمر تغيير: زيادة أو نقص على قيمة العقد.
+/// حالات أمر التغيير (الترحيل 37): لا يدخل في قيمة العقد إلا المعتمد.
+const Map<String, String> variationStatusLabels = {'draft': 'مسودة', 'approved': 'معتمد', 'rejected': 'مرفوض'};
+
+/// أمر تغيير: زيادة أو نقص على قيمة العقد، أو الاثنان معاً ببنوده.
 class ContractVariation {
   const ContractVariation({
     required this.id,
@@ -559,7 +612,15 @@ class ContractVariation {
     required this.approvedOn,
     required this.notes,
     this.createdAt,
-  });
+    this.status = 'approved',
+    double? addedValue,
+    double? deductedValue,
+    this.decidedBy,
+    this.decidedAt,
+    this.decisionNote = '',
+    this.updatedAt,
+  })  : addedValue = addedValue ?? (kind == 'deduct' ? 0.0 : amount),
+        deductedValue = deductedValue ?? (kind == 'deduct' ? amount : 0.0);
 
   final String id;
   final String projectId;
@@ -572,10 +633,21 @@ class ContractVariation {
   final DateTime? approvedOn;
   final String notes;
   final DateTime? createdAt;
+  final String status; // draft | approved | rejected
+  final double addedValue; // قيمة الأعمال المضافة
+  final double deductedValue; // قيمة الأعمال الملغاة أو المخفضة
+  final String? decidedBy;
+  final DateTime? decidedAt;
+  final String decisionNote;
+  final DateTime? updatedAt;
 
   bool get isAdd => kind == 'add';
-  double get signed => isAdd ? amount : -amount;
+  double get signed => addedValue - deductedValue;
   bool get merged => originProject != null && originProject != projectId;
+  bool get isDraft => status == 'draft';
+  bool get isApproved => status == 'approved';
+  bool get isRejected => status == 'rejected';
+  String get statusLabel => variationStatusLabels[status] ?? status;
 
   factory ContractVariation.fromMap(Map<String, dynamic> m) => ContractVariation(
         id: _str(m['id']),
@@ -589,7 +661,237 @@ class ContractVariation {
         approvedOn: _date(m['approved_on']),
         notes: _str(m['notes']),
         createdAt: _date(m['created_at']),
+        status: const {'draft', 'approved', 'rejected'}.contains(m['status']) ? m['status'] as String : 'approved',
+        addedValue: _money(m['added_value']),
+        deductedValue: _money(m['deducted_value']),
+        decidedBy: m['decided_by'] as String?,
+        decidedAt: _date(m['decided_at']),
+        decisionNote: _str(m['decision_note']),
+        updatedAt: _date(m['updated_at']),
       );
+}
+
+/// بند في أمر تغيير: زيادة أو نقص، مربوط ببند المقايسة أو بعمل العقد أو حر.
+class VariationItem {
+  const VariationItem({
+    this.id = '',
+    this.variationId = '',
+    this.sort = 0,
+    required this.direction,
+    this.boqSheetId,
+    this.boqLine,
+    this.workId,
+    this.code = '',
+    required this.description,
+    this.unit = '',
+    this.qty,
+    this.unitPrice,
+    required this.amount,
+  });
+
+  final String id;
+  final String variationId;
+  final int sort;
+  final String direction; // add | deduct
+  final String? boqSheetId;
+  final int? boqLine;
+  final String? workId;
+  final String code;
+  final String description;
+  final String unit;
+  final double? qty;
+  final double? unitPrice;
+  final double amount;
+
+  bool get isAdd => direction != 'deduct';
+  bool get linkedToBoq => boqSheetId != null && boqLine != null;
+
+  /// القيمة = الكمية × السعر إن أُدخلا، وإلا القيمة المكتوبة.
+  static double valueOf(double? qty, double? price, double? amount) =>
+      qty != null && price != null ? roundMoney(qty * price) : roundMoney(amount ?? 0);
+
+  Map<String, dynamic> toJson() => {
+        'direction': direction,
+        if (boqSheetId != null) 'boq_sheet_id': boqSheetId,
+        if (boqLine != null) 'boq_line': boqLine,
+        if (workId != null) 'work_id': workId,
+        'code': code,
+        'description': description,
+        'unit': unit,
+        if (qty != null) 'qty': qty,
+        if (unitPrice != null) 'unit_price': unitPrice,
+        'amount': amount,
+      };
+
+  VariationItem copyWith({String? direction, double? qty, double? unitPrice, double? amount, String? description}) => VariationItem(
+        id: id,
+        variationId: variationId,
+        sort: sort,
+        direction: direction ?? this.direction,
+        boqSheetId: boqSheetId,
+        boqLine: boqLine,
+        workId: workId,
+        code: code,
+        description: description ?? this.description,
+        unit: unit,
+        qty: qty ?? this.qty,
+        unitPrice: unitPrice ?? this.unitPrice,
+        amount: amount ?? this.amount,
+      );
+
+  factory VariationItem.fromMap(Map<String, dynamic> m) => VariationItem(
+        id: _str(m['id']),
+        variationId: _str(m['variation_id']),
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+        direction: _str(m['direction']) == 'deduct' ? 'deduct' : 'add',
+        boqSheetId: m['boq_sheet_id'] as String?,
+        boqLine: (m['boq_line'] as num?)?.toInt(),
+        workId: m['work_id'] as String?,
+        code: _str(m['code']),
+        description: _str(m['description']),
+        unit: _str(m['unit']),
+        qty: _money(m['qty']),
+        unitPrice: _money(m['unit_price']),
+        amount: _money(m['amount']) ?? 0,
+      );
+}
+
+/// حدث في سجل أمر التغيير: إنشاء أو تعديل أو اعتماد أو رفض أو إعادة إلى مسودة، بصورة الأمر عندها.
+class VariationEvent {
+  const VariationEvent({
+    required this.id,
+    required this.variationId,
+    required this.action,
+    required this.actorName,
+    required this.at,
+    this.note = '',
+    this.snapshot = const {},
+  });
+
+  final String id;
+  final String variationId;
+  final String action;
+  final String actorName;
+  final DateTime? at;
+  final String note;
+  final Map<String, dynamic> snapshot;
+
+  static const labels = {'create': 'أُنشئ', 'update': 'عُدِّل', 'approve': 'اعتُمد', 'reject': 'رُفض', 'reopen': 'أُعيد إلى مسودة'};
+  String get label => labels[action] ?? action;
+  double? get added => _money(snapshot['added']);
+  double? get deducted => _money(snapshot['deducted']);
+  int get itemCount => snapshot['items'] is List ? (snapshot['items'] as List).length : 0;
+
+  factory VariationEvent.fromMap(Map<String, dynamic> m) => VariationEvent(
+        id: _str(m['id']),
+        variationId: _str(m['variation_id']),
+        action: _str(m['action']),
+        actorName: _str(m['actor_name']),
+        at: DateTime.tryParse(_str(m['at']))?.toLocal(),
+        note: _str(m['note']),
+        snapshot: m['snapshot'] is Map ? Map<String, dynamic>.from(m['snapshot'] as Map) : const {},
+      );
+}
+
+/// لجنة استلام العقد (الترحيل 37): ابتدائي أو نهائي، برئيس واحد وأعضاء بصفاتهم.
+const Map<String, String> committeeKindLabels = {'initial': 'لجنة الاستلام الابتدائي', 'final': 'لجنة الاستلام النهائي'};
+
+/// نموذج تكليف كل لجنة في الدورة المستندية (من يختص به يشكّلها).
+const Map<String, String> committeeFormKeys = {'initial': 'f25', 'final': 'f26'};
+
+class CommitteeMember {
+  const CommitteeMember({this.id = '', this.role = 'member', required this.name, this.title = '', this.profileId, this.sort = 0});
+
+  final String id;
+  final String role; // chair | member
+  final String name;
+  final String title; // الصفة الوظيفية أو الجهة
+  final String? profileId;
+  final int sort;
+
+  bool get isChair => role == 'chair';
+
+  Map<String, dynamic> toJson() => {'name': name.trim(), 'title': title.trim(), if (profileId != null) 'profile_id': profileId};
+
+  factory CommitteeMember.fromMap(Map<String, dynamic> m) => CommitteeMember(
+        id: _str(m['id']),
+        role: _str(m['role']) == 'chair' ? 'chair' : 'member',
+        name: _str(m['name']),
+        title: _str(m['title']),
+        profileId: m['profile_id'] as String?,
+        sort: (m['sort'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class ContractCommittee {
+  const ContractCommittee({
+    required this.id,
+    required this.projectId,
+    this.originProject,
+    required this.kind,
+    this.decisionNo = '',
+    this.decisionDate,
+    this.notes = '',
+    this.members = const [],
+    this.updatedAt,
+  });
+
+  final String id;
+  final String projectId;
+  final String? originProject;
+  final String kind; // initial | final
+  final String decisionNo;
+  final DateTime? decisionDate;
+  final String notes;
+  final List<CommitteeMember> members; // الرئيس أولاً ثم الأعضاء بترتيبهم
+  final DateTime? updatedAt;
+
+  bool get merged => originProject != null && originProject != projectId;
+  CommitteeMember? get chair => members.where((m) => m.isChair).firstOrNull;
+  List<CommitteeMember> get others => members.where((m) => !m.isChair).toList();
+  String get label => committeeKindLabels[kind] ?? kind;
+
+  /// نص اللجنة لمحضر الاستلام: «الرئيس (صفته) · العضو (صفته) …».
+  String get text => [
+        for (final m in members) [m.isChair ? 'رئيس اللجنة: ${m.name}' : m.name, if (m.title.isNotEmpty) '(${m.title})'].join(' '),
+      ].join('، ');
+
+  ContractCommittee withMembers(List<CommitteeMember> list) => ContractCommittee(
+        id: id,
+        projectId: projectId,
+        originProject: originProject,
+        kind: kind,
+        decisionNo: decisionNo,
+        decisionDate: decisionDate,
+        notes: notes,
+        members: list,
+        updatedAt: updatedAt,
+      );
+
+  factory ContractCommittee.fromMap(Map<String, dynamic> m) => ContractCommittee(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        originProject: m['origin_project'] as String?,
+        kind: _str(m['kind']) == 'final' ? 'final' : 'initial',
+        decisionNo: _str(m['decision_no']),
+        decisionDate: _date(m['decision_date']),
+        notes: _str(m['notes']),
+        updatedAt: _date(m['updated_at']),
+      );
+}
+
+/// مفتاح مطابقة الأسماء كما في قاعدة البيانات (pm_text_norm): بلا تشكيل ولا تطويل، والهمزات ألف، والتاء المربوطة هاء.
+String nameKey(String s) {
+  final b = StringBuffer();
+  for (final r in s.toLowerCase().runes) {
+    if (r == 0x0640 || (r >= 0x064B && r <= 0x0652) || r == 0x0670) continue;
+    var c = r;
+    if (c == 0x0623 || c == 0x0625 || c == 0x0622 || c == 0x0671) c = 0x0627;
+    if (c == 0x0629) c = 0x0647;
+    if (c == 0x0649) c = 0x064A;
+    b.writeCharCode(c);
+  }
+  return b.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
 }
 
 /// حالات المستخلص بالترتيب.
@@ -1139,6 +1441,12 @@ const Map<String, String> auditActionLabels = {
   'finance.payment_delete': 'حذف دفعة مستخلص',
   'finance.advance': 'عدّل الدفعة المقدمة',
   'finance.guarantee_initial': 'حدّد انطباق الضمان الابتدائي',
+  'finance.guarantees': 'عدّل ضمانات العقد وتأميناته',
+  'finance.variation_approve': 'اعتمد أمر تغيير',
+  'finance.variation_reject': 'رفض أمر تغيير',
+  'finance.variation_reopen': 'أعاد أمر تغيير إلى مسودة',
+  'committee.save': 'شكّل لجنة استلام أو عدّلها',
+  'committee.delete': 'حذف لجنة استلام',
   'security.user_lock': 'قفل دخول حساب',
   'security.user_unlock': 'فكّ قفل حساب',
   'security.device_new': 'دخل من جهاز جديد',
@@ -1631,8 +1939,8 @@ class LiveSettings {
       final v = labels[k];
       if (v is String && v.trim().isNotEmpty) statusLabels[k] = v.trim();
     }
-    guaranteeInitialRate = number('finance.guarantee_initial_rate', 0.05);
-    guaranteeFinalRate = number('finance.guarantee_final_rate', 0.02);
+    guaranteeInitialRate = number('finance.guarantee_initial_rate', 0.02);
+    guaranteeFinalRate = number('finance.guarantee_final_rate', 0.05);
     currencyLabel = str('finance.currency', 'د.ل');
     motionSetting = motion;
     customTerms

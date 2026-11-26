@@ -112,7 +112,9 @@ Future<void> showUnitRecordEditor(BuildContext context, String kind, {UnitRecord
     title: record == null ? '${k.single} جديد' : 'تعديل ${k.single}',
     note: record == null && k.parent != null && !k.parentRequired
         ? 'يمكن ربطه بـ${parentKind!.single}؛ وإن تُرك العقد فارغاً أُخذ عقد ${parentKind.single}.'
-        : null,
+        : (kind == 'handover' && app.v21Ready
+            ? 'إن تُرك «أعضاء اللجنة» أو «رئيس اللجنة» فارغاً مُلئ من لجنة الاستلام المشكّلة في صفحة العقد (لنوع الاستلام نفسه).'
+            : null),
     sections: [
       PmSection('البيانات الأساسية', [
         PmField('title', k.titleLabel, PmKind.text, required: true, max: 200, full: true),
@@ -161,6 +163,7 @@ Future<void> showUnitRecordEditor(BuildContext context, String kind, {UnitRecord
           'project_id': projectId ?? (k.parent != null ? '' : (parent?.projectId ?? '')),
         },
     onSave: (d) async {
+      if (kind == 'handover') fillHandoverCommittee(app, d);
       newId = await app.saveUnitRecord(record?.id, unitPayload(k, d, create: record == null));
     },
   );
@@ -170,6 +173,20 @@ Future<void> showUnitRecordEditor(BuildContext context, String kind, {UnitRecord
   if (record == null && id != null) {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => UnitRecordDetailPage(recordId: id)));
   }
+}
+
+/// محضر الاستلام يأخذ أعضاء اللجنة ورئيسها من لجنة العقد المشكّلة (الترحيل 37) إن تُركت خاناتها فارغة.
+void fillHandoverCommittee(AppState app, Map<String, dynamic> d) {
+  final pid = '${d['project_id'] ?? ''}';
+  final level = '${d['level'] ?? ''}';
+  if (!app.v21Ready || pid.isEmpty || (level != 'initial' && level != 'final')) return;
+  final c = app.committeeOf(pid, level);
+  if (c == null) return;
+  if ('${d['f_committee'] ?? ''}'.trim().isEmpty) {
+    final t = c.text;
+    d['f_committee'] = t.length > 1000 ? t.substring(0, 1000) : t;
+  }
+  if ('${d['owner_text'] ?? ''}'.trim().isEmpty && c.chair != null) d['owner_text'] = c.chair!.name;
 }
 
 // ---------------------------------------------------------------------

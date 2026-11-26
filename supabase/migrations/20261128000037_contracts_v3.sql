@@ -1003,6 +1003,19 @@ revoke execute on function public.set_contract_guarantees(uuid, jsonb), public.s
 grant execute on function public.set_contract_guarantees(uuid, jsonb), public.save_contract_variation(uuid, jsonb),
   public.decide_variation(uuid, text, text, date), public.save_committee(uuid, text, jsonb),
   public.delete_committee(uuid, text), public.can_approve_variation(uuid) to authenticated;
+-- التحديث اللحظي في التطبيق
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['contract_variation_items', 'contract_committees', 'contract_committee_members'] loop
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+       and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
 -- داخلية: لا تُستدعى من التطبيق
 revoke execute on function public.variation_snapshot(uuid), public.committee_snapshot(uuid),
   public.contract_variations_values(), public.contract_extracts_retention_guard(), public.committees_follow_merge()

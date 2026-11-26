@@ -31,7 +31,7 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
     if (f != null) header.add(engineerFieldLabel(f));
   }
   header.addAll(['قيمة الأعمال التعاقدية', 'قيمة الأعمال المنفذة', 'الدفعة الأولى', 'الدفعة الثانية', 'الدفعة الختامية',
-    'الضمان الابتدائي ${rateText(guaranteeInitialRate)} $base', 'الضمان النهائي ${rateText(guaranteeFinalRate)} $base', 'قيمة الخصومات']);
+    'الضمان الابتدائي (بنسبة العقد) $base', 'الضمان النهائي (بنسبة العقد) $base', 'قيمة الخصومات']);
   final fields = [...app.activeFields]..sort((a, b) => a.sort.compareTo(b.sort));
   header.addAll(fields.map((f) => f.label));
   header.addAll(['عدد النماذج المكتملة', 'نسبة الإنجاز %', 'المرحلة الحالية', 'المستند التالي المطلوب', 'حالة الدورة', 'ملاحظات', 'آخر تحديث']);
@@ -66,7 +66,7 @@ Future<String?> exportProjectsXlsx(AppState app, List<Project> projects) async {
       money(p.paymentSecond),
       money(p.paymentFinal),
       p.guaranteeInitialNa ? TextCellValue('لا ينطبق') : money(p.guaranteeInitial),
-      money(p.guaranteeFinal),
+      p.guaranteeFinalNa ? TextCellValue('لا ينطبق') : money(p.guaranteeFinal),
       money(p.deductions),
     ]);
     for (final f in fields) {
@@ -247,8 +247,8 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
     ('المتبقي من الأعمال', sum(projects.map((p) => p.remainingWork ?? 0))),
     ('المتبقي للدفع', sum(projects.map((p) => p.remainingToPay ?? 0))),
     ('التأمين المحتجز', sum(projects.map((p) => p.retentionHeld))),
-    ('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', sum(projects.map((p) => p.guaranteeInitial ?? 0))),
-    ('الضمان النهائي ${rateText(guaranteeFinalRate)}', sum(projects.map((p) => p.guaranteeFinal ?? 0))),
+    ('الضمان الابتدائي (بنسبة كل عقد)', sum(projects.map((p) => p.guaranteeInitial ?? 0))),
+    ('الضمان النهائي (بنسبة كل عقد)', sum(projects.map((p) => p.guaranteeFinal ?? 0))),
     ('إجمالي التأمينات والضمانات',
         sum(projects.map((p) => p.retentionHeld + (p.guaranteeInitial ?? 0) + (p.guaranteeFinal ?? 0)))),
     ('المحال للصرف (غير المدفوع)', sum(ex.where((x) => x.isReferred).map((x) => x.unpaid))),
@@ -301,7 +301,7 @@ Future<String?> exportFinanceXlsx(AppState app, List<Project> projects) async {
       m(p.remainingToPay),
       DoubleCellValue(p.retentionHeld),
       p.guaranteeInitialNa ? TextCellValue('لا ينطبق') : m(p.guaranteeInitial),
-      m(p.guaranteeFinal),
+      p.guaranteeFinalNa ? TextCellValue('لا ينطبق') : m(p.guaranteeFinal),
       m(p.deductions),
       m(p.advanceAmount),
       TextCellValue(p.advancePaidOn == null ? '' : _day(p.advancePaidOn!)),

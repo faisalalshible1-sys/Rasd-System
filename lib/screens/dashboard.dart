@@ -535,8 +535,8 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           _Metric(icon: Icons.remove_circle_outline_rounded, label: 'الخصومات', value: st.deductions, kind: 'money', color: sem.danger, sub: currencyLabel),
           _Metric(icon: Icons.account_balance_wallet_outlined, label: 'المتبقي من التعاقدية', value: remaining, kind: 'money', color: sem.wip, sub: 'بعد الدفعات والخصومات'),
-          _Metric(icon: Icons.shield_outlined, label: 'الضمان الابتدائي', value: st.gInitial, kind: 'money', sub: '${rateText(guaranteeInitialRate)} من المنفذ'),
-          _Metric(icon: Icons.verified_outlined, label: 'الضمان النهائي', value: st.gFinal, kind: 'money', sub: '${rateText(guaranteeFinalRate)} من المنفذ'),
+          _Metric(icon: Icons.shield_outlined, label: 'الضمان الابتدائي', value: st.gInitial, kind: 'money', sub: 'بنسبة كل عقد من المنفذ'),
+          _Metric(icon: Icons.verified_outlined, label: 'الضمان النهائي', value: st.gFinal, kind: 'money', sub: 'بنسبة كل عقد من المنفذ'),
         ]),
         _TwoCol(
           start: [

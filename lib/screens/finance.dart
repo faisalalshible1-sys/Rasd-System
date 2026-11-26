@@ -111,12 +111,11 @@ class FinanceStats {
         rejectedCount++;
       }
     }
+    // المعتمد وحده يدخل في قيمة العقد (الترحيل 37)، بزيادته ونقصه منفصلين
     for (final v in variations) {
-      if (v.isAdd) {
-        varAdd += v.amount;
-      } else {
-        varDeduct += v.amount;
-      }
+      if (!v.isApproved) continue;
+      varAdd += v.addedValue;
+      varDeduct += v.deductedValue;
     }
   }
 
@@ -1056,16 +1055,21 @@ class _VariationsView extends StatelessWidget {
     final rows = [...st.variations]..sort((a, b) => (b.approvedOn ?? b.createdAt ?? DateTime(2000)).compareTo(a.approvedOn ?? a.createdAt ?? DateTime(2000)));
     final byContract = <String, double>{};
     for (final v in st.variations) {
-      byContract[v.projectId] = (byContract[v.projectId] ?? 0) + v.signed;
+      if (v.isApproved) byContract[v.projectId] = (byContract[v.projectId] ?? 0) + v.signed;
     }
+    final pending = st.variations.where((v) => v.isDraft).length;
     final ranked = byContract.entries.toList()..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _spaced([
         ResponsiveGrid(minItemWidth: 215, children: [
-          StatCard(label: 'عدد أوامر التغيير', value: '${st.variations.length}', icon: Icons.format_list_numbered_rounded),
-          StatCard(label: 'إجمالي الزيادة', value: compactMoney(st.varAdd), sub: '${fmtMoney(st.varAdd)} $currencyLabel', icon: Icons.add_circle_outline, color: sem.ok),
-          StatCard(label: 'إجمالي النقص', value: compactMoney(st.varDeduct), sub: '${fmtMoney(st.varDeduct)} $currencyLabel', icon: Icons.remove_circle_outline, color: sem.danger),
+          StatCard(
+              label: 'عدد أوامر التغيير',
+              value: '${st.variations.length}',
+              sub: pending > 0 ? '$pending بانتظار الاعتماد' : null,
+              icon: Icons.format_list_numbered_rounded),
+          StatCard(label: 'الزيادة المعتمدة', value: compactMoney(st.varAdd), sub: '${fmtMoney(st.varAdd)} $currencyLabel', icon: Icons.add_circle_outline, color: sem.ok),
+          StatCard(label: 'النقص المعتمد', value: compactMoney(st.varDeduct), sub: '${fmtMoney(st.varDeduct)} $currencyLabel', icon: Icons.remove_circle_outline, color: sem.danger),
           StatCard(
               label: 'الصافي من القيمة الأصلية',
               value: compactMoney(st.varAdd - st.varDeduct),
@@ -1108,6 +1112,7 @@ class _VariationsView extends StatelessWidget {
                         app.project(v.projectId)?.contractTitle ?? '',
                         if (v.refNo.isNotEmpty) 'رقم ${v.refNo}',
                         if (v.approvedOn != null) dayText(v.approvedOn),
+                        if (!v.isApproved) v.statusLabel,
                       ].join(' · ')),
                       trailing: Text('${v.isAdd ? '+' : '−'}${fmtMoney(v.amount)}',
                           style: _tab.copyWith(fontWeight: FontWeight.w800, color: v.isAdd ? sem.ok : sem.danger)),
