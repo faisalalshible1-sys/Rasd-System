@@ -215,12 +215,16 @@ void main() {
       ];
       final c = grantCatalog(forms);
       final keys = c.map((g) => g.key).toSet();
-      expect(keys, containsAll(['form:f01', 'docs:boq', 'docs:letter', 'docs:design', 'supervision:reports', 'unit:ncr', 'swot', 'pm:plan', 'pm:track']));
+      expect(keys, containsAll(['form:f01', 'docs:boq', 'docs:letter', 'docs:design', 'supervision:reports', 'unit:ncr', 'swot', 'pm:plan', 'pm:track',
+        'docs:pm_view', 'docs:pm_add', 'docs:pm_duration', 'docs:pm_dates', 'docs:pm_approve']));
       expect(keys.contains('form:f02'), isFalse);
       expect(c.firstWhere((g) => g.key == 'form:f01').note, contains('المالية'));
       for (final k in keys) {
-        // شرط user_grants_scope_check كما في الترحيل 30
-        expect(RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track))$').hasMatch(k), isTrue,
+        // شرط user_grants_scope_check كما في الترحيل 36
+        expect(
+            RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design|pm_view|pm_add|pm_duration|pm_dates|pm_approve)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track))$')
+                .hasMatch(k),
+            isTrue,
             reason: 'نطاق لا تقبله قاعدة البيانات: $k');
       }
       expect(grantLabel('form:f02', forms), 'موقوف (موقوف)');
