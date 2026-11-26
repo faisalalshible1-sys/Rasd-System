@@ -24,6 +24,18 @@ String fmtQty(num v) {
   return '${v < 0 && milli > 0 ? '-' : ''}$ws$fs';
 }
 
+/// العدد مع معدوده بالعربية: لا بنود، بند واحد، بندان، 3 بنود، 11 بنداً.
+String arCount(int n, {required String one, required String two, required String few, required String many}) => switch (n) {
+      0 => 'لا $few',
+      1 => '$one واحد',
+      2 => two,
+      _ when n % 100 >= 3 && n % 100 <= 10 => '$n $few',
+      _ => '$n $many',
+    };
+
+/// كمية بإشارتها (+50 أو -10) معزولة من اليسار لليمين، حتى لا تنتقل الإشارة إلى آخر الرقم في النص العربي.
+String signedQty(num v) => '\u2066${v > 0 ? '+' : ''}${fmtQty(v)}\u2069';
+
 /// تقريب الكمية إلى ثلاث خانات كما في قاعدة البيانات (numeric(…, 3)).
 double roundQty(double v) => (v * 1000).roundToDouble() / 1000;
 
@@ -785,7 +797,7 @@ class StoresData {
   /// قيمة تقريبية لا تُحسب هنا: القسم لا يحمل أسعاراً (مستقل عن المالية)؛ المؤشرات كميات وأعداد.
   int get activeItems => items.where((i) => i.active).length;
 
-  /// مسار الموقع: المبنى › الطابق › الغرفة.
+  /// مسار الموقع: المبنى / الطابق / الغرفة.
   String locationPath(String? id) {
     final parts = <String>[];
     var cur = location(id);
@@ -794,10 +806,10 @@ class StoresData {
       parts.insert(0, cur.name);
       cur = location(cur.parentId);
     }
-    return parts.join(' › ');
+    return parts.join(' / ');
   }
 
-  /// مسار الإدارة: الإدارة › القسم.
+  /// مسار الإدارة: الإدارة / القسم.
   String departmentPath(String? id) {
     final parts = <String>[];
     var cur = department(id);
@@ -806,7 +818,7 @@ class StoresData {
       parts.insert(0, cur.name);
       cur = department(cur.parentId);
     }
-    return parts.join(' › ');
+    return parts.join(' / ');
   }
 
   /// المستلم أو المُرجِع في مستند صرف أو مرتجع: الموظف ثم إدارته، أو الإدارة وحدها.

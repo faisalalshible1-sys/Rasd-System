@@ -1515,6 +1515,14 @@ class AppState extends ChangeNotifier {
     setTab(202);
   }
 
+  /// فتح صفحة الأرصدة على مستوى («attention» = تحتاج توريداً)؛ تستهلكه الصفحة مرة واحدة.
+  String? storesBalancesLevel;
+
+  void openStoresBalances({String? level}) {
+    storesBalancesLevel = level;
+    setTab(203);
+  }
+
   /// كل صفوف جدول على دفعات (حد الخادم 1000 صف للطلب الواحد)، بترتيب ثابت حتى لا يتكرر صف أو يسقط.
   Future<List<Map<String, dynamic>>> _allRows(String table, List<String> orders, {int cap = 50000}) async {
     final out = <Map<String, dynamic>>[];

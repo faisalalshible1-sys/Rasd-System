@@ -50,14 +50,20 @@ class StoreDocTile extends StatelessWidget {
     final s = AppScope.of(context).stores;
     final sem = Sem.of(context);
     final where = doc.kind == 'transfer'
-        ? '${s.warehouseName(doc.warehouseId)} ← ${s.warehouseName(doc.toWarehouseId)}'
+        ? 'من ${s.warehouseName(doc.warehouseId)} إلى ${s.warehouseName(doc.toWarehouseId)}'
         : s.warehouseName(doc.warehouseId);
     final who = doc.hasRecipient ? s.recipientOf(doc) : doc.party;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: Icon(_kindIcon(doc.kind), color: sem.muted),
-      title: Text('${doc.title} ${isolate(doc.docNo)}'),
-      subtitle: Text([dayText(doc.docDate), where, if (who.isNotEmpty) who, '${s.linesOf(doc.id).length} بند'].join(' · '),
+      // الرقم أولاً ثم النوع المختصر، حتى لا ينكسر السطر على الهاتف
+      title: Text.rich(TextSpan(children: [
+        TextSpan(text: isolate(doc.docNo), style: const TextStyle(fontWeight: FontWeight.w600)),
+        TextSpan(
+            text: ' · ${doc.isReversal ? 'عكس ' : ''}${stDocKindLabels[doc.kind] ?? doc.kind}',
+            style: TextStyle(color: sem.muted, fontWeight: FontWeight.w500)),
+      ])),
+      subtitle: Text([dayText(doc.docDate), where, if (who.isNotEmpty) who, arCount(s.linesOf(doc.id).length, one: 'بند', two: 'بندان', few: 'بنود', many: 'بنداً')].join(' · '),
           maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: sem.muted, fontSize: 12.5)),
       trailing: ToneBadge(doc.statusLabel, color: storeDocStatusColor(sem, doc.status)),
       onTap: () => openStoreDoc(context, doc.id),
@@ -150,7 +156,7 @@ class _StoresDocsPageState extends State<StoresDocsPage> {
             child: TextField(
               controller: _q,
               onChanged: (_) => setState(() {}),
-              decoration: fieldDeco('بحث برقم المستند أو المستلم أو المورد', prefixIcon: const Icon(Icons.search_rounded)),
+              decoration: fieldDeco('بحث بالرقم أو المستلم أو المورد', prefixIcon: const Icon(Icons.search_rounded)),
             ),
           ),
           SizedBox(
@@ -481,20 +487,27 @@ class _StoreDocEditorPageState extends State<StoreDocEditorPage> {
           ]),
         ),
         const SizedBox(height: 14),
-        SectionCard(
-          title: 'البنود (${_lines.length})',
-          icon: Icons.list_alt_rounded,
-          trailing: Wrap(spacing: 8, children: [
+        Builder(builder: (context) {
+          // على الهاتف تنزل الأزرار تحت العنوان حتى لا تضغطه
+          final narrow = MediaQuery.sizeOf(context).width < 640;
+          final buttons = Wrap(spacing: 8, runSpacing: 8, children: [
             if (widget.kind == 'opening' || widget.kind == 'receipt')
               OutlinedButton.icon(onPressed: _importLines, icon: const Icon(Icons.upload_file_rounded), label: const Text('من ملف Excel')),
             FilledButton.tonalIcon(onPressed: _addItem, icon: const Icon(Icons.add_rounded), label: const Text('إضافة صنف')),
-          ]),
-          child: _lines.isEmpty
-              ? Text('أضف الأصناف بالبحث أو بقارئ الباركود.', style: TextStyle(color: sem.muted))
-              : Column(children: [
-                  for (var i = 0; i < _lines.length; i++) _lineEditor(s, i),
-                ]),
-        ),
+          ]);
+          return SectionCard(
+            title: 'البنود (${_lines.length})',
+            icon: Icons.list_alt_rounded,
+            trailing: narrow ? null : buttons,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (narrow) ...[Align(alignment: AlignmentDirectional.centerStart, child: buttons), const SizedBox(height: 12)],
+              if (_lines.isEmpty)
+                Text('أضف الأصناف بالبحث أو بقارئ الباركود.', style: TextStyle(color: sem.muted))
+              else
+                for (var i = 0; i < _lines.length; i++) _lineEditor(s, i),
+            ]),
+          );
+        }),
         if (_error != null) ...[const SizedBox(height: 12), InfoBanner(level: 'critical', text: _error!)],
         const SizedBox(height: 14),
         Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.end, children: [
@@ -566,7 +579,7 @@ class _StoreDocEditorPageState extends State<StoreDocEditorPage> {
         const SizedBox(height: 6),
         Text(
           [
-            if (f != 1 && q != 0) '= ${qtyWithUnit(q * f, s.unitName(it.baseUnitId))}',
+            if (f != 1 && q != 0) 'تعادل ${qtyWithUnit(q * f, s.unitName(it.baseUnitId))}',
             if (_wh.isNotEmpty) 'المتاح في المخزن ${qtyWithUnit(avail, s.unitName(it.baseUnitId))}',
           ].join(' · '),
           style: TextStyle(color: short ? sem.danger : sem.muted, fontSize: 12.5, fontWeight: short ? FontWeight.w700 : null),
@@ -681,6 +694,7 @@ class StoreDocPage extends StatelessWidget {
     final reversal = [for (final x in s.docs) if (x.reversesId == d.id && !x.isClosed) x];
     String who(String? id) => id == null ? '' : (app.people[id]?.displayName ?? '');
     final shortages = d.isSubmitted ? s.shortages(d) : const <(StItem, double, double)>[];
+    final critical = d.isSubmitted && shortages.isEmpty ? s.criticalTouches(d) : const <(StItem, double, double)>[];
     final actions = <Widget>[
       if (d.isDraft && canMove && !d.isReversal)
         OutlinedButton.icon(
@@ -746,6 +760,16 @@ class StoreDocPage extends StatelessWidget {
             child: InfoBanner(
               level: 'critical',
               text: 'المتاح لا يكفي: ${shortages.map((x) => '«${x.$1.name}» المتاح ${fmtQty(x.$2)} والمطلوب ${fmtQty(x.$3)}').join('، ')}. أعده للتعديل أو انتظر وارداً.',
+            ),
+          ),
+        if (critical.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InfoBanner(
+              level: 'warning',
+              icon: Icons.shield_outlined,
+              text: 'يمس الاحتياطي الحرج: ${critical.map((x) => '«${x.$1.name}» المتاح ${fmtQty(x.$2)} والمطلوب ${fmtQty(x.$3)} والاحتياطي ${fmtQty(x.$1.criticalQty)}').join('، ')}. '
+                  'اعتماده استثناء من مدير المخازن بسبب مكتوب.',
             ),
           ),
         if (d.isSubmitted && app.canStoresApprove && !app.canApproveStoreDoc(d))
@@ -852,7 +876,7 @@ class _LineRow extends StatelessWidget {
     final base = s.unitName(it?.baseUnitId);
     final unit = s.unitName(line.unitId);
     final signed = doc.kind == 'adjust' || doc.isReversal;
-    final q = signed ? isolate('${line.qty > 0 ? '+' : '-'}${fmtQty(line.qty.abs())}') : fmtQty(line.qty);
+    final q = signed ? signedQty(line.qty) : fmtQty(line.qty);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -863,7 +887,7 @@ class _LineRow extends StatelessWidget {
             Text(
               [
                 isolate(it?.code ?? ''),
-                if (line.factor != 1) '= ${qtyWithUnit(line.baseQty.abs(), base)}',
+                if (line.factor != 1) 'تعادل ${qtyWithUnit(line.baseQty.abs(), base)}',
                 if (line.expiryDate != null) 'تنتهي ${dayText(line.expiryDate)}${line.batchNo.isEmpty ? '' : ' (${line.batchNo})'}',
                 if (line.note.isNotEmpty) line.note,
               ].join(' · '),

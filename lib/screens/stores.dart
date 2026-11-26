@@ -241,7 +241,7 @@ class StoresDashboardPage extends StatelessWidget {
           ],
         ),
         if (!app.v22Ready) ...[const StoresNotReady(), const SizedBox(height: 14)],
-        ResponsiveGrid(minItemWidth: 190, children: [
+        ResponsiveGrid(minItemWidth: 165, children: [
           StatCard(
             label: 'الأصناف النشطة',
             value: '${s.activeItems}',
@@ -260,7 +260,7 @@ class StoresDashboardPage extends StatelessWidget {
             sub: 'نفدت أو دون الحد أو عند نقطة الطلب',
             icon: Icons.production_quantity_limits_rounded,
             color: low.isEmpty ? sem.ok : sem.wip,
-            onTap: () => app.setTab(203),
+            onTap: () => app.openStoresBalances(level: 'attention'),
           ),
           StatCard(
             label: 'تنتهي صلاحيتها',
@@ -287,7 +287,7 @@ class StoresDashboardPage extends StatelessWidget {
         SectionCard(
           title: 'أصناف تحتاج توريداً',
           icon: Icons.production_quantity_limits_rounded,
-          subtitle: 'المتاح (الفعلي − المحجوز) في كل المخازن مقارنةً بالحد الأدنى ونقطة إعادة الطلب.',
+          subtitle: 'المتاح (الفعلي ناقص المحجوز) في كل المخازن مقارنةً بالحد الأدنى ونقطة إعادة الطلب.',
           child: low.isEmpty
               ? Text('لا صنف دون حدوده.', style: TextStyle(color: sem.muted))
               : Column(children: [
@@ -305,7 +305,7 @@ class StoresDashboardPage extends StatelessWidget {
                   if (low.length > 12)
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: TextButton(onPressed: () => app.setTab(203), child: Text('كل الأصناف (${low.length})')),
+                      child: TextButton(onPressed: () => app.openStoresBalances(level: 'attention'), child: Text('كل الأصناف (${low.length})')),
                     ),
                 ]),
         ),
@@ -471,24 +471,49 @@ class _StoresItemsPageState extends State<StoresItemsPage> {
           SectionCard(
             title: 'الأصناف (${list.length})',
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            child: Column(children: [
-              for (final it in list.take(400)) _ItemRow(item: it),
+            child: LayoutBuilder(builder: (context, c) {
+              final wide = c.maxWidth >= 760;
+              return Column(children: [
+              if (wide) const _ItemsHeader(),
+              for (final it in list.take(400)) _ItemRow(item: it, wide: wide),
               if (list.length > 400)
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Text('يُعرض أول 400 صنف؛ ضيّق البحث لرؤية البقية.', style: TextStyle(color: sem.muted)),
                 ),
-            ]),
+            ]);
+            }),
           ),
       ],
     );
   }
 }
 
+/// أعمدة الأرصدة في قائمة الأصناف على الشاشة العريضة.
+const _itemCols = [('الفعلي', 86.0), ('المحجوز', 86.0), ('المتاح', 96.0), ('الحد الأدنى', 86.0), ('الحالة', 118.0)];
+
+class _ItemsHeader extends StatelessWidget {
+  const _ItemsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final st = TextStyle(color: sem.muted, fontSize: 12, fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+      child: Row(children: [
+        Expanded(child: Text('الصنف', style: st)),
+        for (final c in _itemCols) SizedBox(width: c.$2, child: Text(c.$1, style: st, textAlign: TextAlign.center)),
+      ]),
+    );
+  }
+}
+
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item});
+  const _ItemRow({required this.item, this.wide = false});
 
   final StItem item;
+  final bool wide;
 
   @override
   Widget build(BuildContext context) {
@@ -497,21 +522,49 @@ class _ItemRow extends StatelessWidget {
     final sem = Sem.of(context);
     final level = s.levelOf(item);
     final unit = s.unitName(item.baseUnitId);
+    final title = Row(children: [
+      Flexible(child: Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
+      if (!item.active) ...[const SizedBox(width: 6), ToneBadge('موقوف', color: sem.muted)],
+      if (item.tracksExpiry) ...[const SizedBox(width: 6), Tooltip(message: 'يُتابع تاريخ صلاحيته', child: Icon(Icons.event_outlined, size: 15, color: sem.muted))],
+    ]);
+    final subtitle = Text('${isolate(item.code)} · ${s.category(item.categoryId)?.name ?? ''}${unit.isEmpty ? '' : ' · $unit'}',
+        style: TextStyle(color: sem.muted, fontSize: 12.5));
+    final chip = level == 'ok' ? const SizedBox.shrink() : ToneBadge(stockLevelLabels[level] ?? level, color: storeLevelColor(sem, level));
+    if (wide) {
+      Widget num(double v, double w, {bool strong = false, Color? color}) => SizedBox(
+            width: w,
+            child: Text(fmtQty(v),
+                textAlign: TextAlign.center,
+                style: _tabular.copyWith(fontWeight: strong ? FontWeight.w700 : FontWeight.w500, color: color)),
+          );
+      final reserved = s.reserved(item.id);
+      return InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => openStoreItem(context, item),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 2), subtitle])),
+            num(s.onHand(item.id), _itemCols[0].$2),
+            num(reserved, _itemCols[1].$2, color: reserved > 0 ? sem.wip : sem.muted),
+            num(s.available(item.id), _itemCols[2].$2, strong: true),
+            num(item.minQty, _itemCols[3].$2, color: sem.muted),
+            SizedBox(width: _itemCols[4].$2, child: Center(child: chip)),
+          ]),
+        ),
+      );
+    }
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      title: Row(children: [
-        Flexible(child: Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
-        if (!item.active) ...[const SizedBox(width: 6), ToneBadge('موقوف', color: sem.muted)],
-        if (item.tracksExpiry) ...[const SizedBox(width: 6), Icon(Icons.event_outlined, size: 15, color: sem.muted)],
-      ]),
-      subtitle: Text('${isolate(item.code)} · ${s.category(item.categoryId)?.name ?? ''}', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+      title: title,
+      subtitle: subtitle,
       trailing: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(qtyWithUnit(s.available(item.id), unit), style: _tabular.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
-          if (level != 'ok') ToneBadge(stockLevelLabels[level] ?? level, color: storeLevelColor(sem, level)),
+          if (level != 'ok') chip,
         ],
       ),
       onTap: () => openStoreItem(context, item),
@@ -598,9 +651,9 @@ class _StoreItemPageState extends State<StoreItemPage> {
         ],
       ),
       body: PageBody(children: [
-        ResponsiveGrid(minItemWidth: 170, children: [
+        ResponsiveGrid(minItemWidth: 118, children: [
           KpiTile(label: 'الفعلي', value: fmtQty(s.onHand(it.id)), sub: unit),
-          KpiTile(label: 'المحجوز', value: fmtQty(s.reserved(it.id)), sub: 'باعتماد صرف أو تحويل'),
+          KpiTile(label: 'المحجوز', value: fmtQty(s.reserved(it.id)), sub: 'معتمد لم يُرحَّل'),
           KpiTile(label: 'المتاح', value: fmtQty(s.available(it.id)), sub: stockLevelLabels[level], color: storeLevelColor(sem, level)),
         ]),
         const SizedBox(height: 14),
@@ -661,16 +714,19 @@ class _StoreItemPageState extends State<StoreItemPage> {
             subtitle: 'كل أثر مرحَّل بمستنده والرصيد بعده في مخزنه. لا يُعدَّل ولا يُحذف؛ التصحيح بمستند عكسي.',
             trailing: _moves == null || _moves!.isEmpty ? null : ExportButton(sourceId: 'stores:moves', items: _moves!, compact: true),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SizedBox(
-                width: 260,
-                child: SelectField(
-                  label: 'المخزن',
-                  value: _wh,
-                  items: [('', 'كل المخازن'), for (final w in s.warehouses) (w.id, w.name)],
-                  onChanged: (v) {
-                    setState(() => _wh = v);
-                    _load();
-                  },
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: SizedBox(
+                  width: 260,
+                  child: SelectField(
+                    label: 'المخزن',
+                    value: _wh,
+                    items: [('', 'كل المخازن'), for (final w in s.warehouses) (w.id, w.name)],
+                    onChanged: (v) {
+                      setState(() => _wh = v);
+                      _load();
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -689,7 +745,7 @@ class _StoreItemPageState extends State<StoreItemPage> {
                         dayText(m.at),
                         '${s.doc(m.docId)?.kindLabel ?? ''} ${isolate(s.doc(m.docId)?.docNo ?? '')}',
                         s.warehouseName(m.warehouseId),
-                        isolate('${m.qty > 0 ? '+' : '-'}${fmtQty(m.qty.abs())}'),
+                        signedQty(m.qty),
                         fmtQty(m.balanceAfter),
                         m.expiryDate == null ? '—' : '${dayText(m.expiryDate)}${m.batchNo.isEmpty ? '' : ' (${m.batchNo})'}',
                       ],
@@ -845,7 +901,7 @@ class _ItemEditorState extends State<_ItemEditor> {
     final baseName = s.unitName(_unit);
     final otherUnits = [for (final u in s.units) if (u.id != _unit && (u.active || _units.any((x) => x.$1 == u.id))) u];
     Widget numField(TextEditingController c, String label, {String? helper}) => SizedBox(
-          width: 170,
+          width: 145,
           child: TextField(
             controller: c,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -940,7 +996,7 @@ class _ItemEditorState extends State<_ItemEditor> {
               numField(_min, 'الحد الأدنى'),
               numField(_max, 'الحد الأقصى', helper: 'اختياري'),
               numField(_reorder, 'نقطة إعادة الطلب'),
-              numField(_critical, 'الاحتياطي الحرج', helper: 'لا يُصرف منه إلا باستثناء'),
+              numField(_critical, 'الاحتياطي الحرج', helper: 'يُصرف منه باستثناء'),
             ]),
             const SizedBox(height: 10),
             TextField(controller: _desc, minLines: 1, maxLines: 3, decoration: fieldDeco('الوصف (اختياري)')),
@@ -1003,7 +1059,18 @@ class StoresBalancesPage extends StatefulWidget {
 class _StoresBalancesPageState extends State<StoresBalancesPage> {
   final _q = TextEditingController();
   String _wh = '';
-  String _level = 'attention';
+  String _level = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final app = AppScope.read(context);
+    final lv = app.storesBalancesLevel;
+    if (lv != null) {
+      _level = lv;
+      app.storesBalancesLevel = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -1066,7 +1133,7 @@ class _StoresBalancesPageState extends State<StoresBalancesPage> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'الأرصدة (${rows.length})',
-          subtitle: 'المتاح = الفعلي − المحجوز. المحجوز ما اعتُمد صرفه أو تحويله ولم يُرحَّل بعد.',
+          subtitle: 'المتاح = الفعلي ناقص المحجوز. المحجوز ما اعتُمد صرفه أو تحويله ولم يُرحَّل بعد.',
           child: rows.isEmpty
               ? Text(_level == 'attention' ? 'لا صنف يحتاج توريداً.' : 'لا أصناف مطابقة.', style: TextStyle(color: sem.muted))
               : PmTable(
@@ -1146,17 +1213,9 @@ class _MineDoc extends StatelessWidget {
     final lines = s.linesOf(doc.id);
     final canConfirm = doc.kind == 'issue' && !doc.isReversal && doc.confirmedAt == null && !app.settings.frozen;
     return SectionCard(
-      title: '${doc.title} ${isolate(doc.docNo)}',
-      subtitle: '${dayText(doc.docDate)} · ${s.warehouseName(doc.warehouseId)}',
-      trailing: doc.confirmedAt != null
-          ? ToneBadge('أكّدتَ الاستلام', color: sem.ok, icon: Icons.verified_outlined)
-          : (canConfirm
-              ? FilledButton.tonalIcon(
-                  onPressed: () => storesRun(context, () => app.stConfirmReceipt(doc.id), success: 'سُجّل تأكيد استلامك'),
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('أكّد الاستلام'),
-                )
-              : null),
+      title: isolate(doc.docNo),
+      subtitle: '${doc.title} · ${dayText(doc.docDate)} · ${s.warehouseName(doc.warehouseId)}',
+      trailing: doc.confirmedAt != null ? ToneBadge('أكّدتَ الاستلام', color: sem.ok, icon: Icons.verified_outlined) : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         for (final l in lines)
           Padding(
@@ -1166,6 +1225,17 @@ class _MineDoc extends StatelessWidget {
               Text(qtyWithUnit(l.qty, s.unitName(l.unitId)), style: _tabular.copyWith(fontWeight: FontWeight.w700)),
             ]),
           ),
+        if (canConfirm) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.tonalIcon(
+              onPressed: () => storesRun(context, () => app.stConfirmReceipt(doc.id), success: 'سُجّل تأكيد استلامك'),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('أكّد الاستلام'),
+            ),
+          ),
+        ],
         if (doc.note.isNotEmpty) ...[const SizedBox(height: 6), Text(doc.note, style: TextStyle(color: sem.muted))],
       ]),
     );

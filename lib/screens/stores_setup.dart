@@ -123,7 +123,7 @@ class StoresSetupPage extends StatelessWidget {
         const SizedBox(height: 14),
         _SettingsCard(edit: edit, key: ValueKey('st-settings-${s.settings.separation}-${s.settings.expiryDays}')),
         const SizedBox(height: 8),
-        Text('أمين كل مخزن يُحدَّد من صلاحيات المستخدم الدقيقة (لوحة التحكم ← المستخدمون) بنطاق «أمين مخزن».',
+        Text('أمين كل مخزن يُحدَّد من صلاحيات المستخدم الدقيقة (لوحة التحكم ثم المستخدمون) بنطاق «أمين مخزن».',
             style: TextStyle(color: sem.muted, fontSize: 12.5)),
       ],
     );
@@ -704,7 +704,7 @@ class _StoresPeoplePageState extends State<StoresPeoplePage> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         title: Text(r.$1.name, style: TextStyle(color: r.$1.active ? null : sem.muted)),
-                        subtitle: Text('${s.employees.where((e) => e.departmentId == r.$1.id).length} موظف${r.$1.code.isEmpty ? '' : ' · ${r.$1.code}'}',
+                        subtitle: Text('${arCount(s.employees.where((e) => e.departmentId == r.$1.id).length, one: 'موظف', two: 'موظفان', few: 'موظفين', many: 'موظفاً')}${r.$1.code.isEmpty ? '' : ' · ${r.$1.code}'}',
                             style: TextStyle(color: sem.muted, fontSize: 12)),
                         trailing: edit ? const Icon(Icons.edit_outlined, size: 18) : null,
                         onTap: edit ? () => _editDep(r.$1) : null,
