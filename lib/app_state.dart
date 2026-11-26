@@ -151,8 +151,8 @@ class AppState extends ChangeNotifier {
 
   // الترحيل 37: ضمانات العقد وتأميناته، وأوامر التغيير ببنودها واعتمادها وسجلها، ولجان الاستلام
   bool v21Ready = false;
-  Map<String, List<VariationItem>> _vItems = {};
-  Map<String, List<VariationEvent>> _vEvents = {};
+  Map<String, List<VariationItem>> variationItemsBy = {};
+  Map<String, List<VariationEvent>> variationEventsBy = {};
   List<ContractCommittee> committees = [];
 
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
@@ -1403,22 +1403,22 @@ class AppState extends ChangeNotifier {
             ...?members[(m['id'] ?? '').toString()]?.where((x) => !x.isChair),
           ]),
       ];
-      _vItems = items;
-      _vEvents = events;
+      variationItemsBy = items;
+      variationEventsBy = events;
       v21Ready = true;
     } catch (_) {
-      _vItems = {};
-      _vEvents = {};
+      variationItemsBy = {};
+      variationEventsBy = {};
       committees = [];
       v21Ready = false;
     }
   }
 
   /// بنود أمر تغيير بترتيبها.
-  List<VariationItem> variationItemsOf(String variationId) => _vItems[variationId] ?? const [];
+  List<VariationItem> variationItemsOf(String variationId) => variationItemsBy[variationId] ?? const [];
 
   /// سجل أمر تغيير، الأقدم أولاً.
-  List<VariationEvent> variationEventsOf(String variationId) => _vEvents[variationId] ?? const [];
+  List<VariationEvent> variationEventsOf(String variationId) => variationEventsBy[variationId] ?? const [];
 
   /// أوامر تغيير العقد المعتمدة وحدها (تدخل في قيمته).
   List<ContractVariation> approvedVariationsOf(String projectId) => [for (final v in variationsOf(projectId)) if (v.isApproved) v];
@@ -2153,8 +2153,8 @@ class AppState extends ChangeNotifier {
     pmLinks = [];
     pmVersions = [];
     v21Ready = false;
-    _vItems = {};
-    _vEvents = {};
+    variationItemsBy = {};
+    variationEventsBy = {};
     committees = [];
     scope = null;
     hubEditRequested = false;
