@@ -1379,7 +1379,7 @@ class _ChannelDialogState extends State<ChannelDialog> {
                 onChanged: (v) => setState(() => _all = v),
                 title: const Text('كل المكتب'),
               ),
-              chips('الأدوار', [for (final r in AppRole.values) if (r != AppRole.director) (r.db, r.label)], _roles),
+              chips('الأدوار', [for (final r in AppRole.values) if (r != AppRole.director && r != AppRole.employee) (r.db, r.label)], _roles),
               chips('الأقسام', [for (final d in app.departments) (d.key, d.name)], _depts),
               chips('الوحدات', [for (final u in unitKeys) (u, unitNames[u] ?? u)], _units),
             ],

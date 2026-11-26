@@ -143,6 +143,9 @@ values = {
     'ST_WIP': status_labels.get('wip', 'قيد التنفيذ'),
     'ST_TODO': status_labels.get('todo', 'لم يتم'),
     'ST_NA': status_labels.get('na', 'لا ينطبق'),
+    # إعدادات قسم المخازن (الترحيل 38): التنبيه قبل انتهاء الصلاحية، وفصل المهام
+    'STR_EXPIRY_DAYS': str(int((live.get('stores_settings') or {}).get('expiry_days', 60))),
+    'STR_SEPARATION': 'مفعّل' if (live.get('stores_settings') or {}).get('separation', True) else 'معطّل',
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML

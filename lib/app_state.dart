@@ -24,6 +24,7 @@ import 'chat.dart';
 import 'print/model.dart';
 import 'rasd.dart';
 import 'scope.dart';
+import 'stores.dart';
 import 'units.dart';
 import 'ui/appearance.dart';
 
@@ -154,6 +155,13 @@ class AppState extends ChangeNotifier {
   Map<String, List<VariationItem>> variationItemsBy = {};
   Map<String, List<VariationEvent>> variationEventsBy = {};
   List<ContractCommittee> committees = [];
+
+  // الترحيل 38: قسم المخازن والأصول والخدمات العامة (الأساس والمخزون)
+  bool v22Ready = false;
+  StoresData stores = StoresData.empty();
+
+  /// آخر بطاقة صنف محمّلة (مصدر تصديرها).
+  List<StMove> storeMoves = [];
 
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
@@ -340,6 +348,8 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel11;
   RealtimeChannel? _channel14;
   RealtimeChannel? _channel15;
+  RealtimeChannel? _channel22;
+  Timer? _storesDebounce;
   Timer? _debounce;
   Timer? _updateTimer;
   bool _disposed = false;
@@ -377,6 +387,7 @@ class AppState extends ChangeNotifier {
       AppRole.contracts => tokens.contains('contracts'),
       AppRole.planningQa => tokens.contains('planning_qa'),
       AppRole.securityAuditor => false,
+      AppRole.employee => false,
       AppRole.deptHead => (tokens.contains('head:supervising') && dep == p.department) ||
           (tokens.contains('head:technical') && dep == 'technical') ||
           (tokens.contains('head:acceptance') && dep == 'acceptance'),
@@ -837,6 +848,7 @@ class AppState extends ChangeNotifier {
       await _loadV19();
       await _loadV20();
       await _loadV21();
+      await _loadV22();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -902,6 +914,7 @@ class AppState extends ChangeNotifier {
     final s = work.single;
     var t = _lastTab[s] ?? 0;
     if (t == 72 && !v15Ready) t = 70;
+    if (s == 'stores' && role == AppRole.employee) t = storesMineTab;
     _section = s;
     _tab = sectionForTab(t) == s ? t : -1;
     showHub = false;
@@ -914,6 +927,8 @@ class AppState extends ChangeNotifier {
   /// هل يرى المستخدم هذا القسم؟ الأمن السيبراني للمدير وCISO، والمشتركة للجميع، والبقية بحسب النطاق.
   bool seesSection(String s) {
     if (s == 'security') return canAudit;
+    // حساب الموظف (الترحيل 38): صفحته في المخازن والدليل وحدهما
+    if (role == AppRole.employee) return s == 'stores' || s == 'manual';
     final sc = scope;
     if (sc == null) return true;
     return sharedSections.contains(s) || sc.sections.contains(s);
@@ -1483,6 +1498,202 @@ class AppState extends ChangeNotifier {
     await client.rpc('delete_committee', params: {'p_project': projectId, 'p_kind': kind});
     await _loadV21();
     _notify();
+  }
+
+  // ---------------------------------------------------------------
+  // قسم المخازن والأصول (الترحيل 38)
+  // ---------------------------------------------------------------
+
+  /// صفحة «ما صُرف لي» (Tabs.storesMine): واجهة حساب الموظف في القسم.
+  static const int storesMineTab = 206;
+
+  /// فتح صفحة المستندات على حالة (تستهلكها الصفحة مرة واحدة).
+  String? storesDocsStatus;
+
+  void openStoresDocs({String? status}) {
+    storesDocsStatus = status;
+    setTab(202);
+  }
+
+  /// كل صفوف جدول على دفعات (حد الخادم 1000 صف للطلب الواحد)، بترتيب ثابت حتى لا يتكرر صف أو يسقط.
+  Future<List<Map<String, dynamic>>> _allRows(String table, List<String> orders, {int cap = 50000}) async {
+    final out = <Map<String, dynamic>>[];
+    const page = 1000;
+    for (var from = 0; from < cap; from += page) {
+      var q = client.from(table).select().order(orders.first, ascending: true);
+      for (final o in orders.skip(1)) {
+        q = q.order(o, ascending: true);
+      }
+      final r = await q.range(from, from + page - 1);
+      out.addAll(r);
+      if (r.length < page) break;
+    }
+    return out;
+  }
+
+  /// بيانات القسم لمن يراه (أهله والمدير، والموظف ما صُرف له)؛ السياسات في قاعدة البيانات تقرر ما يُقرأ.
+  Future<void> _loadV22() async {
+    if (!isDirector && !seesSection('stores')) {
+      stores = StoresData.empty();
+      v22Ready = false;
+      return;
+    }
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        _allRows('st_settings', ['key']),
+        _allRows('st_departments', ['id']),
+        _allRows('st_employees', ['id']),
+        _allRows('st_locations', ['id']),
+        _allRows('st_warehouses', ['id']),
+        _allRows('st_categories', ['id']),
+        _allRows('st_units', ['id']),
+        _allRows('st_items', ['id']),
+        _allRows('st_item_units', ['item_id', 'unit_id']),
+        _allRows('st_docs', ['id']),
+        _allRows('st_doc_lines', ['id']),
+        _allRows('st_stock', ['warehouse_id', 'item_id']),
+        _allRows('st_batches', ['id']),
+      ]);
+      int bySort(int a, int b) => a.compareTo(b);
+      stores = StoresData(
+        settings: StSettings.fromRows(r[0]),
+        departments: r[1].map(StDepartment.fromMap).toList()
+          ..sort((a, b) => a.sort != b.sort ? bySort(a.sort, b.sort) : a.name.compareTo(b.name)),
+        employees: r[2].map(StEmployee.fromMap).toList()..sort((a, b) => a.fullName.compareTo(b.fullName)),
+        locations: r[3].map(StLocation.fromMap).toList()
+          ..sort((a, b) => a.sort != b.sort ? bySort(a.sort, b.sort) : a.name.compareTo(b.name)),
+        warehouses: r[4].map(StWarehouse.fromMap).toList()
+          ..sort((a, b) => a.isMain != b.isMain ? (a.isMain ? -1 : 1) : (a.sort != b.sort ? bySort(a.sort, b.sort) : a.code.compareTo(b.code))),
+        categories: r[5].map(StCategory.fromMap).toList()
+          ..sort((a, b) => a.sort != b.sort ? bySort(a.sort, b.sort) : a.code.compareTo(b.code)),
+        units: r[6].map(StUnit.fromMap).toList()..sort((a, b) => a.sort != b.sort ? bySort(a.sort, b.sort) : a.name.compareTo(b.name)),
+        items: r[7].map(StItem.fromMap).toList()..sort((a, b) => a.name.compareTo(b.name)),
+        itemUnits: r[8].map(StItemUnit.fromMap).toList(),
+        docs: r[9].map(StDoc.fromMap).toList()
+          ..sort((a, b) => (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000))),
+        lines: r[10].map(StDocLine.fromMap).toList(),
+        stock: r[11].map(StStock.fromMap).toList(),
+        batches: r[12].map(StBatch.fromMap).where((b) => b.qty > 0).toList(),
+      );
+      v22Ready = true;
+    } catch (_) {
+      stores = StoresData.empty();
+      v22Ready = false;
+    }
+  }
+
+  Future<void> _reloadStores() async {
+    await _loadV22();
+    _notify();
+  }
+
+  /// يرى القسم كله: المدير ومدير المخازن ومدير النظام فيه والمراجع.
+  bool get storesSeesAll {
+    if (!v22Ready) return false;
+    if (isDirector) return true;
+    final g = grantsOf(me?.id ?? '');
+    return g.contains('stores:manager') || g.contains('stores:admin') || g.contains('stores:audit');
+  }
+
+  /// المخازن التي يتولاها أمين المخزن.
+  Set<String> get storesMyWarehouses =>
+      {for (final g in grantsOf(me?.id ?? '')) if (g.startsWith('stores:keeper:')) g.substring('stores:keeper:'.length)};
+
+  /// من أهل القسم (له صلاحية فيه أو المدير): يرى صفحاته غير «ما صُرف لي».
+  bool get storesStaff => v22Ready && (isDirector || grantsOf(me?.id ?? '').any((g) => g.startsWith('stores:')));
+
+  /// التهيئة وسجل الموظفين: المدير ومدير النظام في القسم.
+  bool get canStoresSetup => v22Ready && !frozenForMe && (isDirector || hasGrant('stores:admin'));
+
+  /// بطاقات الأصناف: المدير ومدير المخازن ومدير النظام في القسم.
+  bool get canStoresItems => v22Ready && !frozenForMe && (isDirector || hasGrant('stores:manager') || hasGrant('stores:admin'));
+
+  /// اعتماد المستندات وعكسها: المدير ومدير المخازن.
+  bool get canStoresApprove => v22Ready && !frozenForMe && (isDirector || hasGrant('stores:manager'));
+
+  /// حركات مخزن: أمينه ومدير المخازن والمدير.
+  bool canStoresMove(String warehouseId) =>
+      v22Ready && !frozenForMe && (isDirector || hasGrant('stores:manager') || hasGrant('stores:keeper:$warehouseId'));
+
+  /// المخازن النشطة التي يحرّكها المستخدم.
+  List<StWarehouse> get storesMovableWarehouses => [for (final w in stores.warehouses) if (w.active && canStoresMove(w.id)) w];
+
+  /// يعتمد هذا المستند المقدَّم (مع فصل المهام: لا يعتمد من أنشأه أو قدّمه).
+  bool canApproveStoreDoc(StDoc d) =>
+      canStoresApprove && d.isSubmitted && !(stores.settings.separation && (d.createdBy == me?.id || d.submittedBy == me?.id));
+
+  /// سجل الموظف المرتبط بحساب المستخدم (للخدمة الذاتية).
+  StEmployee? get myEmployee => stores.employeeOfProfile(me?.id);
+
+  Future<String> _stSave(String fn, String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc(fn, params: {'p_id': id, 'p_data': data});
+    await _reloadStores();
+    return res?.toString() ?? '';
+  }
+
+  Future<String> stSaveDepartment(String? id, Map<String, dynamic> data) => _stSave('st_save_department', id, data);
+  Future<String> stSaveLocation(String? id, Map<String, dynamic> data) => _stSave('st_save_location', id, data);
+  Future<String> stSaveWarehouse(String? id, Map<String, dynamic> data) => _stSave('st_save_warehouse', id, data);
+  Future<String> stSaveCategory(String? id, Map<String, dynamic> data) => _stSave('st_save_category', id, data);
+  Future<String> stSaveUnit(String? id, Map<String, dynamic> data) => _stSave('st_save_unit', id, data);
+  Future<String> stSaveEmployee(String? id, Map<String, dynamic> data) => _stSave('st_save_employee', id, data);
+  Future<String> stSaveItem(String? id, Map<String, dynamic> data) => _stSave('st_save_item', id, data);
+  Future<String> stSaveDoc(String? id, Map<String, dynamic> data) => _stSave('st_save_doc', id, data);
+
+  /// entity: department | location | warehouse | category | unit | employee | item
+  Future<void> stDeleteSetup(String entity, String id) async {
+    await client.rpc('st_delete_setup', params: {'p_entity': entity, 'p_id': id});
+    if (entity == 'warehouse') await _loadV11();
+    await _reloadStores();
+  }
+
+  Future<void> stSetSettings(Map<String, dynamic> data) async {
+    await client.rpc('st_set_settings', params: {'p_data': data});
+    await _reloadStores();
+  }
+
+  /// استيراد الموظفين (st_import_employees) أو الأصناف (st_import_items): يعيد عدد المضاف والمحدَّث.
+  Future<Map<String, dynamic>> stImport(String fn, List<Map<String, dynamic>> rows) async {
+    final res = await client.rpc(fn, params: {'p_rows': rows});
+    await _reloadStores();
+    return res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
+  }
+
+  /// submit تقديم، return إعادة للتعديل، reject رفض، approve اعتماد، post ترحيل، cancel إلغاء.
+  Future<void> stDocAction(String id, String action, {String note = '', bool override = false}) async {
+    await client.rpc('st_doc_action', params: {'p_id': id, 'p_action': action, 'p_note': note.trim(), 'p_override': override});
+    await _reloadStores();
+  }
+
+  Future<void> stDeleteDoc(String id) async {
+    await client.rpc('st_delete_doc', params: {'p_id': id});
+    await _reloadStores();
+  }
+
+  Future<String> stReverseDoc(String id, String note) async {
+    final res = await client.rpc('st_reverse_doc', params: {'p_id': id, 'p_note': note.trim()});
+    await _reloadStores();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> stConfirmReceipt(String id) async {
+    await client.rpc('st_confirm_receipt', params: {'p_id': id});
+    await _reloadStores();
+  }
+
+  /// بطاقة الصنف: حركاته المرحَّلة بترتيبها (في مخزن واحد أو كلها).
+  Future<List<StMove>> stMovesOf(String itemId, {String? warehouseId}) async {
+    final out = <StMove>[];
+    const page = 1000;
+    for (var from = 0; from < 20000; from += page) {
+      var q = client.from('st_moves').select().eq('item_id', itemId);
+      if (warehouseId != null) q = q.eq('warehouse_id', warehouseId);
+      final r = await q.order('id', ascending: true).range(from, from + page - 1);
+      out.addAll(r.map(StMove.fromMap));
+      if (r.length < page) break;
+    }
+    storeMoves = out;
+    return out;
   }
 
   /// علاقات أنشطة عقد.
@@ -2074,6 +2285,28 @@ class AppState extends ChangeNotifier {
       ch15.subscribe();
       _channel15 = ch15;
     }
+
+    // قناة المخازن (الترحيل 38): تُحدَّث بيانات القسم وحدها
+    final old22 = _channel22;
+    if (old22 != null) client.removeChannel(old22);
+    _channel22 = null;
+    if (v22Ready) {
+      final ch22 = client.channel('dc-v22');
+      for (final t in const ['st_docs', 'st_stock', 'st_items', 'st_employees', 'st_warehouses', 'st_settings']) {
+        ch22.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => _scheduleStoresReload());
+      }
+      ch22.subscribe();
+      _channel22 = ch22;
+    }
+  }
+
+  void _scheduleStoresReload() {
+    _storesDebounce?.cancel();
+    _storesDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV22();
+      _notify();
+    });
   }
 
   void scheduleReload() {
@@ -2156,6 +2389,13 @@ class AppState extends ChangeNotifier {
     variationItemsBy = {};
     variationEventsBy = {};
     committees = [];
+    v22Ready = false;
+    stores = StoresData.empty();
+    storeMoves = [];
+    _storesDebounce?.cancel();
+    final old22 = _channel22;
+    if (old22 != null) client.removeChannel(old22);
+    _channel22 = null;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -2180,7 +2420,8 @@ class AppState extends ChangeNotifier {
       ..['acceptance'] = 120
       ..['print'] = 130
       ..['chat'] = 140
-      ..['security'] = 150;
+      ..['security'] = 150
+      ..['stores'] = 200;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -2257,6 +2498,9 @@ class AppState extends ChangeNotifier {
     if (old14 != null) client.removeChannel(old14);
     final old15 = _channel15;
     if (old15 != null) client.removeChannel(old15);
+    final old22 = _channel22;
+    if (old22 != null) client.removeChannel(old22);
+    _storesDebounce?.cancel();
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();
@@ -2327,6 +2571,7 @@ class AppState extends ChangeNotifier {
         >= 40 && < 60 => 'risks',
         >= 30 && < 40 => 'swot',
         >= 20 && < 30 => 'risks',
+        >= 200 && < 220 => 'stores',
         _ => 'cycle',
       };
   final Map<String, int> _lastTab = {
@@ -2343,6 +2588,7 @@ class AppState extends ChangeNotifier {
     'print': 130,
     'chat': 140,
     'security': 150,
+    'stores': 200,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
@@ -2350,6 +2596,8 @@ class AppState extends ChangeNotifier {
     var t = _lastTab[s] ?? 0;
     // لوحة الإشراف (الترحيل 30) واجهة القسم؛ قبل الترحيل تبقى التقارير اليومية
     if (t == 72 && !v15Ready) t = 70;
+    // الموظف (الترحيل 38): صفحته «ما صُرف لي» وحدها في المخازن
+    if (s == 'stores' && role == AppRole.employee) t = storesMineTab;
     _section = s;
     // صفحة نقلها المدير إلى قسم آخر: يعرض القسم أول صفحاته ويثبّتها الهيكل
     _tab = sectionForTab(t) == s ? t : -1;

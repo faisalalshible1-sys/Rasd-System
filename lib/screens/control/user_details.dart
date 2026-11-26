@@ -719,7 +719,9 @@ class GrantsCard extends StatelessWidget {
           ? Text('لا صلاحيات دقيقة؛ يعمل بصلاحيات دوره فقط.', style: TextStyle(color: sem.muted))
           : Wrap(spacing: 6, runSpacing: 6, children: [
               for (final s in scopes)
-                Chip(avatar: const Icon(Icons.key_rounded, size: 15), label: Text(grantLabel(s, app.allFormDefs))),
+                Chip(
+                    avatar: const Icon(Icons.key_rounded, size: 15),
+                    label: Text(grantLabel(s, app.allFormDefs, warehouses: [for (final w in app.stores.warehouses) (w.id, w.name)]))),
             ]),
     );
   }
@@ -767,7 +769,9 @@ class _GrantsDialogState extends State<GrantsDialog> {
     final app = AppScope.of(context);
     final sem = Sem.of(context);
     final q = _q.text.trim();
-    final catalog = grantCatalog(app.formDefs).where((g) => q.isEmpty || g.label.contains(q) || g.group.contains(q)).toList();
+    final catalog = grantCatalog(app.formDefs, warehouses: [for (final w in app.stores.warehouses) if (w.active) (w.id, w.name)])
+        .where((g) => q.isEmpty || g.label.contains(q) || g.group.contains(q))
+        .toList();
     final groups = <String, List<GrantScope>>{};
     for (final g in catalog) {
       (groups[g.group] ??= []).add(g);

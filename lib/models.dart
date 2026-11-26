@@ -23,7 +23,7 @@ FormStatus parseStatus(Object? v) => switch (v) {
       _ => FormStatus.todo,
     };
 
-enum AppRole { director, officeStaff, deptHead, contracts, planningQa, securityAuditor }
+enum AppRole { director, officeStaff, deptHead, contracts, planningQa, securityAuditor, employee }
 
 extension AppRoleX on AppRole {
   String get db => switch (this) {
@@ -33,6 +33,7 @@ extension AppRoleX on AppRole {
         AppRole.contracts => 'contracts',
         AppRole.planningQa => 'planning_qa',
         AppRole.securityAuditor => 'security_auditor',
+        AppRole.employee => 'employee',
       };
 
   String get label => switch (this) {
@@ -42,6 +43,7 @@ extension AppRoleX on AppRole {
         AppRole.contracts => 'مكتب العقود والتوريدات والمستخلصات',
         AppRole.planningQa => 'مكتب التخطيط والتقييم وضمان الجودة',
         AppRole.securityAuditor => 'CISO',
+        AppRole.employee => 'موظف (خدمة ذاتية)',
       };
 
   /// وصف مختصر لما يستطيعه كل دور (يظهر عند اختيار الدور).
@@ -55,6 +57,9 @@ extension AppRoleX on AppRole {
           'مسؤول الأمن السيبراني: قسم الأمن السيبراني كاملاً واطلاع على كل الأقسام، وإجراءات الحماية (إنهاء الجلسات، '
               'والقفل، وحظر الأجهزة، وتعليق الصلاحيات الدقيقة، وقفل المحادثات، والتجميد الطارئ)، دون كتابة في بيانات العمل. '
               'التحقق بخطوتين إلزامي له.',
+        AppRole.employee =>
+          'موظف في المقر دون عمل في المنظومة: يرى في قسم المخازن ما صُرف له ويؤكد استلامه، ولا يرى أي قسم آخر. '
+              'يُربط حسابه بسجله في سجل الموظفين.',
       };
 }
 
@@ -65,6 +70,7 @@ AppRole? parseRole(Object? v) => switch (v) {
       'contracts' => AppRole.contracts,
       'planning_qa' => AppRole.planningQa,
       'security_auditor' => AppRole.securityAuditor,
+      'employee' => AppRole.employee,
       _ => null,
     };
 
@@ -1447,6 +1453,23 @@ const Map<String, String> auditActionLabels = {
   'finance.variation_reopen': 'أعاد أمر تغيير إلى مسودة',
   'committee.save': 'شكّل لجنة استلام أو عدّلها',
   'committee.delete': 'حذف لجنة استلام',
+  // قسم المخازن (الترحيل 38)
+  'stores.setup': 'عدّل تهيئة المخازن',
+  'stores.settings': 'عدّل إعدادات المخازن',
+  'stores.employee': 'عدّل سجل موظف',
+  'stores.employees_import': 'استورد الموظفين',
+  'stores.item': 'عدّل بطاقة صنف',
+  'stores.items_import': 'استورد الأصناف',
+  'stores.doc_save': 'حفظ مستند مخزون',
+  'stores.doc_submit': 'قدّم مستند مخزون للاعتماد',
+  'stores.doc_return': 'أعاد مستند مخزون للتعديل',
+  'stores.doc_reject': 'رفض مستند مخزون',
+  'stores.doc_approve': 'اعتمد مستند مخزون',
+  'stores.doc_post': 'رحّل مستند مخزون',
+  'stores.doc_cancel': 'ألغى مستند مخزون',
+  'stores.doc_delete': 'حذف مسودة مستند مخزون',
+  'stores.doc_reverse': 'أنشأ مستنداً عكسياً',
+  'stores.receipt_confirm': 'أكّد استلام ما صُرف له',
   'security.user_lock': 'قفل دخول حساب',
   'security.user_unlock': 'فكّ قفل حساب',
   'security.device_new': 'دخل من جهاز جديد',

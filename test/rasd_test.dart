@@ -213,21 +213,25 @@ void main() {
         FormDef(key: 'f01', name: 'أمر بالتعاقد', stage: 0, sort: 1, sensitive: true, responsible: ['office_staff']),
         FormDef(key: 'f02', name: 'موقوف', stage: 0, sort: 2, sensitive: false, responsible: [], active: false),
       ];
-      final c = grantCatalog(forms);
+      final c = grantCatalog(forms, warehouses: const [('11111111-2222-3333-4444-555555555555', 'المخزن الرئيسي')]);
       final keys = c.map((g) => g.key).toSet();
       expect(keys, containsAll(['form:f01', 'docs:boq', 'docs:letter', 'docs:design', 'supervision:reports', 'unit:ncr', 'swot', 'pm:plan', 'pm:track',
-        'docs:pm_view', 'docs:pm_add', 'docs:pm_duration', 'docs:pm_dates', 'docs:pm_approve']));
+        'docs:pm_view', 'docs:pm_add', 'docs:pm_duration', 'docs:pm_dates', 'docs:pm_approve',
+        'stores:admin', 'stores:manager', 'stores:audit', 'stores:keeper:11111111-2222-3333-4444-555555555555']));
       expect(keys.contains('form:f02'), isFalse);
       expect(c.firstWhere((g) => g.key == 'form:f01').note, contains('المالية'));
       for (final k in keys) {
-        // شرط user_grants_scope_check كما في الترحيل 36
+        // شرط user_grants_scope_check كما في الترحيل 38
         expect(
-            RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design|pm_view|pm_add|pm_duration|pm_dates|pm_approve)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track))$')
+            RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design|pm_view|pm_add|pm_duration|pm_dates|pm_approve)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track)|stores:(admin|manager|audit)|stores:keeper:[0-9a-f-]{36})$')
                 .hasMatch(k),
             isTrue,
             reason: 'نطاق لا تقبله قاعدة البيانات: $k');
       }
       expect(grantLabel('form:f02', forms), 'موقوف (موقوف)');
+      expect(grantLabel('stores:keeper:11111111-2222-3333-4444-555555555555', forms,
+          warehouses: const [('11111111-2222-3333-4444-555555555555', 'المخزن الرئيسي')]), 'أمين مخزن: المخزن الرئيسي');
+      expect(grantLabel('stores:keeper:00000000-0000-0000-0000-000000000000', forms), 'أمين مخزن');
     });
   });
 

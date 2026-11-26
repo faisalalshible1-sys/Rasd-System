@@ -24,7 +24,8 @@ PRIORITY = {"low": "منخفضة", "normal": "عادية", "high": "عالية",
 SECTIONS = {"cycle": "الدورة المستندية", "risks": "المخاطر ومتابعة المشاريع", "swot": "تحليل SWOT", "docs": "الشؤون الفنية",
             "supervision": "الإشراف", "heritage": "الترميم والمباني التاريخية", "planning_qa": "مكتب التخطيط وضمان الجودة",
             "safety": "مكتب السلامة المهنية", "acceptance": "المطابقة والاستلام", "chat": "المراسلات الداخلية",
-            "security": "الأمن السيبراني", "print": "الطباعة والتصدير", "manual": "دليل الاستخدام"}
+            "security": "الأمن السيبراني", "print": "الطباعة والتصدير", "manual": "دليل الاستخدام",
+            "stores": "المخازن والأصول"}
 
 if not URL or not KEY:
     print("::notice title=المزامنة::السرّان SUPABASE_URL و SUPABASE_SERVICE_KEY غير موجودين؛ لم تتم المزامنة.")
@@ -80,6 +81,10 @@ cfg.pop("exported_at", None)
 code, refs = sb("GET", "/rest/v1/ref_schemes?select=key,name,pattern,reset,pad,start_at,codes,active,per_section&order=key.asc")
 if code == 200 and isinstance(refs, list):
     cfg["ref_schemes"] = refs
+# إعدادات قسم المخازن (الترحيل 38) لقيمها الحية في نسخة PDF من الدليل
+code, st = sb("GET", "/rest/v1/st_settings?select=key,value&order=key.asc")
+if code == 200 and isinstance(st, list):
+    cfg["stores_settings"] = {x["key"]: x["value"] for x in st}
 write("config/live-settings.json", cfg)
 print(f"الإعدادات: {len(cfg.get('settings', {}))} إعداداً، {len(cfg.get('forms', []))} نموذجاً، {len(cfg.get('custom_fields', []))} حقلاً")
 

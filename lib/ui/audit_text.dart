@@ -179,6 +179,36 @@ String auditDescription(AppState app, AuditEntry e) {
       return _committee(d, deleted: false);
     case 'committee.delete':
       return _committee(d, deleted: true);
+    case 'stores.setup':
+    case 'stores.employee':
+    case 'stores.item':
+      return _storesEntity(e.action, d);
+    case 'stores.settings':
+      return _storesSettings(d);
+    case 'stores.employees_import':
+      return 'استورد ${text(d['rows'])} صفاً من الموظفين: أُضيف ${text(d['inserted'])} وحُدّث ${text(d['updated'])}'
+          '${(d['departments'] as num? ?? 0) > 0 ? ' وأُنشئت ${text(d['departments'])} إدارة' : ''}';
+    case 'stores.items_import':
+      return 'استورد ${text(d['rows'])} صفاً من الأصناف: أُضيف ${text(d['inserted'])} وحُدّث ${text(d['updated'])}'
+          '${(d['units'] as num? ?? 0) > 0 ? ' وأُنشئت ${text(d['units'])} وحدة' : ''}';
+    case 'stores.doc_save':
+      final doc = d['doc'] is Map ? d['doc'] as Map : const {};
+      final n = doc['lines'] is List ? (doc['lines'] as List).length : 0;
+      return '${d['op'] == 'create' ? 'أنشأ' : 'عدّل'} ${_stKind(doc['kind'], doc['reverses_id'])} ${e.projectLabel} ($n بند)';
+    case 'stores.doc_submit':
+    case 'stores.doc_return':
+    case 'stores.doc_reject':
+    case 'stores.doc_approve':
+    case 'stores.doc_post':
+    case 'stores.doc_cancel':
+      return _storesDocAction(e.action, d, e.projectLabel);
+    case 'stores.doc_delete':
+      final doc = d['doc'] is Map ? d['doc'] as Map : const {};
+      return 'حذف مسودة ${_stKind(doc['kind'], null)} ${e.projectLabel} قبل تقديمها';
+    case 'stores.doc_reverse':
+      return 'أنشأ المستند العكسي ${e.projectLabel} للمستند ${text(d['reverses_no'])} — ${text(d['note'])}';
+    case 'stores.receipt_confirm':
+      return 'أكّد استلام ما صُرف له بالمستند ${e.projectLabel}';
     case 'finance.guarantee_initial':
       return d['na'] == true
           ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
@@ -412,7 +442,7 @@ String auditDescription(AppState app, AuditEntry e) {
       final n = (d['rows'] as num?)?.toInt() ?? 0;
       return 'نزّل حزمة ZIP من $n ملفاً (${fmtBytes(d['bytes'] as num?)})';
     case 'user.grants':
-      String names(Object? v) => (v is List ? v : const []).map((x) => grantLabel('$x', app.allFormDefs)).join('، ');
+      String names(Object? v) => (v is List ? v : const []).map((x) => grantLabel('$x', app.allFormDefs, warehouses: [for (final w in app.stores.warehouses) (w.id, w.name)])).join('، ');
       final add = names(d['added']);
       final rem = names(d['removed']);
       return 'الصلاحيات الدقيقة لـ ${text(d['name'])}: ${[if (add.isNotEmpty) 'منح $add', if (rem.isNotEmpty) 'سحب $rem'].join(' · ')}';
@@ -699,6 +729,67 @@ String _committee(Map<String, dynamic> d, {required bool deleted}) {
   if (deleted) return 'حذف تشكيل $kind (${names(d['from'])})';
   if (d['from'] == null) return 'شكّل $kind: ${names(d['to'])}';
   return 'عدّل $kind: ${names(d['to'])}';
+}
+
+// ---------------------------------------------------------------- قسم المخازن (الترحيل 38)
+
+const Map<String, String> _stEntityNames = {
+  'department': 'الإدارة',
+  'location': 'الموقع',
+  'warehouse': 'المخزن',
+  'category': 'التصنيف',
+  'unit': 'الوحدة',
+  'employee': 'الموظف',
+  'item': 'الصنف',
+};
+
+String _stKind(Object? kind, Object? reverses) {
+  const k = {
+    'opening': 'مستند أرصدة أول المدة',
+    'receipt': 'مستند الوارد',
+    'issue': 'مستند الصرف',
+    'return': 'مستند المرتجع',
+    'transfer': 'مستند التحويل',
+    'adjust': 'مستند التسوية',
+  };
+  final base = k['${kind ?? ''}'] ?? 'المستند';
+  return reverses == null ? base : 'عكس $base';
+}
+
+String _storesEntity(String action, Map<String, dynamic> d) {
+  final entity = action == 'stores.employee' ? 'employee' : (action == 'stores.item' ? 'item' : '${d['entity'] ?? ''}');
+  final what = _stEntityNames[entity] ?? 'عنصر التهيئة';
+  final name = '${d['name'] ?? ''}';
+  final code = '${d['code'] ?? ''}';
+  final label = code.isEmpty ? '«$name»' : '«$name» ($code)';
+  return switch ('${d['op'] ?? ''}') {
+    'create' => 'أضاف $what $label',
+    'delete' => 'حذف $what $label',
+    _ => 'عدّل $what $label',
+  };
+}
+
+String _storesSettings(Map<String, dynamic> d) {
+  final to = d['to'] is Map ? d['to'] as Map : const {};
+  final parts = <String>[
+    if (to['separation'] is bool) 'فصل المهام: ${to['separation'] == true ? 'مفعّل' : 'معطّل'}',
+    if (to['expiry_days'] is num) 'التنبيه قبل انتهاء الصلاحية: ${(to['expiry_days'] as num).toInt()} يوماً',
+  ];
+  return 'إعدادات المخازن — ${parts.join(' · ')}';
+}
+
+String _storesDocAction(String action, Map<String, dynamic> d, String no) {
+  final kind = _stKind(d['kind'], null);
+  final note = '${d['note'] ?? ''}'.trim();
+  final override = d['override'] is List && (d['override'] as List).isNotEmpty;
+  return switch (action) {
+    'stores.doc_submit' => 'قدّم $kind $no للاعتماد',
+    'stores.doc_return' => 'أعاد $kind $no للتعديل${note.isEmpty ? '' : ' — $note'}',
+    'stores.doc_reject' => 'رفض $kind $no${note.isEmpty ? '' : ' — السبب: $note'}',
+    'stores.doc_approve' => 'اعتمد $kind $no${override ? ' باستثناء الاحتياطي الحرج — $note' : ''}',
+    'stores.doc_post' => 'رحّل $kind $no إلى الأرصدة',
+    _ => 'ألغى $kind $no${note.isEmpty ? '' : ' — $note'}',
+  };
 }
 
 /// «نهاية ← بداية +2» من نوع العلاقة وانتظارها (الترحيل 36).

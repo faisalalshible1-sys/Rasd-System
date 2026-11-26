@@ -192,7 +192,7 @@ class _UserEditorState extends State<_UserEditor> {
   bool _busy = false;
   String? _error;
 
-  static const _roles = [AppRole.officeStaff, AppRole.deptHead, AppRole.contracts, AppRole.planningQa, AppRole.securityAuditor];
+  static const _roles = [AppRole.officeStaff, AppRole.deptHead, AppRole.contracts, AppRole.planningQa, AppRole.securityAuditor, AppRole.employee];
 
   @override
   void initState() {
@@ -231,7 +231,7 @@ class _UserEditorState extends State<_UserEditor> {
       }
       await widget.app.setUserAccess(widget.user.id, role: role, department: _department, active: _active, fullName: _name.text.trim());
       // الوحدة (الترحيل 21): تُحفظ إن تغيّرت، ولا تُسند لمدقق الأمن
-      final unit = role == AppRole.securityAuditor ? '' : _unit;
+      final unit = role == AppRole.securityAuditor || role == AppRole.employee ? '' : _unit;
       final head = unit.isNotEmpty && _unitHead;
       if (widget.app.v9Ready && (unit != (widget.user.unit ?? '') || head != widget.user.unitHead)) {
         await widget.app.setUserUnit(widget.user.id, unit.isEmpty ? null : unit, head);
@@ -336,7 +336,14 @@ class _UserEditorState extends State<_UserEditor> {
                 onChanged: (v) => setState(() => _department = v),
               ),
             ],
-            if (widget.app.v9Ready && _role.isNotEmpty && _role != AppRole.securityAuditor.db) ...[
+            if (_role == AppRole.employee.db) ...[
+              const SizedBox(height: 8),
+              const InfoBanner(
+                icon: Icons.person_pin_outlined,
+                text: 'لا يرى إلا صفحته في قسم المخازن («ما صُرف لي») ودليل الاستخدام. اربطه بسجله من «الإدارات والموظفون» في المخازن.',
+              ),
+            ],
+            if (widget.app.v9Ready && _role.isNotEmpty && _role != AppRole.securityAuditor.db && _role != AppRole.employee.db) ...[
               const SizedBox(height: 12),
               SelectField(
                 label: 'الوحدة',
