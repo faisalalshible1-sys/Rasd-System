@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 // لقطات بصرية للصفحات الرئيسية ببيانات تجريبية (للتدقيق على التصميم، لا تُشغَّل مع الاختبارات العادية):
 //   flutter test visual_test --update-goldens
 // تُحفظ الصور في visual_test/goldens/ ويرفعها سير العمل visual.yml.
@@ -20,6 +21,7 @@ import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/rasd.dart';
 import 'package:dc_app/schedule.dart';
+import 'package:dc_app/services/boq_files.dart';
 import 'package:dc_app/scope.dart';
 import 'package:dc_app/registers.dart';
 import 'package:dc_app/screens/assigned_work.dart';
@@ -35,6 +37,7 @@ import 'package:dc_app/screens/cycle_guide.dart';
 import 'package:dc_app/screens/control/appearance.dart';
 import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
+import 'package:dc_app/screens/boq_import.dart';
 import 'package:dc_app/screens/contract_files.dart';
 import 'package:dc_app/screens/docs.dart';
 import 'package:dc_app/screens/units.dart';
@@ -56,6 +59,7 @@ import 'package:dc_app/screens/pm_settings.dart';
 import 'package:dc_app/screens/prices.dart';
 import 'package:dc_app/screens/print_center.dart';
 import 'package:dc_app/screens/risks.dart';
+import 'package:dc_app/screens/plan_versions.dart';
 import 'package:dc_app/screens/plans.dart';
 import 'package:dc_app/screens/schedule.dart';
 import 'package:dc_app/screens/supervision_hub.dart';
@@ -1735,6 +1739,89 @@ void main() {
         allStatuses);
     app.showHub = true;
     await _shot(tester, 'q6_ciso_hub_dark_mobile', app, const HomeShell(), size: const Size(400, 1300), dark: true);
+  });
+
+  testWidgets('schedule from boq', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    _planning(app);
+    _supervisionPlans(app);
+    final ps = app.projects;
+    // علاقات البرنامج المسودة، وتواريخه محسوبة بها (PlanLayout)
+    const links = [
+      PmLink(id: 'lk1', predId: 'w1', succId: 'w2', kind: 'SS', lagDays: 10),
+      PmLink(id: 'lk2', predId: 'w2', succId: 'w5', kind: 'FS', lagDays: 2),
+      PmLink(id: 'lk3', predId: 'w3', succId: 'w4', kind: 'FF', lagDays: 0),
+    ];
+    final p4 = ps[4].id;
+    final st = app.planOf(p4)!.startDate;
+    final its = app.itemsOf(p4);
+    final lay = PlanLayout(st, app.phasesOf(p4), its, links: links);
+    app.pmItems = [
+      for (final i in app.pmItems)
+        if (i.projectId != p4)
+          i
+        else
+          PmItem.fromMap({
+            'id': i.id, 'project_id': i.projectId, 'sort': i.sort, 'code': i.code, 'title': i.title, 'source': i.source, 'phase_id': i.phaseId,
+            'duration_days': i.durationDays, 'unit': i.unit, 'qty': i.qty, 'weight': i.weight,
+            'planned_start': dbDate(lay.dates[i.id]!.$1), 'planned_end': dbDate(lay.dates[i.id]!.$2),
+          }),
+    ];
+    app.pmLinks = links;
+    app.pmRates = [
+      PmRate.fromMap({'id': 'rt1', 'unit': 'م3', 'keyword': '', 'rate': 8, 'label': 'خرسانة عامة', 'valid_from': _day(400), 'created_by': 'u-dir'}),
+      PmRate.fromMap({'id': 'rt2', 'unit': 'م3', 'keyword': 'أعمدة', 'rate': 1.25, 'label': 'صب أعمدة بفريق واحد', 'valid_from': _day(200), 'created_by': 'u-dir'}),
+      PmRate.fromMap({'id': 'rt3', 'unit': 'م3', 'keyword': 'أعمدة', 'rate': 1.0, 'label': 'صب أعمدة بفريق واحد', 'valid_from': _day(400),
+        'note': 'قبل توريد القوالب المعدنية', 'created_by': 'u-dir'}),
+      PmRate.fromMap({'id': 'rt4', 'unit': 'م2', 'keyword': 'رخام', 'rate': 9, 'label': 'تركيب رخام', 'valid_from': _day(300), 'created_by': 'u-dir'}),
+      PmRate.fromMap({'id': 'rt5', 'unit': 'م.ط', 'keyword': '', 'rate': 25, 'valid_from': _day(-20), 'label': 'معدل جديد يسري لاحقاً', 'created_by': 'u-dir'}),
+    ];
+    // إصداران للبرنامج المعتمد: الأول (الأساس) بتواريخ أبكر، والثاني الحالي
+    final p1 = ps[1].id;
+    Map<String, dynamic> vItem(PmItem i, int shift) => {
+          'id': i.id, 'code': i.code, 'title': i.title, 'start': dbDate(addDays(i.plannedStart, -shift)), 'end': dbDate(addDays(i.plannedEnd, -shift)),
+          'duration': i.durationDays,
+        };
+    final cur = app.itemsOf(p1);
+    final end1 = cur.map((i) => i.plannedEnd).reduce((a, b) => a.isAfter(b) ? a : b);
+    app.pmVersions = [
+      PmPlanVersion.fromMap({'id': 'ver2', 'project_id': p1, 'version': 2, 'source': 'approval', 'start_date': dbDate(app.planOf(p1)!.startDate),
+        'end_date': dbDate(end1), 'items': [for (final i in cur) vItem(i, 0)], 'approved_at': _iso(100), 'approved_by': 'u-dir'}),
+      PmPlanVersion.fromMap({'id': 'ver1', 'project_id': p1, 'version': 1, 'source': 'backfill', 'start_date': dbDate(app.planOf(p1)!.startDate),
+        'end_date': dbDate(addDays(end1, -18)),
+        'items': [for (final i in cur) if (i.id != 's7') vItem(i, i.id == 's2' || i.id == 's3' ? 14 : (i.id == 's4' || i.id == 's6' ? 18 : 0))],
+        'approved_at': _iso(140), 'approved_by': 'u-dir'}),
+    ];
+    app.v20Ready = true;
+    await _shot(tester, 'p0_plan_critical_links_light', app, PlanEditorPage(projectId: p4), size: const Size(1400, 2700));
+    await _shot(tester, 'p1_link_editor_light', app,
+        _OpenAction(run: (ctx) => showLinkEditor(ctx, ps[4], app.itemsOf(p4).firstWhere((i) => i.id == 'w2'))), size: const Size(1200, 900));
+    await _shot(tester, 'p2_item_editor_rate_light', app,
+        _OpenAction(run: (ctx) => showPlanItemEditor(ctx, ps[4], app.itemsOf(p4).firstWhere((i) => i.id == 'w1'))), size: const Size(1200, 1400));
+    await _shot(tester, 'p3_version_compare_light', app, PlanVersionPage(projectId: p1, versionId: 'ver1'), size: const Size(1300, 2200));
+    await _shot(tester, 'p4_versions_card_dark', app, PlanEditorPage(projectId: p1), size: const Size(1400, 3300), dark: true);
+    await _shot(tester, 'p5_rates_light', app, const RatesPage(), size: const Size(1200, 1100));
+    const rows = [
+      ['مقايسة أعمال صيانة مدرسة الفجر', '', '', '', '', ''],
+      ['ر.ت', 'البيان', 'الوحدة', 'الكمية', 'سعر الوحدة', 'الإجمالي'],
+      ['أولاً: الأعمال التمهيدية', '', '', '', '', ''],
+      ['1.1', 'حفر خنادق للأساسات بعمق لا يقل عن 1.5 متر', 'م3', '٢٤٠', '35', '8,400'],
+      ['', 'مع نقل المخلفات إلى المكب المعتمد', '', '', '', ''],
+      ['1.2', 'ردم بالتربة المختارة على طبقات', 'م3', '180', '22.5', '4,050'],
+      ['', 'مجموع الأعمال التمهيدية', '', '', '', '12,450'],
+      ['ثانياً: الأعمال الخرسانية', '', '', '', '', ''],
+      ['2.1', 'خرسانة مسلحة للقواعد', 'م3', '60', '950', '57,000'],
+      ['2.2', 'خرسانة عادية للنظافة', 'م3', '20', '480', '9,000'],
+      ['2.3', 'حديد تسليح إضافي', 'طن', '', '3,200', ''],
+      ['', 'الإجمالي العام', '', '', '', '78,450'],
+    ];
+    await _shot(tester, 'p6_boq_import_review_light', app,
+        BoqImportPage(source: BoqSource('مقايسة مدرسة الفجر.xlsx', 'xlsx', Uint8List(0)), sheets: [BoqSheetRows('المقايسة', rows)]),
+        size: const Size(1200, 2600));
+    await _shot(tester, 'p7_boq_import_pdf_dark_mobile', app,
+        BoqImportPage(source: BoqSource('مقايسة مدرسة الفجر.pdf', 'pdf', Uint8List(0)), sheets: [BoqSheetRows('PDF', rows)]),
+        size: const Size(400, 3600), dark: true);
   });
 
   testWidgets('contract files', (tester) async {

@@ -12,6 +12,7 @@ import 'hub.dart' show sectionColor;
 import 'plan_widgets.dart';
 import 'pm_common.dart';
 import 'prices.dart' show openBoqEditor;
+import 'plan_versions.dart' show PlanVersionsCard, openRatesPage, showLinkEditor;
 import 'schedule.dart' show ScheduleNotReady, itemsText, pickScheduleProject;
 
 // =====================================================================
@@ -87,6 +88,12 @@ class _PlansPageState extends State<PlansPage> {
                 },
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('برنامج عقد'),
+              ),
+            if (app.v20Ready)
+              OutlinedButton.icon(
+                onPressed: () => openRatesPage(context),
+                icon: const Icon(Icons.speed_rounded),
+                label: const Text('معدلات الإنتاجية'),
               ),
           ],
         ),
@@ -224,9 +231,15 @@ class PlanEditorPage extends StatelessWidget {
     final items = app.itemsOf(p.id);
     final boqs = app.approvedBoqsOf(p.id);
     final draft = plan == null || !plan.approved;
+    // الإعداد الكامل (التوليد والمراحل والبداية)، والصلاحيات الدقيقة للأنشطة (الترحيل 36)
     final canEdit = app.canPreparePlan && draft;
+    final canAdd = app.pmCan('add') && draft;
+    final canTouch = app.pmCanEditAny && draft;
     final start = plan?.startDate ?? app.schedules[p.id]?.startDate ?? pmToday();
-    final layout = PlanLayout(start, phases, items);
+    final links = app.linksOf(p.id);
+    final layout = PlanLayout(start, phases, items, links: links);
+    final float = items.isEmpty ? null : PlanFloat(layout, phases, links);
+    final critical = float?.criticalIds.length ?? 0;
     final track = ScheduleTrack(p, items, app.pmConfig.refDay, app.pmConfig, plan: plan, phases: phases);
     final narrow = MediaQuery.sizeOf(context).width < 700;
     final hasBoqItems = items.any((i) => i.source == 'boq');
@@ -237,7 +250,7 @@ class PlanEditorPage extends StatelessWidget {
 
     return Scaffold(
       appBar: brandAppBar(context, title: const Text('إعداد البرنامج الزمني'), actions: [
-        if (app.canApprovePlan && plan != null && items.isNotEmpty)
+        if (app.pmCan('approve') && plan != null && items.isNotEmpty)
           Padding(
             padding: const EdgeInsetsDirectional.only(end: 8),
             child: plan.approved
@@ -271,11 +284,17 @@ class PlanEditorPage extends StatelessWidget {
                 icon: const Icon(Icons.view_week_outlined),
                 label: const Text('مرحلة'),
               ),
-            if (canEdit)
+            if (canAdd)
               OutlinedButton.icon(
                 onPressed: () => showPlanItemEditor(context, p, null),
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('بند إضافي أو نشاط'),
+              ),
+            if (app.v20Ready)
+              OutlinedButton.icon(
+                onPressed: () => openRatesPage(context),
+                icon: const Icon(Icons.speed_rounded),
+                label: const Text('معدلات الإنتاجية'),
               ),
             if (canEdit && plan != null)
               OutlinedButton.icon(
@@ -301,7 +320,7 @@ class PlanEditorPage extends StatelessWidget {
                 ? TextButton(onPressed: () => openBoqEditor(context, sheetId: app.boqSheets.firstWhere((s) => s.projectId == p.id).id), child: const Text('المقايسة'))
                 : null,
           )
-        else if (!app.canPreparePlan)
+        else if (!app.pmCanEditAny)
           const InfoBanner(text: 'للاطلاع: يعدّ البرنامج الزمني الشؤون الفنية ومكتب المدير، ويعتمده رئيس الشؤون الفنية أو المدير.'),
         const SizedBox(height: 10),
         ResponsiveGrid(minItemWidth: narrow ? 150 : 190, spacing: 10, children: [
@@ -312,6 +331,13 @@ class PlanEditorPage extends StatelessWidget {
               icon: Icons.timelapse_rounded,
               color: Theme.of(context).colorScheme.primary),
           StatCard(label: 'مراحل التنفيذ', value: '${phases.length}', sub: 'بترتيب منطقي متتالٍ', icon: Icons.view_week_outlined),
+          if (float != null)
+            StatCard(
+                label: 'المسار الحرج',
+                value: '$critical',
+                sub: critical == 0 ? '—' : 'نشاطاً بلا مرونة: تأخير أي منها يؤخر النهاية',
+                icon: Icons.route_rounded,
+                color: Sem.of(context).danger),
           StatCard(
               label: 'البنود',
               value: '${items.length}',
@@ -331,7 +357,7 @@ class PlanEditorPage extends StatelessWidget {
             child: EmptyState(
               title: 'لا بنود بعد',
               message: canEdit && boqs.isNotEmpty
-                  ? '«توليد من المقايسة» ينشئ مرحلة لكل قسم من أقسام اللائحة ويقترح مدة لكل بند بحسب قيمته، ثم تعدّل كل مدة على حدة.'
+                  ? '«توليد من المقايسة» ينشئ مرحلة لكل قسم من أقسام اللائحة ويقترح مدة لكل بند بمعدل الإنتاجية المطابق أو بحسب قيمته، ثم تعدّل كل مدة على حدة.'
                   : 'يبدأ البرنامج من المقايسة المعتمدة للعقد.',
               icon: Icons.auto_awesome_outlined,
             ),
@@ -340,17 +366,20 @@ class PlanEditorPage extends StatelessWidget {
           SectionCard(
             title: 'المخطط الزمني',
             icon: Icons.view_timeline_rounded,
-            subtitle: 'من اليمين إلى اليسار: شريط لكل مرحلة بامتدادها، ثم بنودها بمددها. أي تعديل في مدة أو فاصل يعيد حساب ما بعده والمدة الإجمالية.',
-            child: PlanGantt(rows: ganttRows(context, track, progress: plan?.approved == true, onTap: (i) => _itemSheet(context, app, p, track, i))),
+            subtitle: 'من اليمين إلى اليسار: شريط لكل مرحلة بامتدادها، ثم بنودها بمددها. أي تعديل في مدة أو فاصل أو علاقة يعيد حساب ما بعده والمدة الإجمالية.'
+                '${plan?.approved == true || float == null ? '' : ' الأنشطة باللون الأحمر على المسار الحرج.'}',
+            child: PlanGantt(
+                rows: ganttRows(context, track,
+                    progress: plan?.approved == true, float: float?.total, onTap: (i) => _itemSheet(context, app, p, track, i, float))),
           ),
           const SizedBox(height: 14),
           SectionCard(
             title: 'المراحل والبنود',
             icon: Icons.account_tree_outlined,
-            subtitle: canEdit ? 'اضغط المرحلة لتعديل اسمها وفاصلها، والبند لتعديل مدته وإزاحته وتبعيته.' : null,
+            subtitle: canTouch ? 'اضغط المرحلة لتعديل اسمها وفاصلها، والبند لتعديل مدته وإزاحته وعلاقاته.' : null,
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               for (final i in items.where((i) => i.phaseId == null || !phases.any((ph) => ph.id == i.phaseId)))
-                _ItemLine(item: i, layout: layout, items: items, onTap: () => _itemSheet(context, app, p, track, i)),
+                _ItemLine(item: i, layout: layout, items: items, links: links, float: float, onTap: () => _itemSheet(context, app, p, track, i, float)),
               for (final ph in phases) ...[
                 _PhaseHeader(
                   phase: ph,
@@ -359,11 +388,15 @@ class PlanEditorPage extends StatelessWidget {
                   onDelete: canEdit && !items.any((i) => i.phaseId == ph.id) ? () => _deletePhase(context, app, ph) : null,
                 ),
                 for (final i in items.where((i) => i.phaseId == ph.id))
-                  _ItemLine(item: i, layout: layout, items: items, onTap: () => _itemSheet(context, app, p, track, i)),
+                  _ItemLine(item: i, layout: layout, items: items, links: links, float: float, onTap: () => _itemSheet(context, app, p, track, i, float)),
                 const SizedBox(height: 6),
               ],
             ]),
           ),
+          if (app.v20Ready) ...[
+            const SizedBox(height: 14),
+            PlanVersionsCard(project: p),
+          ],
         ],
       ]),
     );
@@ -375,7 +408,7 @@ class PlanEditorPage extends StatelessWidget {
         title: approve ? 'اعتماد البرنامج الزمني' : 'إعادة فتح البرنامج الزمني',
         message: approve
             ? 'يُعتمد البرنامج بتواريخه الحالية ويُحال إلى الإشراف، فيُشعَر رئيس القسم المشرف على العقد ويبدأ تسجيل الإنجاز عليه. '
-                'لا تُعدَّل بعده المدد ولا المراحل إلا بإعادة فتحه.'
+                'لا تُعدَّل بعده المدد ولا المراحل إلا بإعادة فتحه، ويُحفظ هذا الإصدار كاملاً للمقارنة به لاحقاً.'
             : 'يعود البرنامج مسودة للتعديل، ويتوقف تسجيل الإنجاز عليه وترجمته إلى المخاطر حتى يُعتمد من جديد. الإنجاز المسجّل يبقى.',
         confirmLabel: approve ? 'اعتماد وإحالة' : 'إعادة فتح');
     if (!ok || !context.mounted) return;
@@ -415,11 +448,21 @@ class PlanEditorPage extends StatelessWidget {
     }
   }
 
-  Future<void> _itemSheet(BuildContext context, AppState app, Project p, ScheduleTrack t, PmItem i) {
+  Future<void> _itemSheet(BuildContext context, AppState app, Project p, ScheduleTrack t, PmItem i, PlanFloat? float) {
     final plan = app.planOf(p.id);
-    final canEdit = app.canPreparePlan && plan?.approved != true;
-    final dep = i.dependsOn == null ? null : t.allItems.where((x) => x.id == i.dependsOn).firstOrNull;
+    final draft = plan?.approved != true;
+    final canEdit = app.pmCanEditAny && draft;
+    final canLinks = app.pmCan('dates') && draft && app.v20Ready;
     final phase = t.phases.where((x) => x.id == i.phaseId).firstOrNull;
+    final links = app.linksOf(p.id);
+    String name(String id) {
+      final x = t.allItems.where((y) => y.id == id).firstOrNull;
+      return x == null ? '' : [x.code, x.title].where((s) => s.isNotEmpty).join(' ');
+    }
+
+    final preds = [for (final l in links) if (l.succId == i.id) l];
+    final succs = [for (final l in links) if (l.predId == i.id) l];
+    final fl = float?.total[i.id];
     return showPmSheet(
       context,
       code: i.code,
@@ -433,7 +476,10 @@ class PlanEditorPage extends StatelessWidget {
         ('المدة', i.durationDays == null ? '${daysWord(i.days)} (بتاريخين محددين)' : daysWord(i.durationDays!)),
         ('البداية · النهاية المخططتان', '${pmDay(i.plannedStart)} إلى ${pmDay(i.plannedEnd)}'),
         ('الإزاحة داخل المرحلة', i.offsetDays == 0 ? '' : daysWord(i.offsetDays)),
-        ('يتبع البند', dep == null ? '' : [dep.code, dep.title].where((x) => x.isNotEmpty).join(' ')),
+        ('لا يبدأ قبل', i.startNotBefore == null ? '' : pmDay(i.startNotBefore)),
+        ('المرونة', fl == null ? '' : (fl <= 0 ? 'على المسار الحرج: تأخيره يؤخر نهاية البرنامج' : daysWord(fl))),
+        ('يسبقه', preds.map((l) => '${name(l.predId)} (${l.label})').join('، ')),
+        ('يليه', succs.map((l) => '${name(l.succId)} (${l.label})').join('، ')),
         ('الوحدة · الكمية', i.unit.isEmpty && i.qty == null ? '' : '${i.unit} · ${i.qty == null ? '—' : fmtQty(i.qty!)}'),
         ('الوزن (القيمة)', i.weight == null ? 'متوسط أوزان البنود' : fmtMoney(i.weight)),
         ('الإنجاز', plan?.approved == true ? '${i.progress.toStringAsFixed(0)}%' : ''),
@@ -448,7 +494,16 @@ class PlanEditorPage extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined),
             label: const Text('المدة والترتيب'),
           ),
-        if (canEdit) pmDeleteButton(context, sheet, what: 'البند', onDelete: () => app.deletePmItem(i.id)),
+        if (canLinks)
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(sheet).pop();
+              showLinkEditor(context, p, i);
+            },
+            icon: const Icon(Icons.share_outlined),
+            label: Text(preds.isEmpty ? 'إضافة علاقة' : 'العلاقات'),
+          ),
+        if (app.pmCan('add') && draft) pmDeleteButton(context, sheet, what: 'البند', onDelete: () => app.deletePmItem(i.id)),
       ],
     );
   }
@@ -507,18 +562,27 @@ class _PhaseHeader extends StatelessWidget {
 }
 
 class _ItemLine extends StatelessWidget {
-  const _ItemLine({required this.item, required this.layout, required this.items, this.onTap});
+  const _ItemLine({required this.item, required this.layout, required this.items, this.links = const [], this.float, this.onTap});
 
   final PmItem item;
   final PlanLayout layout;
   final List<PmItem> items;
+  final List<PmLink> links;
+  final PlanFloat? float;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     final i = item;
-    final dep = i.dependsOn == null ? null : items.where((x) => x.id == i.dependsOn).firstOrNull;
+    final into = [for (final l in links) if (l.succId == i.id) l];
+    final dep = into.isEmpty && i.dependsOn != null ? items.where((x) => x.id == i.dependsOn).firstOrNull : null;
+    String short(String id) {
+      final x = items.where((y) => y.id == id).firstOrNull;
+      return x == null ? '' : (x.code.isEmpty ? x.title : x.code);
+    }
+
+    final fl = float?.total[i.id];
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -537,6 +601,14 @@ class _ItemLine extends StatelessWidget {
                 Text('${pmDay(i.plannedStart)} إلى ${pmDay(i.plannedEnd)}', style: TextStyle(color: sem.muted, fontSize: 12)),
                 if (i.offsetDays > 0) Text('إزاحة ${daysWord(i.offsetDays)}', style: TextStyle(color: sem.muted, fontSize: 12)),
                 if (dep != null) Text('يتبع ${dep.code.isEmpty ? dep.title : dep.code}', style: TextStyle(color: sem.muted, fontSize: 12)),
+                for (final l in into.take(3))
+                  Text('بعد ${short(l.predId)} (${l.label})', style: TextStyle(color: sem.muted, fontSize: 12)),
+                if (into.length > 3) Text('+${into.length - 3}', style: TextStyle(color: sem.muted, fontSize: 12)),
+                if (i.startNotBefore != null) Text('لا يبدأ قبل ${pmDay(i.startNotBefore)}', style: TextStyle(color: sem.muted, fontSize: 12)),
+                if (fl != null && fl <= 0 && !i.notApplicable)
+                  Text('مسار حرج', style: TextStyle(color: sem.danger, fontSize: 12, fontWeight: FontWeight.w700))
+                else if (fl != null && fl > 0)
+                  Text('مرونة ${daysWord(fl)}', style: TextStyle(color: sem.muted, fontSize: 12)),
                 if (i.unit.isNotEmpty || i.qty != null) Text('${i.qty == null ? '' : fmtQty(i.qty!)} ${i.unit}', style: TextStyle(color: sem.muted, fontSize: 12)),
                 if (i.source != 'boq') Text(itemSourceLabels[i.source] ?? '', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
               ]),
@@ -597,8 +669,17 @@ Future<void> showPlanItemEditor(BuildContext context, Project p, PmItem? item) a
   final phases = app.phasesOf(p.id);
   final items = app.itemsOf(p.id);
   final start = plan?.startDate ?? app.schedules[p.id]?.startDate ?? pmToday();
-  final before = PlanLayout(start, phases, items);
+  final links = app.linksOf(p.id);
+  final before = PlanLayout(start, phases, items, links: links);
   final boqItem = item?.source == 'boq';
+  // الصلاحيات الدقيقة (الترحيل 36): البيانات، والمدة، والتواريخ؛ والنشاط الجديد بصلاحية الإضافة
+  final isNew = item == null;
+  final canData = app.pmCan('add');
+  final canDur = isNew ? canData : app.pmCan('duration');
+  final canDates = isNew ? canData : app.pmCan('dates');
+  // المدة بالإنتاجية إن طابق البند معدلاً
+  final suggested = item == null ? null : rateDays(app.ratesNow, item.unit, item.title, item.qty);
+  final rate = item == null ? null : rateFor(app.ratesNow, item.unit, item.title);
   final order = orderItems(items, phases);
   final idx = item == null ? order.length : order.indexWhere((x) => x.id == item.id);
   // التبعية لبند سابق في الترتيب (المرحلة ثم البند)
@@ -612,20 +693,30 @@ Future<void> showPlanItemEditor(BuildContext context, Project p, PmItem? item) a
             'البند يبدأ ببداية مرحلته أو بنهاية البند الذي يتبعه، أيهما أبعد، + الإزاحة.',
     sections: [
       PmSection('البند', [
-        PmField('title', 'الوصف', PmKind.text, required: true, max: 300, full: true, enabled: !boqItem),
-        PmField('code', 'الرقم', PmKind.text, max: 20, enabled: !boqItem),
+        PmField('title', 'الوصف', PmKind.text, required: true, max: 300, full: true, enabled: !boqItem && canData),
+        PmField('code', 'الرقم', PmKind.text, max: 20, enabled: !boqItem && canData),
         if (item == null) const PmField('source', 'النوع', PmKind.select, options: [('extra', 'بند إضافي للعقد'), ('manual', 'نشاط')]),
-        PmField('unit', 'الوحدة', PmKind.text, max: 20, enabled: !boqItem),
-        PmField('qty', 'الكمية', PmKind.decimal, enabled: !boqItem),
-        PmField('weight', 'الوزن (القيمة)', PmKind.decimal, enabled: !boqItem, helper: 'فارغ = متوسط أوزان البنود'),
+        PmField('unit', 'الوحدة', PmKind.text, max: 20, enabled: !boqItem && canData),
+        PmField('qty', 'الكمية', PmKind.decimal, enabled: !boqItem && canData),
+        PmField('weight', 'الوزن (القيمة)', PmKind.decimal, enabled: !boqItem && canData, helper: 'فارغ = متوسط أوزان البنود'),
       ]),
       PmSection('الجدولة', [
-        PmField('phase_id', 'المرحلة', PmKind.select, options: [('', 'دون مرحلة (من بداية البرنامج)'), for (final ph in phases) (ph.id, ph.name)]),
-        const PmField('duration_days', 'المدة (يوم)', PmKind.integer, required: true),
-        const PmField('offset_days', 'الإزاحة داخل المرحلة (يوم)', PmKind.integer, helper: 'تأخير بدايته عن بداية مرحلته أو عن نهاية البند الذي يتبعه'),
-        PmField('depends_on', 'يتبع البند', PmKind.select,
+        PmField('phase_id', 'المرحلة', PmKind.select,
+            options: [('', 'دون مرحلة (من بداية البرنامج)'), for (final ph in phases) (ph.id, ph.name)], enabled: canData),
+        PmField('duration_days', 'المدة (يوم)', PmKind.integer,
+            required: true,
+            enabled: canDur,
+            helper: suggested == null
+                ? null
+                : 'بالإنتاجية: ${daysWord(suggested)} (${fmtQty(rate!.rate)} ${item!.unit} في اليوم${rate.label.isEmpty ? '' : '، ${rate.label}'})'),
+        PmField('offset_days', 'الإزاحة (يوم)', PmKind.integer,
+            enabled: canDates, helper: 'تأخير بدايته بعد أن تسمح بها مرحلته وعلاقاته'),
+        PmField('start_not_before', 'لا يبدأ قبل', PmKind.date, enabled: canDates && app.v20Ready, helper: 'تاريخ لا تسبقه البداية (اختياري)'),
+        PmField('depends_on', 'يتبع البند (نهاية ← بداية)', PmKind.select,
             options: [('', 'لا يتبع بنداً'), for (final x in earlier) (x.id, [x.code, x.title].where((s) => s.isNotEmpty).join(' '))],
-            full: true),
+            full: true,
+            enabled: canDates,
+            helper: app.v20Ready ? 'لأنواع العلاقات الأخرى وفترة الانتظار: «العلاقات» من بطاقة البند' : null),
       ]),
     ],
     values: item == null
@@ -640,12 +731,14 @@ Future<void> showPlanItemEditor(BuildContext context, Project p, PmItem? item) a
             'duration_days': item.days,
             'offset_days': item.offsetDays,
             'depends_on': item.dependsOn ?? '',
+            'start_not_before': item.startNotBefore,
           },
     preview: (v) {
       final dur = v['duration_days'] as int?;
       if (dur == null || dur < 1) return null;
       final ph = '${v['phase_id'] ?? ''}';
       final dep = '${v['depends_on'] ?? ''}';
+      final snb = v['start_not_before'];
       final draftItem = (item ??
               PmItem(id: '__new__', projectId: p.id, title: '', plannedStart: start, plannedEnd: start, sort: 1 << 30))
           .copyWith(
@@ -653,9 +746,11 @@ Future<void> showPlanItemEditor(BuildContext context, Project p, PmItem? item) a
               offsetDays: (v['offset_days'] as int?) ?? 0,
               phaseId: ph.isEmpty ? null : ph,
               dependsOn: dep.isEmpty ? null : dep,
-              clearDepends: dep.isEmpty);
+              clearDepends: dep.isEmpty,
+              startNotBefore: snb is DateTime ? snb : DateTime.tryParse('${snb ?? ''}'),
+              clearStartNotBefore: snb == null || '$snb'.isEmpty);
       final list = [for (final x in items) if (x.id != draftItem.id) x, draftItem];
-      final after = PlanLayout(start, phases, list);
+      final after = PlanLayout(start, phases, list, links: links);
       final d = after.dates[draftItem.id];
       final diff = after.totalDays - before.totalDays;
       return InfoBanner(
@@ -672,6 +767,7 @@ Future<void> showPlanItemEditor(BuildContext context, Project p, PmItem? item) a
         'duration_days': d['duration_days'],
         'offset_days': d['offset_days'] ?? 0,
         'depends_on': d['depends_on'] ?? '',
+        if (app.v20Ready) 'start_not_before': d['start_not_before'] is DateTime ? pmIso(d['start_not_before'] as DateTime) : (d['start_not_before'] ?? ''),
         if (!boqItem) ...{
           'title': d['title'],
           'code': d['code'] ?? '',
@@ -772,7 +868,8 @@ Future<void> showGenerateDialog(BuildContext context, Project p, {bool replace =
                 const SizedBox(height: 12),
                 InfoBanner(
                   text: '${phasesText(phases.length)} · ${itemsText((preview!['items'] as num).toInt())} · المدة الإجمالية ${daysWord((preview!['total_days'] as num).toInt())} '
-                      '(من ${pmDay(start)} إلى ${pmDay(addDays(start, (preview!['total_days'] as num).toInt()))})',
+                      '(من ${pmDay(start)} إلى ${pmDay(addDays(start, (preview!['total_days'] as num).toInt()))})'
+                      '${(preview!['by_rate'] as num?) == null ? '' : ' · ${(preview!['by_rate'] as num).toInt()} بنداً مدته بمعدلات الإنتاجية والباقي بقيمته'}',
                   level: 'ok',
                 ),
                 const SizedBox(height: 8),
@@ -788,6 +885,9 @@ Future<void> showGenerateDialog(BuildContext context, Project p, {bool replace =
                           dense: true,
                           contentPadding: const EdgeInsetsDirectional.only(start: 12),
                           title: Text('${it['code']} ${it['title']}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: it['basis'] == 'rate'
+                              ? Text('بالإنتاجية: ${it['qty'] ?? ''} ${it['unit'] ?? ''}', style: TextStyle(color: sem.muted, fontSize: 11.5))
+                              : null,
                           trailing: Text(daysWord((it['days'] as num).toInt()), style: const TextStyle(fontWeight: FontWeight.w800)),
                         ),
                     ],

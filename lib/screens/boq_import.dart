@@ -8,7 +8,7 @@ import '../services/boq_files.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'pm_common.dart';
-import 'prices.dart' show openBoqEditor;
+import 'prices.dart' show BoqEditorPage;
 import 'schedule.dart' show itemsText;
 
 // =====================================================================
@@ -231,8 +231,8 @@ class _BoqImportPageState extends State<BoqImportPage> {
       });
       if (!mounted) return;
       showToast(context, 'حُفظت المقايسة مسودة');
-      Navigator.of(context).pop();
-      await openBoqEditor(context, sheetId: id);
+      // تحل صفحة المحرر محل صفحة المراجعة
+      await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(builder: (_) => BoqEditorPage(sheetId: id)));
     } catch (e) {
       if (mounted) showToast(context, friendlyError(e), error: true);
     } finally {
