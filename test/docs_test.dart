@@ -148,5 +148,7 @@ void main() {
     expect(DocFile.fromMap({'id': '3', 'path': 'p', 'name': 'a.heic', 'mime': 'image/heic'}).isImage, isFalse);
     expect(fileTypeLabel('application/vnd.ms-excel'), 'Excel');
     expect(fileTypeLabel('application/msword'), 'Word');
+    expect(isolate('DWG-12'), '\u2068DWG-12\u2069');
+    expect(isolate(''), '');
   });
 }

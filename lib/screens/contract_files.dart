@@ -198,10 +198,10 @@ class _AttachmentTile extends StatelessWidget {
     }
     final parts = [
       if (showCategory) item.categoryLabel,
-      if (item.refNo.isNotEmpty) 'رقم ${item.refNo}',
+      if (item.refNo.isNotEmpty) 'رقم ${isolate(item.refNo)}',
       pmDay(item.docDate),
       if (eng != null) eng.name,
-      if (files.length == 1) '${files.first.typeLabel} ${fmtBytes(files.first.sizeBytes)}' else if (files.length > 1) '${files.length} ملفات',
+      if (files.length == 1) '${isolate(files.first.typeLabel)} ${isolate(fmtBytes(files.first.sizeBytes))}' else if (files.length > 1) '${files.length} ملفات',
       if (files.isEmpty) 'بلا ملف',
       if (revs.length > 1) 'الإصدار ${revs.last.revNo}',
     ];

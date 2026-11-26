@@ -108,6 +108,9 @@ String docStatusLabel(String kind, String s) => switch (kind) {
       _ => docStatusLabels[s] ?? s,
     };
 
+/// يعزل نصاً لاتينياً أو رقماً (DWG-12، PDF) داخل سطر عربي حتى لا يعيد اتجاه النص ترتيب ما حوله.
+String isolate(String s) => s.isEmpty ? s : '\u2068$s\u2069';
+
 /// حجم ملف مقروء: 850 ك.ب، 2.4 م.ب.
 String fmtBytes(num? b) {
   if (b == null) return '—';

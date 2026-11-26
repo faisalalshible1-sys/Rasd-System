@@ -656,7 +656,7 @@ class DocDetailPage extends StatelessWidget {
       body: PageBody(maxWidth: 1100, onRefresh: app.loadAll, children: [
         PageHeader(
           title: item.title,
-          subtitle: [docProjectName(app, item.projectId), if (item.refNo.isNotEmpty) 'رقم ${item.refNo}', pmDay(item.docDate)].join(' · '),
+          subtitle: [docProjectName(app, item.projectId), if (item.refNo.isNotEmpty) 'رقم ${isolate(item.refNo)}', pmDay(item.docDate)].join(' · '),
           icon: item.isAttachment ? attachmentCategoryIcon(item.category) : docKindIcon(item.kind),
         ),
         Wrap(spacing: 6, runSpacing: 6, children: [
@@ -918,7 +918,7 @@ class DocFileTile extends StatelessWidget {
       visualDensity: dense ? VisualDensity.compact : null,
       leading: Icon(docFileIcon(file), color: file.isPdf ? sem.danger : (file.isVideo ? sem.wip : sem.muted)),
       title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text('${file.typeLabel} · ${fmtBytes(file.sizeBytes)} · ${app.people[file.createdBy]?.displayName ?? ''}'),
+      subtitle: Text('${isolate(file.typeLabel)} · ${isolate(fmtBytes(file.sizeBytes))} · ${app.people[file.createdBy]?.displayName ?? ''}'),
       onTap: !file.isImage
           ? () async {
               try {
