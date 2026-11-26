@@ -10,6 +10,7 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_v3.dart' show VariationEditorPage, VariationPage, variationStatusColor;
+import 'schedule.dart' show itemsText;
 
 /// المالية الموسعة في صفحة العقد: ملخص القيم، وقيم البنود، وأوامر التغيير، وسجل المستخلصات.
 
@@ -320,7 +321,7 @@ class VariationsCard extends StatelessWidget {
                                   if (v.refNo.isNotEmpty) 'رقم ${v.refNo}',
                                   if (v21 && v.addedValue > 0 && v.deductedValue > 0)
                                     'زيادة ${fmtMoney(v.addedValue)} ونقص ${fmtMoney(v.deductedValue)}',
-                                  if (v21 && app.variationItemsOf(v.id).isNotEmpty) '${app.variationItemsOf(v.id).length} بنداً',
+                                  if (v21 && app.variationItemsOf(v.id).isNotEmpty) itemsText(app.variationItemsOf(v.id).length),
                                   if (v.approvedOn != null) 'اعتُمد ${dayText(v.approvedOn)}',
                                   if (app.work(v.workId) != null) 'البند: ${app.work(v.workId)!.title}',
                                   if (v.merged) 'مدمج من ${originLabel?.call(v.originProject) ?? 'عقد آخر'}',
@@ -349,8 +350,8 @@ class VariationsCard extends StatelessWidget {
             ], stepMs: 40),
             Divider(height: 20, color: sem.rule),
             Wrap(spacing: 18, runSpacing: 6, children: [
-              _pair(context, v21 ? 'الزيادة المعتمدة' : 'إجمالي الزيادة', isolate('+${fmtMoney(adds)}'), sem.ok),
-              _pair(context, v21 ? 'النقص المعتمد' : 'إجمالي النقص', isolate('-${fmtMoney(deducts)}'), sem.danger),
+              _pair(context, v21 ? 'الزيادة المعتمدة' : 'إجمالي الزيادة', adds == 0 ? fmtMoney(0) : isolate('+${fmtMoney(adds)}'), sem.ok),
+              _pair(context, v21 ? 'النقص المعتمد' : 'إجمالي النقص', deducts == 0 ? fmtMoney(0) : isolate('-${fmtMoney(deducts)}'), sem.danger),
               _pair(context, 'الصافي', fmtMoney(adds - deducts), null),
               if (base > 0) _pair(context, 'نسبته من القيمة', pctText((adds - deducts) / base, digits: 1), null),
               if (drafts.isNotEmpty)

@@ -20,8 +20,8 @@ const _tabular = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
 
 /// مبلغ بإشارة معزول الاتجاه («+4,200» و«-550») حتى لا تنتقل الإشارة إلى يمين الرقم في السطر العربي.
 String _signed(double v) => v == 0 ? fmtMoney(0) : isolate('${v > 0 ? '+' : '-'}${fmtMoney(v.abs())}');
-String _plus(double v) => isolate('+${fmtMoney(v)}');
-String _minus(double v) => isolate('-${fmtMoney(v)}');
+String _plus(double v) => v == 0 ? fmtMoney(0) : isolate('+${fmtMoney(v)}');
+String _minus(double v) => v == 0 ? fmtMoney(0) : isolate('-${fmtMoney(v)}');
 
 // ---------------------------------------------------------------------
 // لوحة معلومات العقد
@@ -81,7 +81,7 @@ class ContractDashboardCard extends StatelessWidget {
             stat('أوامر التغيير بالزيادة', _plus(p.variationsAdd), icon: Icons.add_circle_outline_rounded, color: sem.ok,
                 sub: pendingVo.isEmpty ? 'المعتمدة' : 'المعتمدة · ${pendingVo.length} بانتظار الاعتماد'),
             stat('أوامر التغيير بالنقصان', _minus(p.variationsDeduct), icon: Icons.remove_circle_outline_rounded, color: sem.danger,
-                sub: 'تنقص القيمة، لا من المستخلصات'),
+                sub: 'من القيمة، لا من المستخلصات'),
             stat('القيمة الإجمالية المعدلة', money(adjusted), icon: Icons.functions_rounded, color: cs.primary,
                 sub: 'الأصلية + الزيادة - النقص'),
             stat('المستخلصات المقدمة', money(p.extractsSubmitted), icon: Icons.outbox_outlined, sub: '$submittedCount مستخلص'),
