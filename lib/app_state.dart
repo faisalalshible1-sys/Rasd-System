@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
+import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'docs.dart';
 import 'models.dart';
@@ -16,6 +18,7 @@ import 'pm.dart';
 import 'prices.dart';
 import 'registers.dart';
 import 'schedule.dart';
+import 'services/boq_files.dart' show parseExtractReply;
 import 'services/doc_files.dart';
 import 'chat.dart';
 import 'print/model.dart';
@@ -139,6 +142,9 @@ class AppState extends ChangeNotifier {
 
   // الترحيل 35: ملف العقد ومرفقاته المصنّفة
   bool v19Ready = false;
+
+  // الترحيل 36: استيراد المقايسات، ومعدلات الإنتاجية، والعلاقات والمسار الحرج، وإصدارات البرنامج الزمني وصلاحياته
+  bool v20Ready = false;
 
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
@@ -820,6 +826,7 @@ class AppState extends ChangeNotifier {
       await _loadV17();
       await _loadV18();
       await _loadV19();
+      await _loadV20();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1328,6 +1335,20 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// الترحيل 36: وجود عمود مصدر المقايسة يكفي.
+  Future<void> _loadV20() async {
+    if (!v14Ready) {
+      v20Ready = false;
+      return;
+    }
+    try {
+      await client.from('boq_sheets').select('source').limit(1);
+      v20Ready = true;
+    } catch (_) {
+      v20Ready = false;
+    }
+  }
+
   /// ملف العقد (الترحيل 35): وجود عمود المهندس المكلَّف في المستندات يكفي.
   Future<void> _loadV19() async {
     if (!v8Ready) {
@@ -1469,6 +1490,30 @@ class AppState extends ChangeNotifier {
       if (s.id == id) return s;
     }
     return null;
+  }
+
+  /// نصوص صفحات PDF بمواضعها لاستيراد مقايسة (الدالة boq-extract). بوابة الخدمة تتحقق بالمفتاح العام،
+  /// وهوية المستخدم وصلاحيته في إعداد المقايسات تتحقق منهما الدالة نفسها من رمز جلسته.
+  Future<({List<List<PdfRun>> pages, int total, bool truncated})> extractBoqPdf(Uint8List bytes) async {
+    final token = client.auth.currentSession?.accessToken;
+    final anon = AppConfig.supabaseAnonKey;
+    try {
+      final res = await client.functions.invoke(
+        'boq-extract',
+        headers: {
+          if (token != null) 'x-user-token': token,
+          if (anon.startsWith('eyJ')) 'Authorization': 'Bearer $anon',
+        },
+        body: {'pdf': base64Encode(bytes)},
+      );
+      return parseExtractReply(res.data);
+    } on FunctionException catch (e) {
+      final d = e.details;
+      if (d is Map && d['error'] is String) throw StateError(d['error'] as String);
+      throw StateError(e.status == 404
+          ? 'خدمة قراءة PDF غير منشورة بعد. صدّر المقايسة إلى Excel واستوردها.'
+          : 'تعذّرت قراءة ملف PDF (${e.status}). صدّر المقايسة إلى Excel واستوردها.');
+    }
   }
 
   Future<String> saveBoq(String? id, Map<String, dynamic> data) async {
@@ -1911,6 +1956,7 @@ class AppState extends ChangeNotifier {
     v17Ready = false;
     v18Ready = false;
     v19Ready = false;
+    v20Ready = false;
     scope = null;
     hubEditRequested = false;
     formDates = {};
