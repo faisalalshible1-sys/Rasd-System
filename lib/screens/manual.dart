@@ -62,6 +62,8 @@ Map<String, String> manualValues(AppState app) {
     'ST_WIP': FormStatus.wip.label,
     'ST_TODO': FormStatus.todo.label,
     'ST_NA': FormStatus.na.label,
+    'STR_EXPIRY_DAYS': '${app.stores.settings.expiryDays}',
+    'STR_SEPARATION': app.stores.settings.separation ? 'مفعّل' : 'معطّل',
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

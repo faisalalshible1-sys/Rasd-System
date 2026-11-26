@@ -52,6 +52,9 @@ import 'supervision.dart';
 import 'supervision_hub.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
+import 'stores.dart';
+import 'stores_docs.dart';
+import 'stores_setup.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -180,6 +183,15 @@ class Tabs {
   static const assignedPlanningQa = 186;
   static const assignedSafety = 187;
   static const assignedAcceptance = 188;
+
+  // المخازن والأصول والخدمات العامة (الترحيل 38)
+  static const storesDashboard = 200;
+  static const storesItems = 201;
+  static const storesDocs = 202;
+  static const storesBalances = 203;
+  static const storesSetup = 204;
+  static const storesPeople = 205;
+  static const storesMine = 206;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -296,7 +308,7 @@ List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> m
 List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final sec = section ?? app.section;
   final base = _baseDestinations(app, sec);
-  if (sec == 'cycle' || !app.v2Ready) return base;
+  if (sec == 'cycle' || sec == 'stores' || !app.v2Ready) return base;
   final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
       badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
   final i = base.indexWhere((d) => d.admin);
@@ -455,6 +467,28 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       ..._adminDests(app, 120),
     ];
   }
+  if (sec == 'stores') {
+    final s = app.stores;
+    // الموظف (ومن لا صلاحية له في القسم): صفحته «ما صُرف لي» وحدها
+    if (!app.storesStaff) {
+      return [
+        const _Dest(Tabs.storesMine, 'ما صُرف لي', Icons.person_pin_outlined, Icons.person_pin_rounded),
+        ..._adminDests(app, 200),
+      ];
+    }
+    return [
+      _Dest(Tabs.storesDashboard, 'لوحة المخازن', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
+          badge: s.lowStock().length),
+      const _Dest(Tabs.storesItems, 'الأصناف', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
+      _Dest(Tabs.storesDocs, 'المستندات', Icons.receipt_long_outlined, Icons.receipt_long_rounded,
+          badge: app.canStoresApprove ? s.pendingApproval : s.awaitingPost),
+      const _Dest(Tabs.storesBalances, 'الأرصدة', Icons.stacked_bar_chart_outlined, Icons.stacked_bar_chart_rounded),
+      const _Dest(Tabs.storesPeople, 'الإدارات والموظفون', Icons.groups_2_outlined, Icons.groups_2_rounded),
+      const _Dest(Tabs.storesSetup, 'التهيئة', Icons.settings_suggest_outlined, Icons.settings_suggest_rounded),
+      if (app.myEmployee != null) const _Dest(Tabs.storesMine, 'ما صُرف لي', Icons.person_pin_outlined, Icons.person_pin_rounded),
+      ..._adminDests(app, 200),
+    ];
+  }
   if (sec == 'print') {
     return [
       const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
@@ -528,8 +562,15 @@ Widget _page(int id) => switch (id) {
       >= Tabs.ideasRisks && <= Tabs.ideasManual => IdeasPage(key: ValueKey('ideas-$id'), section: AppState.ideasSections[id - Tabs.ideasRisks]),
       >= Tabs.assignedDocs && <= Tabs.assignedAcceptance =>
         AssignedWorkPage(key: ValueKey('assigned-$id'), section: AppState.assignedSections[id - Tabs.assignedDocs]),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 || 209 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 || 208 => const AssistantPage(),
+      Tabs.storesDashboard => const StoresDashboardPage(),
+      Tabs.storesItems => const StoresItemsPage(),
+      Tabs.storesDocs => const StoresDocsPage(),
+      Tabs.storesBalances => const StoresBalancesPage(),
+      Tabs.storesSetup => const StoresSetupPage(),
+      Tabs.storesPeople => const StoresPeoplePage(),
+      Tabs.storesMine => const StoresMinePage(),
       Tabs.printRefs => const RefNumbersPage(),
       Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
       Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),

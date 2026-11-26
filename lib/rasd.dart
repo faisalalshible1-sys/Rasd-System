@@ -24,7 +24,7 @@ class GrantScope {
 const Map<String, String> docKindLabels = {'boq': 'المقايسات', 'letter': 'المراسلات', 'design': 'التصاميم'};
 
 /// كل النطاقات التي يمكن منحها، مجمّعة: نماذج الدورة المستندية، والشؤون الفنية، والإشراف، وسجلات الوحدات، وSWOT.
-List<GrantScope> grantCatalog(List<FormDef> forms) => [
+List<GrantScope> grantCatalog(List<FormDef> forms, {List<(String, String)> warehouses = const []}) => [
       for (final f in forms)
         if (f.active)
           GrantScope('form:${f.key}', f.name, 'نماذج الدورة المستندية',
@@ -45,12 +45,22 @@ List<GrantScope> grantCatalog(List<FormDef> forms) => [
           note: 'الاعتماد وإعادة الفتح ومعدلات الإنتاجية'),
       for (final k in unitKinds.values) GrantScope('unit:${k.key}', k.label, unitNames[k.unit] ?? k.unit),
       const GrantScope('swot', 'تحليل SWOT', 'التخطيط الاستراتيجي'),
+      // قسم المخازن والأصول (الترحيل 38)
+      const GrantScope('stores:admin', 'مدير النظام في المخازن', 'المخازن والأصول',
+          note: 'الإدارات والموظفون والمواقع والمخازن والتصنيفات والوحدات والإعدادات'),
+      const GrantScope('stores:manager', 'مدير المخازن', 'المخازن والأصول',
+          note: 'بطاقات الأصناف، واعتماد المستندات وعكسها، واستثناء الاحتياطي الحرج، وحركات كل المخازن'),
+      const GrantScope('stores:audit', 'مراجع المخازن', 'المخازن والأصول', note: 'اطلاع على كل القسم وتقاريره دون تعديل'),
+      for (final w in warehouses)
+        GrantScope('stores:keeper:${w.$1}', 'أمين مخزن: ${w.$2}', 'المخازن والأصول',
+            note: 'إعداد مستندات المخزن وتقديمها، وترحيلها بعد اعتمادها'),
     ];
 
-String grantLabel(String scope, List<FormDef> forms) {
-  for (final g in grantCatalog(forms)) {
+String grantLabel(String scope, List<FormDef> forms, {List<(String, String)> warehouses = const []}) {
+  for (final g in grantCatalog(forms, warehouses: warehouses)) {
     if (g.key == scope) return g.label;
   }
+  if (scope.startsWith('stores:keeper:')) return 'أمين مخزن';
   if (scope.startsWith('form:')) {
     for (final f in forms) {
       if ('form:${f.key}' == scope) return '${f.name} (موقوف)';
@@ -99,6 +109,7 @@ const Map<String, String> refSectionNames = {
   'manual': 'دليل الاستخدام',
   'security': 'الأمن السيبراني',
   'chat': 'المراسلات الداخلية',
+  'stores': 'المخازن والأصول',
 };
 
 class RefScheme {
@@ -355,6 +366,7 @@ const Map<String, String> sectionDefaultNames = {
   'security': 'الأمن السيبراني',
   'print': 'الطباعة والتصدير',
   'manual': 'دليل الاستخدام',
+  'stores': 'المخازن والأصول',
 };
 
 /// أنماط عرض شاشة الدخول: بطاقات بمؤشراتها، ومدمجة، وأيقونات.

@@ -53,6 +53,9 @@ const List<(String, String, String, IconData)> appSections = [
       Icons.print_rounded),
   ('manual', 'دليل الاستخدام', 'شرح كامل لكل أقسام المنظومة وإجراءاتها وطريقة كل حساب، ويُحدَّث مع كل إصدار جديد.',
       Icons.menu_book_rounded),
+  ('stores', 'المخازن والأصول',
+      'المخازن والأصناف وأرصدتها، والوارد والصرف والمرتجع والتحويل والتسوية باعتماد وترحيل، وسجل الموظفين، وما صُرف لكل موظف.',
+      Icons.warehouse_rounded),
 ];
 
 /// اسم مختصر للقسم في المبدّل الجانبي.
@@ -70,6 +73,7 @@ const Map<String, String> sectionShortNames = {
   'security': 'الأمن',
   'print': 'الطباعة',
   'manual': 'الدليل',
+  'stores': 'المخازن',
 };
 
 /// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والشؤون الفنية والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
@@ -79,6 +83,7 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
       'docs' || 'supervision' => app.v8Ready,
       'heritage' || 'planning_qa' || 'safety' || 'acceptance' => app.v9Ready,
       'chat' => app.v12Ready,
+      'stores' => app.v22Ready || app.isDirector,
       'security' => app.v13Ready && app.canAudit,
       _ => app.v6Ready,
     };
@@ -160,6 +165,7 @@ Color defaultSectionColor(BuildContext context, String key) {
     'print' => dark ? const Color(0xFF7FC8E8) : const Color(0xFF0B6E99),
     'chat' => dark ? const Color(0xFF6FD0C8) : const Color(0xFF00796B),
     'security' => dark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C),
+    'stores' => dark ? const Color(0xFFE0B26B) : const Color(0xFF8D5B12),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -720,6 +726,22 @@ List<(String, String, Color?)> hubStats(BuildContext context, AppState app, Stri
         ('${exportSources(app).length}', 'سجلاً قابلاً للتصدير', null),
         ('${app.printTemplates.length}', 'قالب طباعة', null),
         ('$media', 'صورة وفيديو', null),
+      ];
+    case 'stores':
+      if (!app.v22Ready) return const [];
+      final st = app.stores;
+      if (!app.storesStaff) {
+        final me = app.myEmployee;
+        final n = me == null
+            ? 0
+            : st.docsOfEmployee(me.id).where((d) => d.isPosted && d.kind == 'issue' && !d.isReversal && d.confirmedAt == null).length;
+        return [('$n', 'بانتظار تأكيد استلامك', n > 0 ? sem.wip : null)];
+      }
+      final low = st.lowStock().length;
+      return [
+        ('${st.activeItems}', 'صنفاً نشطاً', null),
+        ('$low', 'يحتاج توريداً', low > 0 ? sem.wip : null),
+        ('${st.pendingApproval}', 'بانتظار الاعتماد', st.pendingApproval > 0 ? sem.wip : null),
       ];
     case 'manual':
       return [

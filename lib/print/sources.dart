@@ -13,6 +13,7 @@ import '../prices.dart';
 import '../rasd.dart' show sectionDefaultNames;
 import '../registers.dart';
 import '../schedule.dart';
+import '../stores.dart';
 import '../units.dart';
 import 'model.dart';
 
@@ -76,6 +77,7 @@ const Map<String, String> exportSectionNames = {
   'safety': 'مكتب السلامة المهنية',
   'acceptance': 'المطابقة والاستلام',
   'print': 'الطباعة والتصدير',
+  'stores': 'المخازن والأصول',
 };
 
 DateTime _d0(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -1097,6 +1099,238 @@ List<ExportSource> _all(AppState app) => [
       // ============================================================ سجلات الأقسام (13 نوعاً)
       for (final k in unitKinds.values) _unitSource(k),
 
+      // ============================================================ المخازن والأصول (الترحيل 38)
+      _src<StItem>(
+        id: 'stores:items',
+        section: 'stores',
+        title: 'الأصناف وأرصدتها',
+        icon: Icons.inventory_2_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) => a.stores.items,
+        columns: const [
+          _C('code', 'الرمز', flex: 0.8),
+          _C('name', 'الصنف', flex: 2),
+          _C('category', 'التصنيف', flex: 1.1),
+          _C('unit', 'الوحدة', flex: 0.6),
+          _C('on_hand', 'الفعلي', type: ColType.number, flex: 0.7, sum: false),
+          _C('reserved', 'المحجوز', type: ColType.number, flex: 0.7, sum: false, on: false),
+          _C('available', 'المتاح', type: ColType.number, flex: 0.7, sum: false),
+          _C('min', 'الحد الأدنى', type: ColType.number, flex: 0.7, sum: false),
+          _C('reorder', 'نقطة الطلب', type: ColType.number, flex: 0.7, sum: false),
+          _C('critical', 'الاحتياطي الحرج', type: ColType.number, flex: 0.7, sum: false, on: false),
+          _C('level', 'المستوى', flex: 0.9),
+          _C('barcode', 'الباركود', flex: 0.9, on: false),
+          _C('expiry', 'الصلاحية', flex: 0.6, on: false),
+          _C('active', 'الحالة', flex: 0.6, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          return [
+            x.code,
+            x.name,
+            s.category(x.categoryId)?.name ?? '',
+            s.unitName(x.baseUnitId),
+            s.onHand(x.id),
+            s.reserved(x.id),
+            s.available(x.id),
+            x.minQty,
+            x.reorderQty,
+            x.criticalQty,
+            stockLevelLabels[s.levelOf(x)] ?? '',
+            x.barcode,
+            x.tracksExpiry ? 'تُتتبع' : '',
+            x.active ? 'نشط' : 'موقوف',
+          ];
+        },
+        summary: (a, l) => [
+          ('الأصناف', '${l.length}'),
+          ('تحتاج توريداً', '${l.where((x) => const {'out', 'min', 'reorder'}.contains(a.stores.levelOf(x))).length}'),
+        ],
+      ),
+      _src<StStock>(
+        id: 'stores:balances',
+        section: 'stores',
+        title: 'أرصدة المخازن',
+        icon: Icons.stacked_bar_chart_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) => [for (final st in a.stores.stock) if (st.onHand > 0 || st.reserved > 0) st],
+        columns: const [
+          _C('warehouse', 'المخزن', flex: 1.2),
+          _C('code', 'الرمز', flex: 0.8),
+          _C('item', 'الصنف', flex: 2),
+          _C('unit', 'الوحدة', flex: 0.6),
+          _C('on_hand', 'الفعلي', type: ColType.number, flex: 0.7, sum: false),
+          _C('reserved', 'المحجوز', type: ColType.number, flex: 0.7, sum: false),
+          _C('available', 'المتاح', type: ColType.number, flex: 0.7, sum: false),
+          _C('level', 'المستوى', flex: 0.9),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final it = s.item(x.itemId);
+          return [
+            s.warehouseName(x.warehouseId),
+            it?.code ?? '',
+            it?.name ?? '',
+            s.unitName(it?.baseUnitId),
+            x.onHand,
+            x.reserved,
+            x.available,
+            it == null ? '' : stockLevelLabels[s.levelOf(it, warehouseId: x.warehouseId)] ?? '',
+          ];
+        },
+        summary: (a, l) => [('الأرصدة', '${l.length}'), ('المخازن', '${l.map((x) => x.warehouseId).toSet().length}')],
+      ),
+      _src<StDoc>(
+        id: 'stores:docs',
+        section: 'stores',
+        title: 'مستندات المخزون',
+        icon: Icons.receipt_long_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) => a.stores.docs,
+        date: (x) => x.docDate,
+        dateLabel: 'تاريخ المستند',
+        columns: const [
+          _C('no', 'الرقم', flex: 0.9),
+          _C('kind', 'النوع', flex: 0.8),
+          _C('status', 'الحالة', flex: 0.9),
+          _C('date', 'التاريخ', type: ColType.date, flex: 0.8),
+          _C('warehouse', 'المخزن', flex: 1.1),
+          _C('to', 'إلى المخزن', flex: 1.1, on: false),
+          _C('party', 'المستلم أو المورد', flex: 1.5),
+          _C('ref', 'رقم الفاتورة أو المحضر', flex: 0.9, on: false),
+          _C('lines', 'البنود', type: ColType.number, flex: 0.5),
+          _C('by', 'أنشأه', flex: 0.9, on: false),
+          _C('approved', 'اعتمده', flex: 0.9, on: false),
+          _C('posted', 'تاريخ الترحيل', type: ColType.date, flex: 0.8, on: false),
+          _C('note', 'ملاحظات', type: ColType.long, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          return [
+            x.docNo,
+            x.isReversal ? 'عكس ${x.kindLabel}' : x.kindLabel,
+            x.statusLabel,
+            x.docDate,
+            s.warehouseName(x.warehouseId),
+            s.warehouseName(x.toWarehouseId),
+            x.hasRecipient ? s.recipientOf(x) : x.party,
+            x.refNo,
+            s.linesOf(x.id).length,
+            _who(a, x.createdBy),
+            _who(a, x.approvedBy),
+            x.postedAt,
+            x.note,
+          ];
+        },
+        summary: (a, l) => [
+          ('المستندات', '${l.length}'),
+          ('مرحَّلة', '${l.where((d) => d.isPosted).length}'),
+          ('مفتوحة', '${l.where((d) => d.isOpen).length}'),
+        ],
+      ),
+      _src<StDocLine>(
+        id: 'stores:lines',
+        section: 'stores',
+        title: 'بنود مستند مخزون',
+        icon: Icons.list_alt_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) => a.stores.lines,
+        columns: const [
+          _C('doc', 'المستند', flex: 0.9),
+          _C('no', 'م', type: ColType.number, flex: 0.3, sum: false),
+          _C('code', 'الرمز', flex: 0.8),
+          _C('item', 'الصنف', flex: 2),
+          _C('qty', 'الكمية', type: ColType.number, flex: 0.6, sum: false),
+          _C('unit', 'الوحدة', flex: 0.6),
+          _C('base', 'بالوحدة الأساسية', type: ColType.number, flex: 0.7, sum: false, on: false),
+          _C('expiry', 'تاريخ الانتهاء', type: ColType.date, flex: 0.8, on: false),
+          _C('batch', 'الدفعة', flex: 0.6, on: false),
+          _C('note', 'ملاحظة', type: ColType.long, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final it = s.item(x.itemId);
+          return [
+            s.doc(x.docId)?.docNo ?? '',
+            x.lineNo,
+            it?.code ?? '',
+            it?.name ?? '',
+            x.qty,
+            s.unitName(x.unitId),
+            x.baseQty,
+            x.expiryDate,
+            x.batchNo,
+            x.note,
+          ];
+        },
+        summary: (a, l) {
+          final d = l.isEmpty ? null : a.stores.doc(l.first.docId);
+          if (d == null || l.any((x) => x.docId != d.id)) return [('البنود', '${l.length}')];
+          final s = a.stores;
+          return [
+            ('المستند', '${d.title} ${d.docNo}'),
+            ('المخزن', d.kind == 'transfer' ? '${s.warehouseName(d.warehouseId)} ← ${s.warehouseName(d.toWarehouseId)}' : s.warehouseName(d.warehouseId)),
+            if (d.hasRecipient) (d.kind == 'issue' ? 'المصروف له' : 'المُرجِع', s.recipientOf(d)),
+            if (d.party.isNotEmpty) ('المورد أو الجهة', d.party),
+            ('الحالة', d.statusLabel),
+          ];
+        },
+      ),
+      _src<StMove>(
+        id: 'stores:moves',
+        section: 'stores',
+        title: 'بطاقة حركة صنف',
+        icon: Icons.swap_vert_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) => a.storeMoves,
+        date: (x) => x.at,
+        columns: const [
+          _C('date', 'التاريخ', type: ColType.date, flex: 0.8),
+          _C('doc', 'المستند', flex: 0.9),
+          _C('kind', 'النوع', flex: 0.8),
+          _C('warehouse', 'المخزن', flex: 1.1),
+          _C('item', 'الصنف', flex: 1.6),
+          _C('qty', 'الكمية', type: ColType.number, flex: 0.6, sum: false),
+          _C('balance', 'الرصيد بعده', type: ColType.number, flex: 0.7, sum: false),
+          _C('expiry', 'تاريخ الانتهاء', type: ColType.date, flex: 0.8, on: false),
+          _C('batch', 'الدفعة', flex: 0.6, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final d = s.doc(x.docId);
+          return [x.at, d?.docNo ?? '', d?.kindLabel ?? '', s.warehouseName(x.warehouseId), s.itemName(x.itemId), x.qty, x.balanceAfter, x.expiryDate, x.batchNo];
+        },
+      ),
+      _src<StEmployee>(
+        id: 'stores:employees',
+        section: 'stores',
+        title: 'سجل الموظفين',
+        icon: Icons.badge_rounded,
+        ready: (a) => a.v22Ready && a.storesStaff,
+        items: (a) => a.stores.employees,
+        columns: const [
+          _C('no', 'الرقم الوظيفي', flex: 0.8),
+          _C('name', 'الاسم', flex: 1.8),
+          _C('department', 'الإدارة', flex: 1.5),
+          _C('title', 'الوظيفة', flex: 1),
+          _C('phone', 'الهاتف', flex: 0.9, on: false),
+          _C('email', 'البريد', flex: 1.2, on: false),
+          _C('account', 'الحساب', flex: 1, on: false),
+          _C('active', 'الحالة', flex: 0.6),
+        ],
+        row: (a, x) => [
+          x.empNo,
+          x.fullName,
+          a.stores.departmentPath(x.departmentId),
+          x.jobTitle,
+          x.phone,
+          x.email,
+          _who(a, x.profileId),
+          x.active ? 'نشط' : 'موقوف',
+        ],
+        summary: (a, l) => [('الموظفون', '${l.length}'), ('بحساب', '${l.where((e) => e.profileId != null).length}')],
+      ),
+
       // ============================================================ الوسائط والملفات
       _src<DocFile>(
         id: 'media:files',
@@ -1278,5 +1512,9 @@ String? exportSourceForTab(int tab) => switch (tab) {
       113 => 'unit:safety_violation',
       120 || 121 => 'unit:handover',
       122 => 'unit:qc_test',
+      200 || 201 => 'stores:items',
+      202 => 'stores:docs',
+      203 => 'stores:balances',
+      205 => 'stores:employees',
       _ => null,
     };

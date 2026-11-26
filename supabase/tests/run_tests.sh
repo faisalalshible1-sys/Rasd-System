@@ -141,3 +141,12 @@ $P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql" >/dev/null && 
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/110_contracts_v3_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -f "$DIR/rollbacks/20261128000037_contracts_v3_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 37 مع وجود أوامر تغيير ولجان"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'contract_committees'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي المنظومة أوامر تغيير ولجان، والمنظومة كما هي"
+# قسم المخازن: دور «موظف» وعزله، ونطاقات الصلاحيات، والتهيئة، والموظفون، والأصناف، والمستندات وحجزها وترحيلها وعكسها، والصلاحية (الترحيل 38)
+$P -d dctest -f "$DIR/migrations/20261129000038_stores_foundation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261129000038_stores_foundation.sql"
+$P -d dctest -f "$DIR/migrations/20261129000038_stores_foundation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261129000038_stores_foundation.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261129000038_stores_foundation_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 38 ولا بيانات في القسم، والدوال كما كانت"
+$P -d dctest -tAc "select count(*) from pg_class where relname like 'st\_%' escape '\\' and relkind = 'r'" | grep -qx 0 && echo "PASS: ولا جداول للقسم بعد التراجع"
+$P -d dctest -1 -f "$DIR/migrations/20261129000038_stores_foundation.sql" >/dev/null && echo "PASS: إعادة الترحيل 38 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/120_stores_foundation_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261129000038_stores_foundation_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 38 مع وجود بيانات في القسم"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_docs'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم بيانات، والمنظومة كما هي"
