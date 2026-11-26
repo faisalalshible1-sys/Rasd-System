@@ -21,6 +21,10 @@ import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/rasd.dart';
 import 'package:dc_app/schedule.dart';
+import 'package:dc_app/stores.dart';
+import 'package:dc_app/screens/stores.dart';
+import 'package:dc_app/screens/stores_docs.dart';
+import 'package:dc_app/screens/stores_setup.dart';
 import 'package:dc_app/services/boq_files.dart';
 import 'package:dc_app/scope.dart';
 import 'package:dc_app/registers.dart';
@@ -1921,6 +1925,162 @@ void main() {
         size: const Size(400, 1300), dark: true);
     app.manualAnchor = '07_finance';
     await _shot(tester, 's7_manual_finance_light', app, _scaffold(const ManualPage()), size: const Size(1440, 5200));
+  });
+
+  testWidgets('stores', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    app.v22Ready = true;
+    final now = DateTime.now();
+    DateTime day(int offset) => DateTime(now.year, now.month, now.day).add(Duration(days: offset));
+    StDoc doc(String id, String no, String kind, String status, int ago,
+            {String? to, String? emp, String? dep, String party = '', String ref = '', String note = '', String decision = '', bool confirmed = false}) =>
+        StDoc(
+          id: id,
+          docNo: no,
+          kind: kind,
+          status: status,
+          warehouseId: 'wm',
+          toWarehouseId: to,
+          employeeId: emp,
+          departmentId: dep,
+          docDate: day(-ago),
+          party: party,
+          refNo: ref,
+          note: note,
+          decisionNote: decision,
+          createdAt: day(-ago),
+          createdBy: 'u-1',
+          submittedAt: status == 'draft' ? null : day(-ago),
+          submittedBy: status == 'draft' ? null : 'u-1',
+          approvedAt: status == 'approved' || status == 'posted' ? day(-ago) : null,
+          approvedBy: status == 'approved' || status == 'posted' ? 'u-dir' : null,
+          postedAt: status == 'posted' ? day(-ago) : null,
+          postedBy: status == 'posted' ? 'u-1' : null,
+          decidedAt: status == 'rejected' ? day(-ago) : null,
+          decidedBy: status == 'rejected' ? 'u-dir' : null,
+          confirmedAt: confirmed ? day(-ago + 1) : null,
+          confirmedBy: confirmed ? 'u-dir' : null,
+        );
+    StDocLine line(String doc, int n, String item, String unit, double qty, {double factor = 1, DateTime? exp, String batch = ''}) =>
+        StDocLine(id: '$doc-$n', docId: doc, lineNo: n, itemId: item, unitId: unit, qty: qty, factor: factor, expiryDate: exp, batchNo: batch);
+    app.stores = StoresData(
+      settings: const StSettings(separation: true, expiryDays: 60),
+      departments: const [
+        StDepartment(id: 'dg', code: 'GEN', name: 'الإدارة العامة'),
+        StDepartment(id: 'dit', parentId: 'dg', name: 'قسم تقنية المعلومات'),
+        StDepartment(id: 'dad', parentId: 'dg', name: 'قسم الشؤون الإدارية'),
+        StDepartment(id: 'dsv', name: 'إدارة الخدمات العامة'),
+      ],
+      employees: [
+        const StEmployee(id: 'e1', empNo: 'E-100', fullName: 'سالم علي المبروك', departmentId: 'dit', jobTitle: 'مبرمج'),
+        StEmployee(id: 'e2', empNo: 'E-101', fullName: 'فاطمة محمد سالم', departmentId: 'dad', jobTitle: 'محاسبة', profileId: app.me!.id),
+        const StEmployee(id: 'e3', empNo: 'E-200', fullName: 'عمر الهادي', departmentId: 'dsv', jobTitle: 'فني صيانة'),
+        const StEmployee(id: 'e4', empNo: 'E-201', fullName: 'نوري خليفة', departmentId: 'dg', jobTitle: 'سائق', active: false),
+      ],
+      locations: const [
+        StLocation(id: 'b1', kind: 'building', code: 'B1', name: 'المبنى الرئيسي'),
+        StLocation(id: 'f0', parentId: 'b1', kind: 'floor', name: 'الطابق الأرضي'),
+        StLocation(id: 'r4', parentId: 'f0', kind: 'room', code: '004', name: 'غرفة 004'),
+        StLocation(id: 'f1', parentId: 'b1', kind: 'floor', name: 'الطابق الأول'),
+        StLocation(id: 'b2', kind: 'building', name: 'مبنى الخدمات'),
+      ],
+      warehouses: const [
+        StWarehouse(id: 'wm', code: 'MAIN', name: 'المخزن الرئيسي', kind: 'main', locationId: 'r4'),
+        StWarehouse(id: 'ws', code: 'SUB1', name: 'مخزن الطابق الأول', kind: 'sub', parentId: 'wm', locationId: 'f1'),
+      ],
+      categories: const [
+        StCategory(id: 'csta', code: 'STA', name: 'القرطاسية', sort: 1),
+        StCategory(id: 'cpap', code: 'PAP', name: 'الورق ومستلزمات الطباعة', sort: 2),
+        StCategory(id: 'cofe', code: 'OFE', name: 'الأجهزة المكتبية', kind: 'asset', sort: 3),
+        StCategory(id: 'cfur', code: 'FUR', name: 'الأثاث', kind: 'asset', sort: 4),
+        StCategory(id: 'ccln', code: 'CLN', name: 'النظافة والخدمات', sort: 5),
+        StCategory(id: 'chos', code: 'HOS', name: 'الضيافة والاستهلاك اليومي', sort: 6),
+        StCategory(id: 'cmnt', code: 'MNT', name: 'الصيانة والتشغيل', sort: 7),
+        StCategory(id: 'csaf', code: 'SAF', name: 'السلامة والطوارئ', sort: 8),
+      ],
+      units: const [
+        StUnit(id: 'piece', name: 'قطعة', sort: 1),
+        StUnit(id: 'box', name: 'علبة', sort: 2),
+        StUnit(id: 'ream', name: 'رزمة', sort: 3),
+        StUnit(id: 'carton', name: 'كرتونة', sort: 4),
+        StUnit(id: 'pack', name: 'عبوة', sort: 5),
+        StUnit(id: 'roll', name: 'لفة', sort: 8),
+      ],
+      items: const [
+        StItem(id: 'a4', code: 'PAP-0001', name: 'ورق A4 80 غم', categoryId: 'cpap', baseUnitId: 'ream', minQty: 10, maxQty: 200, reorderQty: 20, criticalQty: 5),
+        StItem(id: 'pen', code: 'STA-0001', name: 'قلم حبر أزرق جاف', categoryId: 'csta', baseUnitId: 'piece', minQty: 24, reorderQty: 48, barcode: '6281000000017'),
+        StItem(id: 'dis', code: 'CLN-0001', name: 'مطهر أسطح', categoryId: 'ccln', baseUnitId: 'pack', minQty: 10, reorderQty: 15, tracksExpiry: true),
+        StItem(id: 'toner', code: 'PAP-0002', name: 'حبر طابعة ليزر أسود', categoryId: 'cpap', baseUnitId: 'piece', minQty: 4, reorderQty: 6, criticalQty: 2),
+        StItem(id: 'bag', code: 'CLN-0002', name: 'أكياس نفايات كبيرة', categoryId: 'ccln', baseUnitId: 'roll', minQty: 20, reorderQty: 30),
+        StItem(id: 'stp', code: 'STA-9001', name: 'دباسة مكتبية كبيرة', categoryId: 'csta', baseUnitId: 'piece', minQty: 3),
+      ],
+      itemUnits: const [StItemUnit(itemId: 'a4', unitId: 'carton', factor: 5), StItemUnit(itemId: 'pen', unitId: 'box', factor: 12)],
+      docs: [
+        doc('ad', 'AD-2026-0001', 'adjust', 'draft', 0, note: 'جرد مبدئي للقرطاسية'),
+        doc('is4', 'IS-2026-0004', 'issue', 'draft', 0, emp: 'e3', dep: 'dsv'),
+        doc('is2', 'IS-2026-0002', 'issue', 'submitted', 1, emp: 'e1', dep: 'dit', note: 'طلب عاجل لامتحانات نهاية العام'),
+        doc('tr', 'TR-2026-0001', 'transfer', 'approved', 2, to: 'ws'),
+        doc('is3', 'IS-2026-0003', 'issue', 'rejected', 3, dep: 'dg', decision: 'الكمية تتجاوز الاستهلاك الاسترشادي'),
+        doc('is1', 'IS-2026-0001', 'issue', 'posted', 5, emp: 'e2', dep: 'dad'),
+        doc('rc', 'RC-2026-0001', 'receipt', 'posted', 12, party: 'مورد القرطاسية', ref: 'INV-77'),
+        doc('ob', 'OB-2026-0001', 'opening', 'posted', 30, note: 'أرصدة بدء العمل بالمنظومة'),
+      ],
+      lines: [
+        line('ob', 1, 'a4', 'carton', 10, factor: 5),
+        line('ob', 2, 'pen', 'piece', 100),
+        line('ob', 3, 'dis', 'pack', 20, exp: day(66), batch: 'L2'),
+        line('ob', 4, 'dis', 'pack', 10, exp: day(35), batch: 'L1'),
+        line('ob', 5, 'toner', 'piece', 3),
+        line('rc', 1, 'pen', 'box', 2, factor: 12),
+        line('is1', 1, 'a4', 'carton', 2, factor: 5),
+        line('is1', 2, 'pen', 'box', 1, factor: 12),
+        line('is2', 1, 'a4', 'ream', 38),
+        line('is2', 2, 'pen', 'piece', 10),
+        line('is3', 1, 'toner', 'piece', 3),
+        line('tr', 1, 'dis', 'pack', 10),
+        line('is4', 1, 'a4', 'carton', 1, factor: 5),
+        line('is4', 2, 'bag', 'roll', 5),
+        line('ad', 1, 'pen', 'piece', -2),
+      ],
+      stock: const [
+        StStock(warehouseId: 'wm', itemId: 'a4', onHand: 40),
+        StStock(warehouseId: 'wm', itemId: 'pen', onHand: 112),
+        StStock(warehouseId: 'wm', itemId: 'dis', onHand: 30, reserved: 10),
+        StStock(warehouseId: 'wm', itemId: 'toner', onHand: 3),
+        StStock(warehouseId: 'ws', itemId: 'stp', onHand: 7),
+      ],
+      batches: [
+        StBatch(id: 'bt1', warehouseId: 'wm', itemId: 'dis', expiryDate: day(35), batchNo: 'L1', qty: 10),
+        StBatch(id: 'bt2', warehouseId: 'wm', itemId: 'dis', expiryDate: day(66), batchNo: 'L2', qty: 20),
+      ],
+    );
+    final moves = [
+      StMove(id: 1, docId: 'ob', warehouseId: 'wm', itemId: 'a4', qty: 50, balanceAfter: 50, at: day(-30)),
+      StMove(id: 7, docId: 'is1', warehouseId: 'wm', itemId: 'a4', qty: -10, balanceAfter: 40, at: day(-5)),
+    ];
+    app.showHub = true;
+    await _shot(tester, 't0_hub_with_stores_light', app, const HomeShell(), size: const Size(1440, 2300));
+    app.openSection('stores');
+    await _shot(tester, 't1_stores_dashboard_light', app, const HomeShell(), size: const Size(1440, 2200));
+    await _shot(tester, 't2_stores_dashboard_dark_mobile', app, _scaffold(const StoresDashboardPage()), size: const Size(400, 2600), dark: true);
+    await _shot(tester, 't3_stores_items_light', app, _scaffold(const StoresItemsPage()), size: const Size(1440, 1300));
+    await _shot(tester, 't4_item_page_light', app, StoreItemPage(itemId: 'a4', initialMoves: moves), size: const Size(1200, 1900));
+    await _shot(tester, 't5_item_expiry_dark_mobile', app, const StoreItemPage(itemId: 'dis', initialMoves: []), size: const Size(400, 2300), dark: true);
+    await _shot(tester, 't6_item_editor_light', app,
+        _OpenAction(run: (ctx) => showStoreItemEditor(ctx, item: app.stores.item('a4'))), size: const Size(1200, 1300));
+    await _shot(tester, 't7_docs_list_light', app, _scaffold(const StoresDocsPage()), size: const Size(1440, 1400));
+    await _shot(tester, 't8_doc_submitted_light', app, const StoreDocPage(docId: 'is2'), size: const Size(1200, 1600));
+    await _shot(tester, 't9_doc_rejected_mobile', app, const StoreDocPage(docId: 'is3'), size: const Size(400, 1600));
+    await _shot(tester, 'u0_doc_editor_light', app, const StoreDocEditorPage(kind: 'issue', docId: 'is4'), size: const Size(1200, 1600));
+    await _shot(tester, 'u1_doc_editor_dark_mobile', app, const StoreDocEditorPage(kind: 'opening'), size: const Size(400, 1800), dark: true);
+    await _shot(tester, 'u2_balances_light', app, _scaffold(const StoresBalancesPage()), size: const Size(1440, 1200));
+    await _shot(tester, 'u3_setup_light', app, _scaffold(const StoresSetupPage()), size: const Size(1440, 2600));
+    await _shot(tester, 'u4_people_light', app, _scaffold(const StoresPeoplePage()), size: const Size(1440, 1900));
+    await _shot(tester, 'u5_people_mobile', app, _scaffold(const StoresPeoplePage()), size: const Size(400, 3000));
+    await _shot(tester, 'u6_mine_mobile', app, _scaffold(const StoresMinePage()), size: const Size(400, 1600));
+    app.manualAnchor = '34_stores';
+    await _shot(tester, 'u7_manual_stores_light', app, _scaffold(const ManualPage()), size: const Size(1440, 9000));
   });
 
   testWidgets('contract files', (tester) async {

@@ -525,9 +525,12 @@ void openStoreItem(BuildContext context, StItem item) {
 
 /// بطاقة الصنف: بياناته، ورصيده في كل مخزن، ودفعات صلاحيته، وبطاقة حركته.
 class StoreItemPage extends StatefulWidget {
-  const StoreItemPage({super.key, required this.itemId});
+  const StoreItemPage({super.key, required this.itemId, this.initialMoves});
 
   final String itemId;
+
+  /// حركات جاهزة (للمعاينة)؛ وإلا تُحمَّل من قاعدة البيانات.
+  final List<StMove>? initialMoves;
 
   @override
   State<StoreItemPage> createState() => _StoreItemPageState();
@@ -541,7 +544,11 @@ class _StoreItemPageState extends State<StoreItemPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    if (widget.initialMoves != null) {
+      _moves = widget.initialMoves;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   Future<void> _load() async {
