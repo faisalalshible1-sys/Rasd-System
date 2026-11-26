@@ -1796,7 +1796,7 @@ void main() {
     app.v20Ready = true;
     await _shot(tester, 'p0_plan_critical_links_light', app, PlanEditorPage(projectId: p4), size: const Size(1400, 2700));
     await _shot(tester, 'p1_link_editor_light', app,
-        _OpenAction(run: (ctx) => showLinkEditor(ctx, ps[4], app.itemsOf(p4).firstWhere((i) => i.id == 'w2'))), size: const Size(1200, 900));
+        _OpenAction(run: (ctx) => showLinkEditor(ctx, ps[4], app.itemsOf(p4).firstWhere((i) => i.id == 'w5'))), size: const Size(1200, 900));
     await _shot(tester, 'p2_item_editor_rate_light', app,
         _OpenAction(run: (ctx) => showPlanItemEditor(ctx, ps[4], app.itemsOf(p4).firstWhere((i) => i.id == 'w1'))), size: const Size(1200, 1400));
     await _shot(tester, 'p3_version_compare_light', app, PlanVersionPage(projectId: p1, versionId: 'ver1'), size: const Size(1300, 2200));
