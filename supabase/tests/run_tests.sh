@@ -124,3 +124,11 @@ $P -d dctest -c "insert into doc_items (kind, project_id, category, title, statu
 if $P -d dctest -f "$DIR/rollbacks/20261126000035_contract_files_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 35 مع وجود مرفقات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.columns where table_name = 'doc_items' and column_name = 'engineer_id'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع ووجود مرفقات، والمنظومة كما هي"
 $P -d dctest -c "delete from doc_items where title = 'مرفق يمنع التراجع'" >/dev/null
+# البرنامج الزمني من المقايسة: المقايسة المستوردة ومعدلات الإنتاجية والعلاقات الأربع والإصدارات والصلاحيات الدقيقة (الترحيل 36)
+$P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql"
+$P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql"
+$P -d dctest -f "$DIR/rollbacks/20261127000036_schedule_v2_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 36 ولا بيانات بعده"
+$P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql" >/dev/null && echo "PASS: إعادة الترحيل 36 بعد التراجع"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/109_schedule_v2_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -f "$DIR/rollbacks/20261127000036_schedule_v2_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 36 مع وجود إصدارات وعلاقات"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'pm_item_links'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي المنظومة إصدارات وعلاقات، والمنظومة كما هي"

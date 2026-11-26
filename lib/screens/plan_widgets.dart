@@ -117,7 +117,8 @@ class GanttRow {
 }
 
 /// صفوف المخطط من جدول عقد ومراحله: المراحل بامتدادها، ثم بنود كل مرحلة.
-List<GanttRow> ganttRows(BuildContext context, ScheduleTrack t, {bool progress = true, void Function(PmItem)? onTap}) {
+/// [float] المرونة الكلية لكل نشاط (الترحيل 36): الحرج (بلا مرونة) بلون الخطر في الإعداد، ومرونته في التلميح.
+List<GanttRow> ganttRows(BuildContext context, ScheduleTrack t, {bool progress = true, void Function(PmItem)? onTap, Map<String, int>? float}) {
   final sem = Sem.of(context);
   final rows = <GanttRow>[];
   final byPhase = <String?, List<PmItem>>{};
@@ -133,11 +134,14 @@ List<GanttRow> ganttRows(BuildContext context, ScheduleTrack t, {bool progress =
       start: i.plannedStart,
       end: i.plannedEnd,
       progress: progress ? i.progress : null,
-      color: progress ? (c != null && c.isLate ? sem.statusColor(FormStatus.todo) : sem.statusColor(st == FormStatus.todo ? FormStatus.wip : st)) : null,
+      color: progress
+          ? (c != null && c.isLate ? sem.statusColor(FormStatus.todo) : sem.statusColor(st == FormStatus.todo ? FormStatus.wip : st))
+          : (float != null && (float[i.id] ?? 1) <= 0 ? sem.danger : null),
       overdue: progress && c?.overdueDays != null,
       muted: i.notApplicable,
       tooltip: '${i.title}\n${pmDay(i.plannedStart)} إلى ${pmDay(i.plannedEnd)} · ${daysWord(i.days)}'
-          '${progress ? ' · الإنجاز ${i.progress.toStringAsFixed(0)}%' : ''}',
+          '${progress ? ' · الإنجاز ${i.progress.toStringAsFixed(0)}%' : ''}'
+          '${float == null || float[i.id] == null ? '' : (float[i.id]! <= 0 ? ' · على المسار الحرج' : ' · مرونة ${daysWord(float[i.id]!)}')}',
       onTap: onTap == null ? null : () => onTap(i),
     );
   }

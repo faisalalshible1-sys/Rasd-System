@@ -9,6 +9,7 @@ import '../print/export_dialog.dart';
 import '../print/model.dart' show ExportFormat;
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'boq_import.dart' show startBoqImport;
 import 'plan_widgets.dart' show StatusChip;
 import 'pm_common.dart';
 import 'schedule.dart' show ScheduleNotReady, itemsText;
@@ -445,6 +446,12 @@ class BoqSheetsPage extends StatelessWidget {
       subtitle: list == null ? null : 'من ${list.title}: اختر البنود برقمها أو بالبحث في وصفها، وأدخل الكميات والملاحظات، ثم صدّرها Excel',
       icon: Icons.calculate_outlined,
       actions: [
+        if (app.canEditBoq(null))
+          OutlinedButton.icon(
+            onPressed: () => startBoqImport(context),
+            icon: const Icon(Icons.upload_file_rounded),
+            label: const Text('استيراد من ملف'),
+          ),
         if (app.canEditBoq(null))
           FilledButton.icon(
             onPressed: () => openBoqEditor(context),

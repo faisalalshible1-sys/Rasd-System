@@ -235,6 +235,9 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'pm.items_reorder':
       return 'رتّب بنود الجدول الزمني (${text(d['items'])})';
     case 'boq.create':
+      if (d['source'] == 'import') {
+        return 'استورد المقايسة «${text(d['title'])}» من الملف «${text(d['file'])}» بعد مراجعتها: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
+      }
       return 'أعدّ المقايسة «${text(d['title'])}» من لائحة الأسعار: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
     case 'boq.update':
       return 'عدّل المقايسة «${text(d['title'])}»: ${text(d['lines'])} بنداً، الإجمالي ${_m(d['total'])}';
@@ -258,6 +261,20 @@ String auditDescription(AppState app, AuditEntry e) {
       return '${d['new'] == true ? 'أضاف' : 'عدّل'} مرحلة التنفيذ «${text(d['name'])}»${(d['lag_days'] is num && d['lag_days'] != 0) ? ' (الفاصل ${text(d['lag_days'])} يوماً)' : ''}';
     case 'pm.phase_delete':
       return 'حذف مرحلة التنفيذ «${text(d['name'])}»';
+    case 'pm.link_add':
+      return 'ربط «${text(d['succ'])}» بـ«${text(d['pred'])}»: ${_linkText(d['kind'], d['lag'])}';
+    case 'pm.link_update':
+      return 'عدّل علاقة «${text(d['succ'])}» بـ«${text(d['pred'])}» من ${_linkText(d['from_kind'], d['from_lag'])} إلى ${_linkText(d['kind'], d['lag'])}';
+    case 'pm.link_delete':
+      return 'حذف علاقة «${text(d['succ'])}» بـ«${text(d['pred'])}» (${_linkText(d['kind'], d['lag'])})';
+    case 'pm.rate_save':
+      final kw = text(d['keyword']).isEmpty ? 'عام للوحدة' : '«${text(d['keyword'])}»';
+      final prev = d['previous'] == null ? '' : ' (كان ${_n(d['previous'])})';
+      return 'معدل الإنتاجية ${text(d['unit'])} $kw: ${_n(d['rate'])} في اليوم$prev، يسري من ${text(d['valid_from']).replaceAll('-', '/')}'
+          '${d['active'] == false ? '، غير مفعّل' : ''}${text(d['note']).isEmpty ? '' : '. السبب: ${text(d['note'])}'}';
+    case 'pm.rate_delete':
+      return 'حذف قيد معدل الإنتاجية ${text(d['unit'])}${text(d['keyword']).isEmpty ? '' : ' «${text(d['keyword'])}»'}: ${_n(d['rate'])} في اليوم'
+          ' من ${text(d['valid_from']).replaceAll('-', '/')}';
     case 'pm.plan_generate':
       return 'ولّد البرنامج الزمني من المقايسة المعتمدة: ${text(d['phases'])} مراحل و${text(d['items'])} بنداً في ${text(d['total_days'])} يوماً';
     case 'pm.plan_approve':
@@ -619,3 +636,17 @@ String _access(Object? v) => switch (v) {
 
 /// اسم القسم في وصف سجل التدقيق (الاسم الافتراضي؛ السجل لا يتغير بتخصيص الواجهة).
 String _sectionName(Object? key) => sectionDefaultNames[key] ?? '';
+
+/// «نهاية ← بداية +2» من نوع العلاقة وانتظارها (الترحيل 36).
+String _linkText(Object? kind, Object? lag) {
+  const k = {'FS': 'نهاية ← بداية', 'SS': 'بداية ← بداية', 'FF': 'نهاية ← نهاية', 'SF': 'بداية ← نهاية'};
+  final l = lag is num ? lag.toInt() : int.tryParse('${lag ?? ''}') ?? 0;
+  return '${k['${kind ?? ''}'] ?? '—'}${l == 0 ? '' : (l > 0 ? ' +$l' : ' $l')}';
+}
+
+/// رقم بلا أصفار زائدة: 60.000 ← 60.
+String _n(Object? v) {
+  final d = v is num ? v.toDouble() : double.tryParse('${v ?? ''}');
+  if (d == null) return '—';
+  return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
+}

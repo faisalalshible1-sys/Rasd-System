@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
+import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'docs.dart';
 import 'models.dart';
@@ -16,6 +18,7 @@ import 'pm.dart';
 import 'prices.dart';
 import 'registers.dart';
 import 'schedule.dart';
+import 'services/boq_files.dart' show parseExtractReply;
 import 'services/doc_files.dart';
 import 'chat.dart';
 import 'print/model.dart';
@@ -139,6 +142,12 @@ class AppState extends ChangeNotifier {
 
   // الترحيل 35: ملف العقد ومرفقاته المصنّفة
   bool v19Ready = false;
+
+  // الترحيل 36: استيراد المقايسات، ومعدلات الإنتاجية، والعلاقات والمسار الحرج، وإصدارات البرنامج الزمني وصلاحياته
+  bool v20Ready = false;
+  List<PmRate> pmRates = [];
+  List<PmLink> pmLinks = [];
+  List<PmPlanVersion> pmVersions = [];
 
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
@@ -820,6 +829,7 @@ class AppState extends ChangeNotifier {
       await _loadV17();
       await _loadV18();
       await _loadV19();
+      await _loadV20();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1328,6 +1338,84 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// الترحيل 36: المعدلات والعلاقات والإصدارات (وجود جدول العلاقات يكفي للتفعيل).
+  Future<void> _loadV20() async {
+    if (!v14Ready) {
+      v20Ready = false;
+      return;
+    }
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('pm_item_links').select('id, pred_id, succ_id, kind, lag_days'),
+        client.from('pm_rates').select().order('valid_from', ascending: false),
+        client.from('pm_plan_versions').select().order('version', ascending: false),
+      ]);
+      pmLinks = r[0].map(PmLink.fromMap).toList();
+      pmRates = r[1].map(PmRate.fromMap).toList();
+      pmVersions = r[2].map(PmPlanVersion.fromMap).toList();
+      v20Ready = true;
+    } catch (_) {
+      pmLinks = [];
+      pmRates = [];
+      pmVersions = [];
+      v20Ready = false;
+    }
+  }
+
+  /// علاقات أنشطة عقد.
+  List<PmLink> linksOf(String projectId) {
+    final ids = {for (final i in pmItems) if (i.projectId == projectId) i.id};
+    return [for (final l in pmLinks) if (ids.contains(l.succId)) l];
+  }
+
+  /// الإصدارات المعتمدة لبرنامج عقد، الأحدث أولاً.
+  List<PmPlanVersion> versionsOf(String projectId) => [for (final v in pmVersions) if (v.projectId == projectId) v];
+
+  /// المعدلات السارية اليوم.
+  List<PmRate> get ratesNow => currentRates(pmRates, pmToday());
+
+  /// الصلاحيات الدقيقة للبرنامج الزمني (كالدالة pm_can): add إضافة الأنشطة وبياناتها، duration المدد،
+  /// dates التواريخ والعلاقات، approve الاعتماد وإعادة الفتح. الإعداد الكامل يشمل الثلاثة الأولى.
+  bool pmCan(String what) {
+    if (!v20Ready) return what == 'approve' ? canApprovePlan : canPreparePlan;
+    if (!v15Ready || frozenForMe || role == null || role == AppRole.securityAuditor) return false;
+    return switch (what) {
+      'approve' => canApprovePlan || hasGrant('docs:pm_approve'),
+      'add' => canPreparePlan || hasGrant('docs:pm_add'),
+      'duration' => canPreparePlan || hasGrant('docs:pm_duration'),
+      'dates' => canPreparePlan || hasGrant('docs:pm_dates'),
+      _ => false,
+    };
+  }
+
+  /// يعدّل شيئاً في البرنامج (لإظهار أدوات التحرير).
+  bool get pmCanEditAny => pmCan('add') || pmCan('duration') || pmCan('dates');
+
+  /// معدلات الإنتاجية: المدير ورئيس الشؤون الفنية ومن مُنح «اعتماد البرنامج».
+  bool get canEditRates => v20Ready && !frozenForMe && (isDirector || isTechnicalHead || hasGrant('docs:pm_approve'));
+
+  Future<void> savePmRate(Map<String, dynamic> data) async {
+    await client.rpc('save_pm_rate', params: {'p_data': data});
+    await _loadV20();
+    _notify();
+  }
+
+  Future<void> deletePmRate(String id) async {
+    await client.rpc('delete_pm_rate', params: {'p_id': id});
+    await _loadV20();
+    _notify();
+  }
+
+  Future<void> savePmLink(String? id, Map<String, dynamic> data) async {
+    await client.rpc('save_pm_link', params: {'p_id': id, 'p_data': data});
+    await _afterV14();
+  }
+
+  Future<void> deletePmLink(String id) async {
+    await client.rpc('delete_pm_link', params: {'p_id': id});
+    await _afterV14();
+  }
+
   /// ملف العقد (الترحيل 35): وجود عمود المهندس المكلَّف في المستندات يكفي.
   Future<void> _loadV19() async {
     if (!v8Ready) {
@@ -1471,6 +1559,30 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// نصوص صفحات PDF بمواضعها لاستيراد مقايسة (الدالة boq-extract). بوابة الخدمة تتحقق بالمفتاح العام،
+  /// وهوية المستخدم وصلاحيته في إعداد المقايسات تتحقق منهما الدالة نفسها من رمز جلسته.
+  Future<({List<List<PdfRun>> pages, int total, bool truncated})> extractBoqPdf(Uint8List bytes) async {
+    final token = client.auth.currentSession?.accessToken;
+    final anon = AppConfig.supabaseAnonKey;
+    try {
+      final res = await client.functions.invoke(
+        'boq-extract',
+        headers: {
+          if (token != null) 'x-user-token': token,
+          if (anon.startsWith('eyJ')) 'Authorization': 'Bearer $anon',
+        },
+        body: {'pdf': base64Encode(bytes)},
+      );
+      return parseExtractReply(res.data);
+    } on FunctionException catch (e) {
+      final d = e.details;
+      if (d is Map && d['error'] is String) throw StateError(d['error'] as String);
+      throw StateError(e.status == 404
+          ? 'خدمة قراءة PDF غير منشورة بعد. صدّر المقايسة إلى Excel واستوردها.'
+          : 'تعذّرت قراءة ملف PDF (${e.status}). صدّر المقايسة إلى Excel واستوردها.');
+    }
+  }
+
   Future<String> saveBoq(String? id, Map<String, dynamic> data) async {
     final r = await client.rpc('save_boq', params: {'p_id': id, 'p_data': data});
     await _loadV14();
@@ -1511,6 +1623,7 @@ class AppState extends ChangeNotifier {
   Future<void> _afterV14() async {
     await _loadV14();
     await _loadV15();
+    await _loadV20();
     _notify();
   }
 
@@ -1911,6 +2024,10 @@ class AppState extends ChangeNotifier {
     v17Ready = false;
     v18Ready = false;
     v19Ready = false;
+    v20Ready = false;
+    pmRates = [];
+    pmLinks = [];
+    pmVersions = [];
     scope = null;
     hubEditRequested = false;
     formDates = {};
