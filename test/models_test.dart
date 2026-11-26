@@ -84,14 +84,14 @@ void main() {
     expect(parseMoney('1.2.3').ok, isFalse);
   });
 
-  test('عرض المبالغ والضمانان 5% و2%', () {
+  test('عرض المبالغ والنسبتان الافتراضيتان للضمانين 2% و5% (الترحيل 37)', () {
     expect(fmtMoney(1250000), '1,250,000');
     expect(fmtMoney(12500.5), '12,500.5');
     expect(fmtMoney(999), '999');
     expect(fmtMoney(null), '—');
     expect(moneyInput(1250000.25), '1250000.25');
-    expect(roundMoney(1250000 * guaranteeInitialRate), 62500);
-    expect(roundMoney(1250000 * guaranteeFinalRate), 25000);
+    expect(roundMoney(1250000 * guaranteeInitialRate), 25000);
+    expect(roundMoney(1250000 * guaranteeFinalRate), 62500);
   });
 
   test('تطبيع البحث العربي', () {
@@ -121,8 +121,8 @@ void main() {
       'contract_no': '12/2026',
       'contract_value': 400000,
       'executed_value': 100000,
-      'guarantee_initial': 5000,
-      'guarantee_final': 2000,
+      'guarantee_initial': 2000,
+      'guarantee_final': 5000,
       'payment_first': 50000,
     });
     expect(p.contractNo, '12/2026');
@@ -135,8 +135,8 @@ void main() {
     expect(noContract.contractTitle, 'عقد بلا رقم');
     expect(noContract.label, '006', reason: 'عقد قديم بلا اسم ولا رقم عقد: يبقى رقمه القديم حتى لا يظهر فارغاً');
     expect(noContract.executionRatio, isNull);
-    expect(roundMoney(100000 * guaranteeInitialRate), 5000);
-    expect(roundMoney(100000 * guaranteeFinalRate), 2000);
+    expect(roundMoney(100000 * guaranteeInitialRate), 2000);
+    expect(roundMoney(100000 * guaranteeFinalRate), 5000);
     expect(p.guaranteeInitialNa, isFalse);
     final na = Project.fromMap({'id': 'p3', 'executed_value': 100000, 'guarantee_initial': null, 'guarantee_final': 2000, 'guarantee_initial_na': true});
     expect(na.guaranteeInitialNa, isTrue);

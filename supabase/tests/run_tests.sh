@@ -132,3 +132,12 @@ $P -d dctest -f "$DIR/migrations/20261127000036_schedule_v2.sql" >/dev/null && e
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/109_schedule_v2_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -f "$DIR/rollbacks/20261127000036_schedule_v2_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 36 مع وجود إصدارات وعلاقات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'pm_item_links'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي المنظومة إصدارات وعلاقات، والمنظومة كما هي"
+# ضمانات العقد بنسب ثابتة وتصحيحها بنسخة احتياطية، وخصم التأمينات، وأوامر التغيير ببنودها واعتمادها وسجلها، ولجنة الاستلام (الترحيل 37)
+$P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql"
+$P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql"
+$P -d dctest -f "$DIR/rollbacks/20261128000037_contracts_v3_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 37 ولا بيانات بعده، والضمانات كما في النسخة الاحتياطية"
+$P -d dctest -tAc "select value from app_settings where key = 'finance.guarantee_initial_rate'" | grep -qx '0.05' && echo "PASS: والنسبة الافتراضية للابتدائي عادت 5%"
+$P -d dctest -f "$DIR/migrations/20261128000037_contracts_v3.sql" >/dev/null && echo "PASS: إعادة الترحيل 37 بعد التراجع"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/110_contracts_v3_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -f "$DIR/rollbacks/20261128000037_contracts_v3_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 37 مع وجود أوامر تغيير ولجان"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'contract_committees'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي المنظومة أوامر تغيير ولجان، والمنظومة كما هي"

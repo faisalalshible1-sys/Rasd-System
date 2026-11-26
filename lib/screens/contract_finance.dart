@@ -3,11 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../docs.dart' show isolate;
 import '../models.dart';
 import '../ui/charts.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'contract_v3.dart' show VariationEditorPage, VariationPage, variationStatusColor;
+import 'schedule.dart' show itemsText;
 
 /// المالية الموسعة في صفحة العقد: ملخص القيم، وقيم البنود، وأوامر التغيير، وسجل المستخلصات.
 
@@ -83,9 +86,10 @@ class ContractFinanceOverview extends StatelessWidget {
                 icon: Icons.savings_outlined,
                 badge: p.advancePaidOn == null ? 'لم تُصرف' : null,
                 sub: 'استُرد ${compactMoney(p.advanceRecovered)} · المتبقي ${compactMoney(p.advanceRemaining)}'),
-          stat('الضمان الابتدائي ${rateText(guaranteeInitialRate)}', p.guaranteeInitialNa ? 'لا ينطبق' : money(p.guaranteeInitial),
+          stat('الضمان الابتدائي ${rateText(p.initialRate)}', p.guaranteeInitialNa ? 'لا ينطبق' : money(p.guaranteeInitial),
               icon: Icons.verified_outlined, color: p.guaranteeInitialNa ? sem.muted : null),
-          stat('الضمان النهائي ${rateText(guaranteeFinalRate)}', money(p.guaranteeFinal), icon: Icons.verified_user_outlined),
+          stat('الضمان النهائي ${rateText(p.finalRate)}', p.guaranteeFinalNa ? 'لا ينطبق' : money(p.guaranteeFinal),
+              icon: Icons.verified_user_outlined, color: p.guaranteeFinalNa ? sem.muted : null),
         ]),
         if ((adjusted ?? 0) > 0) ...[
           const SizedBox(height: 14),
@@ -224,6 +228,12 @@ class VariationsCard extends StatelessWidget {
   final VoidCallback? onChanged;
 
   Future<void> _edit(BuildContext context, ContractVariation? v) async {
+    if (app.v21Ready) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => v == null ? VariationEditorPage(projectId: project.id) : VariationPage(variationId: v.id)));
+      onChanged?.call();
+      return;
+    }
     final ok = await showDialog<bool>(context: context, builder: (_) => VariationDialog(app: app, project: project, variation: v));
     if (ok == true && context.mounted) {
       showToast(context, v == null ? 'سُجّل أمر التغيير' : 'حُفظ أمر التغيير');
@@ -252,13 +262,19 @@ class VariationsCard extends StatelessWidget {
     final sem = Sem.of(context);
     final list = app.variationsOf(project.id);
     final can = app.canEditFinanceItems(project);
-    final adds = list.where((v) => v.isAdd).fold<double>(0, (a, v) => a + v.amount);
-    final deducts = list.where((v) => !v.isAdd).fold<double>(0, (a, v) => a + v.amount);
+    final v21 = app.v21Ready;
+    final approved = list.where((v) => v.isApproved);
+    final adds = approved.fold<double>(0, (a, v) => a + v.addedValue);
+    final deducts = approved.fold<double>(0, (a, v) => a + v.deductedValue);
+    final drafts = list.where((v) => v.isDraft).toList();
     final base = project.contractValue ?? 0;
     return SectionCard(
       title: 'أوامر التغيير',
       icon: Icons.swap_vert_rounded,
-      subtitle: 'الزيادة والنقص المعتمدان على قيمة العقد، برقم الأمر وتاريخ اعتماده. التغييرات المعتمدة في «سجل التغييرات» تظهر هنا تلقائياً.',
+      subtitle: v21
+          ? 'الأمر مسودة حتى يعتمده مدير المكتب أو من يعتمد المستخلصات، ولا يدخل في قيمة العقد إلا المعتمد. لكل أمر بنوده وسجله. '
+              'التغييرات المعتمدة في «سجل التغييرات» تظهر هنا معتمدة.'
+          : 'الزيادة والنقص المعتمدان على قيمة العقد، برقم الأمر وتاريخ اعتماده. التغييرات المعتمدة في «سجل التغييرات» تظهر هنا تلقائياً.',
       trailing: can
           ? IconButton.filledTonal(tooltip: 'أمر تغيير جديد', onPressed: () => _edit(context, null), icon: const Icon(Icons.add_rounded))
           : null,
@@ -277,7 +293,7 @@ class VariationsCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: can && app.changeOfVariation(v.id) == null ? () => _edit(context, v) : null,
+                      onTap: v21 ? () => _edit(context, v) : (can && app.changeOfVariation(v.id) == null ? () => _edit(context, v) : null),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
                         child: Row(children: [
@@ -285,16 +301,27 @@ class VariationsCard extends StatelessWidget {
                             width: 32,
                             height: 32,
                             alignment: Alignment.center,
-                            decoration: BoxDecoration(color: (v.isAdd ? sem.ok : sem.danger).withValues(alpha: 0.14), shape: BoxShape.circle),
-                            child: Icon(v.isAdd ? Icons.add_rounded : Icons.remove_rounded, color: v.isAdd ? sem.ok : sem.danger, size: 20),
+                            decoration: BoxDecoration(
+                                color: (v.isRejected ? sem.muted : (v.isAdd ? sem.ok : sem.danger)).withValues(alpha: 0.14), shape: BoxShape.circle),
+                            child: Icon(v.isAdd ? Icons.add_rounded : Icons.remove_rounded,
+                                color: v.isRejected ? sem.muted : (v.isAdd ? sem.ok : sem.danger), size: 20),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(v.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              Row(children: [
+                                Flexible(child: Text(v.title, style: const TextStyle(fontWeight: FontWeight.w700))),
+                                if (v21 && !v.isApproved) ...[
+                                  const SizedBox(width: 6),
+                                  ToneBadge(v.statusLabel, color: variationStatusColor(context, v.status)),
+                                ],
+                              ]),
                               Text(
                                 [
                                   if (v.refNo.isNotEmpty) 'رقم ${v.refNo}',
+                                  if (v21 && v.addedValue > 0 && v.deductedValue > 0)
+                                    'زيادة ${fmtMoney(v.addedValue)} ونقص ${fmtMoney(v.deductedValue)}',
+                                  if (v21 && app.variationItemsOf(v.id).isNotEmpty) itemsText(app.variationItemsOf(v.id).length),
                                   if (v.approvedOn != null) 'اعتُمد ${dayText(v.approvedOn)}',
                                   if (app.work(v.workId) != null) 'البند: ${app.work(v.workId)!.title}',
                                   if (v.merged) 'مدمج من ${originLabel?.call(v.originProject) ?? 'عقد آخر'}',
@@ -304,9 +331,14 @@ class VariationsCard extends StatelessWidget {
                               ),
                             ]),
                           ),
-                          Text('${v.isAdd ? '+' : '−'}${fmtMoney(v.amount)}',
-                              style: _tabular.copyWith(fontWeight: FontWeight.w800, color: v.isAdd ? sem.ok : sem.danger)),
-                          if (can && !v.merged && app.changeOfVariation(v.id) == null)
+                          Text(isolate('${v.isAdd ? '+' : '-'}${fmtMoney(v.amount)}'),
+                              style: _tabular.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: v.isRejected ? sem.muted : (v.isAdd ? sem.ok : sem.danger),
+                                  decoration: v.isRejected ? TextDecoration.lineThrough : null)),
+                          if (v21)
+                            const Padding(padding: EdgeInsetsDirectional.only(start: 4), child: Icon(Icons.chevron_left_rounded, size: 20))
+                          else if (can && !v.merged && app.changeOfVariation(v.id) == null)
                             IconButton(tooltip: 'حذف', icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => _delete(context, v))
                           else
                             const SizedBox(width: 10),
@@ -318,10 +350,12 @@ class VariationsCard extends StatelessWidget {
             ], stepMs: 40),
             Divider(height: 20, color: sem.rule),
             Wrap(spacing: 18, runSpacing: 6, children: [
-              _pair(context, 'إجمالي الزيادة', '+${fmtMoney(adds)}', sem.ok),
-              _pair(context, 'إجمالي النقص', '−${fmtMoney(deducts)}', sem.danger),
+              _pair(context, v21 ? 'الزيادة المعتمدة' : 'إجمالي الزيادة', adds == 0 ? fmtMoney(0) : isolate('+${fmtMoney(adds)}'), sem.ok),
+              _pair(context, v21 ? 'النقص المعتمد' : 'إجمالي النقص', deducts == 0 ? fmtMoney(0) : isolate('-${fmtMoney(deducts)}'), sem.danger),
               _pair(context, 'الصافي', fmtMoney(adds - deducts), null),
               if (base > 0) _pair(context, 'نسبته من القيمة', pctText((adds - deducts) / base, digits: 1), null),
+              if (drafts.isNotEmpty)
+                _pair(context, 'بانتظار الاعتماد', '${drafts.length} · ${fmtMoney(drafts.fold<double>(0, (a, v) => a + v.signed))}', sem.wip),
             ]),
           ],
         ],
@@ -1259,6 +1293,13 @@ class _ExtractDialogState extends State<ExtractDialog> {
   AppState get app => widget.app;
   LiveSettings get _settings => app.settings;
   List<ExtractPayment> get _ledger => widget.extract == null || !app.v5Ready ? const [] : app.paymentsOf(widget.extract!.id);
+
+  /// نسبة التأمين المحتجز لهذا العقد (الترحيل 37)، أو العامة من الإعدادات قبله.
+  double get _retRate => app.v21Ready ? widget.project.retentionRateOr(_settings.retentionRate) : _settings.retentionRate;
+
+  /// خصم التأمينات معطّل في العقد: لا تأمين في مستخلص جديد، وما سُجّل قبل التعطيل يُخفَّض ولا يُرفع.
+  bool get _retOff => app.v21Ready && !widget.project.retentionDeduct;
+  double get _retBefore => widget.extract?.retention ?? 0;
   bool get _hasLedger => _ledger.isNotEmpty;
 
   @override
@@ -1320,7 +1361,7 @@ class _ExtractDialogState extends State<ExtractDialog> {
   /// النسب الافتراضية من الإعدادات المالية: التأمين، والضرائب، والاستقطاعات المخصصة، واسترداد الدفعة المقدمة.
   void _applyDefaults() {
     final g = _v('gross');
-    _m['retention']!.text = _fill(g * _settings.retentionRate);
+    if (!_retOff) _m['retention']!.text = _fill(g * _retRate);
     if (_settings.taxRate > 0) _m['taxes']!.text = _fill(g * _settings.taxRate);
     for (final t in _customTypes) {
       if (t.$3 != null) _custom[t.$1]!.text = _fill(g * t.$3!);
@@ -1341,6 +1382,10 @@ class _ExtractDialogState extends State<ExtractDialog> {
     }
     if (_net < 0) {
       setState(() => _error = 'الاستقطاعات أكبر من قيمة الأعمال.');
+      return;
+    }
+    if (_retOff && _v('retention') > _retBefore + 0.0005) {
+      setState(() => _error = 'خصم التأمينات معطّل في هذا العقد؛ اجعل التأمين المحتجز ${_retBefore > 0 ? 'لا يزيد على ${fmtMoney(_retBefore)}' : 'صفراً'}.');
       return;
     }
     if (_paid > _net + 0.0005) {
@@ -1393,8 +1438,9 @@ class _ExtractDialogState extends State<ExtractDialog> {
     }
   }
 
-  Widget _money(String k, String label, {String? helper, bool deduction = true}) => TextField(
+  Widget _money(String k, String label, {String? helper, bool deduction = true, bool enabled = true}) => TextField(
         controller: _m[k],
+        enabled: enabled,
         style: _tabular,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         onChanged: (_) => setState(() {
@@ -1426,8 +1472,8 @@ class _ExtractDialogState extends State<ExtractDialog> {
         : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [a, const SizedBox(height: 10), b]);
     final payable = _status == 'approved' || _status == 'referred' || _status == 'paid';
     final statuses = [for (final s in extractStatuses) if (s != 'referred' || app.v5Ready || _status == 'referred') s];
-    final retRate = _settings.retentionRate;
-    final retChips = <double>{retRate, 0.05, 0.10}.where((r) => r > 0).toList()..sort();
+    final retRate = _retRate;
+    final retChips = _retOff ? const <double>[] : (<double>{retRate, 0.05, 0.10}.where((r) => r > 0).toList()..sort());
     final advSuggest = app.v5Ready ? app.suggestedAdvanceRecovery(widget.project, _v('gross'), excludeExtractId: x?.id) : 0.0;
     final hasAdvance = (widget.project.advanceAmount ?? 0) > 0;
     final customPairs = <Widget>[];
@@ -1501,7 +1547,11 @@ class _ExtractDialogState extends State<ExtractDialog> {
               const SizedBox(height: 10),
               pair(
                 Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  _money('retention', 'التأمين المحتجز'),
+                  _money('retention', 'التأمين المحتجز',
+                      enabled: !_retOff || _retBefore > 0,
+                      helper: _retOff
+                          ? (_retBefore > 0 ? 'خصم التأمينات معطّل: يُخفَّض ولا يُرفع' : 'خصم التأمينات معطّل في هذا العقد')
+                          : (app.v21Ready ? 'نسبة العقد ${rateText(retRate)}' : null)),
                   Wrap(spacing: 6, children: [
                     for (final pct in retChips)
                       ActionChip(

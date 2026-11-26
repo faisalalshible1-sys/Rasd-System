@@ -109,6 +109,11 @@ ref_rows = ['| الصيغة | النمط | إعادة التسلسل | أول ر
 for s in ref_schemes:
     ref_rows.append(f"| **{s['name']}**{'' if s.get('active', True) else ' (موقوفة)'} | {s['pattern']} | {RESET.get(s.get('reset'), s.get('reset'))} | {ref_example(s)} |")
 
+def rate_text(r):
+    v = float(r if isinstance(r, (int, float)) else 0) * 100
+    return f'{round(v)}%' if v == round(v) else f'{v:.1f}%'
+
+
 count = len(forms)
 req = count - 1
 pm_cfg = settings.get('pm.config') if isinstance(settings.get('pm.config'), dict) else {}
@@ -130,6 +135,10 @@ values = {
     'SPI_OK': f"{float(pm_cfg.get('spi_ok', 0.95)):.2f}",
     'SPI_WARN': f"{float(pm_cfg.get('spi_warn', 0.85)):.2f}",
     'PM_ALERT_DAYS': str(int(pm_cfg.get('alert_days', 7))),
+    # النسب الافتراضية للعقود الجديدة (rateText في lib/models.dart)
+    'GI_RATE': rate_text(settings.get('finance.guarantee_initial_rate', 0.02)),
+    'GF_RATE': rate_text(settings.get('finance.guarantee_final_rate', 0.05)),
+    'RET_RATE': rate_text(settings.get('finance.retention_rate', 0.1)),
     'ST_DONE': status_labels.get('done', 'تم'),
     'ST_WIP': status_labels.get('wip', 'قيد التنفيذ'),
     'ST_TODO': status_labels.get('todo', 'لم يتم'),

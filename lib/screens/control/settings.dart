@@ -315,14 +315,14 @@ class _SettingsSectionState extends State<SettingsSection> {
               SettingRow(
                 icon: Icons.shield_moon_outlined,
                 title: 'نسبة الضمان الابتدائي',
-                subtitle: '${rateText(guaranteeInitialRate)} من قيمة الأعمال المنفذة',
+                subtitle: '${rateText(guaranteeInitialRate)} من قيمة الأعمال المنفذة، للعقود الجديدة (لا تتغير نسب العقود القائمة)',
                 trailing: const Icon(Icons.edit_outlined, size: 20),
                 onTap: () => _editRate('finance.guarantee_initial_rate', 'نسبة الضمان الابتدائي', guaranteeInitialRate),
               ),
               SettingRow(
                 icon: Icons.verified_outlined,
                 title: 'نسبة الضمان النهائي',
-                subtitle: '${rateText(guaranteeFinalRate)} من قيمة الأعمال المنفذة',
+                subtitle: '${rateText(guaranteeFinalRate)} من قيمة الأعمال المنفذة، للعقود الجديدة (لا تتغير نسب العقود القائمة)',
                 trailing: const Icon(Icons.edit_outlined, size: 20),
                 onTap: () => _editRate('finance.guarantee_final_rate', 'نسبة الضمان النهائي', guaranteeFinalRate),
               ),

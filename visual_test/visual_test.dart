@@ -39,6 +39,7 @@ import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
 import 'package:dc_app/screens/boq_import.dart';
 import 'package:dc_app/screens/contract_files.dart';
+import 'package:dc_app/screens/contract_v3.dart';
 import 'package:dc_app/screens/docs.dart';
 import 'package:dc_app/screens/units.dart';
 import 'package:dc_app/units.dart';
@@ -262,9 +263,16 @@ AppState _sampleState() {
       'sort_order': i + 1,
       'contract_value': value,
       'executed_value': counted.isEmpty ? (value == null ? null : value * 0.1) : gross,
-      'guarantee_initial': i == 5 ? null : gross * 0.05,
+      'guarantee_initial': i == 5 ? null : gross * 0.02,
       'guarantee_initial_na': i == 5,
-      'guarantee_final': gross * 0.02,
+      'guarantee_final': gross * 0.05,
+      'guarantee_initial_rate': 0.02,
+      'guarantee_final_rate': 0.05,
+      'retention_deduct': i != 7,
+      'retention_rate': 0.1,
+      'variations_add': variations.where((v) => v.projectId == id && v.isApproved).fold<double>(0, (a, v) => a + v.addedValue),
+      'variations_deduct': variations.where((v) => v.projectId == id && v.isApproved).fold<double>(0, (a, v) => a + v.deductedValue),
+      'extracts_submitted': xs.where((x) => x.status != 'draft' && x.status != 'rejected').fold<double>(0, (a, x) => a + x.gross),
       'value_source': i < 3 ? 'items' : 'manual',
       'executed_source': counted.isEmpty ? 'manual' : 'extracts',
       'variations_net': varNet,
@@ -1822,6 +1830,97 @@ void main() {
     await _shot(tester, 'p7_boq_import_pdf_dark_mobile', app,
         BoqImportPage(source: BoqSource('مقايسة مدرسة الفجر.pdf', 'pdf', Uint8List(0)), sheets: [BoqSheetRows('PDF', rows)]),
         size: const Size(400, 3600), dark: true);
+  });
+
+  testWidgets('contracts v3', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    app.v21Ready = true;
+    final p = app.project('p-003')!;
+    // أمر معتمد ببنود، وأمر في مسودة بزيادة ونقص، وأمر مرفوض
+    app.variations = [
+      ...app.variations,
+      ContractVariation.fromMap({'id': 'vo-1', 'project_id': p.id, 'ref_no': 'أ.ت-7', 'title': 'زيادة كميات الحفر وإلغاء جزء من الخرسانة',
+        'kind': 'deduct', 'amount': 550, 'added_value': 4200, 'deducted_value': 4750, 'status': 'draft', 'created_at': _iso(3)}),
+      ContractVariation.fromMap({'id': 'vo-2', 'project_id': p.id, 'ref_no': 'أ.ت-5', 'title': 'عزل مائي لسطح المبنى الإداري',
+        'kind': 'add', 'amount': 38000, 'added_value': 38000, 'deducted_value': 0, 'status': 'approved', 'approved_on': _day(40),
+        'decided_by': 'u-2', 'created_at': _iso(60)}),
+      ContractVariation.fromMap({'id': 'vo-3', 'project_id': p.id, 'ref_no': 'أ.ت-6', 'title': 'أعمال إضافية للسياج', 'kind': 'add',
+        'amount': 20000, 'status': 'rejected', 'decision_note': 'لا يوجد تكليف بها', 'created_at': _iso(20)}),
+    ];
+    app.variationItemsBy = {
+      'vo-1': [
+        VariationItem.fromMap({'id': 'i1', 'variation_id': 'vo-1', 'sort': 1, 'direction': 'add', 'boq_sheet_id': 'bq-x', 'boq_line': 0,
+          'code': '1.1', 'description': 'حفر خنادق للأساسات', 'unit': 'م3', 'qty': 120, 'unit_price': 35, 'amount': 4200}),
+        VariationItem.fromMap({'id': 'i2', 'variation_id': 'vo-1', 'sort': 2, 'direction': 'deduct', 'boq_sheet_id': 'bq-x', 'boq_line': 2,
+          'code': '2.1', 'description': 'خرسانة مسلحة للقواعد', 'unit': 'م3', 'qty': 5, 'unit_price': 950, 'amount': 4750}),
+      ],
+      'vo-2': [
+        VariationItem.fromMap({'id': 'i3', 'variation_id': 'vo-2', 'sort': 1, 'direction': 'add', 'description': 'عزل مائي بالأغشية البيتومينية',
+          'unit': 'م2', 'qty': 950, 'unit_price': 40, 'amount': 38000}),
+      ],
+    };
+    app.variationEventsBy = {
+      'vo-1': [
+        VariationEvent.fromMap({'id': 'e1', 'variation_id': 'vo-1', 'action': 'create', 'actor_name': 'سالم المبروك', 'at': _iso(3),
+          'snapshot': {'added': 3500, 'deducted': 4750, 'items': [{}, {}]}}),
+        VariationEvent.fromMap({'id': 'e2', 'variation_id': 'vo-1', 'action': 'update', 'actor_name': 'سالم المبروك', 'at': _iso(1),
+          'snapshot': {'added': 4200, 'deducted': 4750, 'items': [{}, {}]}}),
+      ],
+      'vo-2': [
+        VariationEvent.fromMap({'id': 'e3', 'variation_id': 'vo-2', 'action': 'create', 'actor_name': 'سالم المبروك', 'at': _iso(60),
+          'snapshot': {'added': 38000, 'deducted': 0, 'items': [{}]}}),
+        VariationEvent.fromMap({'id': 'e4', 'variation_id': 'vo-2', 'action': 'approve', 'actor_name': 'هدى العبيدي', 'at': _iso(40),
+          'note': 'وفق محضر الإشراف', 'snapshot': {'added': 38000, 'deducted': 0, 'items': [{}]}}),
+      ],
+    };
+    // القيمة المعدلة بعد الأمر المعتمد
+    app.projects = [
+      for (final x in app.projects)
+        if (x.id != p.id)
+          x
+        else
+          Project.fromMap({
+            'id': x.id, 'assign_no': x.assignNo, 'contract_no': x.contractNo, 'name': x.name, 'company': x.company, 'owner': x.owner,
+            'department': x.department, 'contract_value': x.contractValue, 'executed_value': x.executedValue,
+            'guarantee_initial': x.guaranteeInitial, 'guarantee_final': x.guaranteeFinal, 'guarantee_initial_rate': 0.02, 'guarantee_final_rate': 0.05,
+            'retention_deduct': true, 'retention_rate': 0.1, 'value_source': x.valueSource, 'executed_source': x.executedSource,
+            'variations_net': 38000, 'variations_add': 38000, 'variations_deduct': 0, 'extracts_count': x.extractsCount,
+            'extracts_gross': x.extractsGross, 'extracts_net': x.extractsNet, 'extracts_paid': x.extractsPaid,
+            'extracts_submitted': x.extractsSubmitted + 95000, 'retention_held': x.retentionHeld, 'advance_amount': x.advanceAmount,
+            'advance_paid_on': x.advancePaidOn == null ? null : dbDate(x.advancePaidOn!), 'advance_recovered': x.advanceRecovered,
+          }),
+    ];
+    app.committees = [
+      ContractCommittee.fromMap({'id': 'cm1', 'project_id': p.id, 'kind': 'initial', 'decision_no': 'ق-77/2026', 'decision_date': _day(10)})
+          .withMembers(const [
+        CommitteeMember(role: 'chair', name: 'م. سالم الفرجاني', title: 'رئيس قسم المطابقة والاستلام'),
+        CommitteeMember(name: 'م. علي المسماري', title: 'مهندس مدني'),
+        CommitteeMember(name: 'م. هدى العبيدي', title: 'ممثل الإشراف', profileId: 'u-2'),
+      ]),
+    ];
+    app.indexData();
+    await _shot(tester, 's0_contract_dashboard_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 2300));
+    await _shot(tester, 's1_contract_dashboard_dark_mobile', app,
+        _scaffold(ListView(padding: const EdgeInsets.all(12), children: [ContractDashboardCard(project: app.project('p-003')!)])),
+        size: const Size(400, 2000), dark: true);
+    await _shot(tester, 's2_variation_page_light', app, const VariationPage(variationId: 'vo-1'), size: const Size(1200, 1900));
+    await _shot(tester, 's3_variation_editor_light', app, const VariationEditorPage(projectId: 'p-003', variationId: 'vo-1'),
+        size: const Size(1200, 1800));
+    await _shot(tester, 's4_guarantees_dialog_light', app,
+        _OpenAction(run: (ctx) => showGuaranteesDialog(ctx, app.project('p-003')!)), size: const Size(1200, 1000));
+    await _shot(tester, 's5_variations_committees_light', app,
+        _scaffold(ListView(padding: const EdgeInsets.all(20), children: [
+          VariationsCard(app: app, project: app.project('p-003')!),
+          const SizedBox(height: 16),
+          CommitteesCard(project: app.project('p-003')!),
+        ])),
+        size: const Size(1200, 1300));
+    await _shot(tester, 's6_committee_editor_dark_mobile', app,
+        _OpenAction(run: (ctx) => showCommitteeEditor(ctx, app.project('p-003')!, 'initial', app.committeeOf('p-003', 'initial'))),
+        size: const Size(400, 1300), dark: true);
+    app.manualAnchor = '07_finance';
+    await _shot(tester, 's7_manual_finance_light', app, _scaffold(const ManualPage()), size: const Size(1440, 5200));
   });
 
   testWidgets('contract files', (tester) async {

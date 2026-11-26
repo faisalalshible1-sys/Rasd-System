@@ -149,6 +149,12 @@ class AppState extends ChangeNotifier {
   List<PmLink> pmLinks = [];
   List<PmPlanVersion> pmVersions = [];
 
+  // الترحيل 37: ضمانات العقد وتأميناته، وأوامر التغيير ببنودها واعتمادها وسجلها، ولجان الاستلام
+  bool v21Ready = false;
+  Map<String, List<VariationItem>> variationItemsBy = {};
+  Map<String, List<VariationEvent>> variationEventsBy = {};
+  List<ContractCommittee> committees = [];
+
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
 
@@ -830,6 +836,7 @@ class AppState extends ChangeNotifier {
       await _loadV18();
       await _loadV19();
       await _loadV20();
+      await _loadV21();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1362,6 +1369,122 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// الترحيل 37: بنود أوامر التغيير وسجلها ولجان الاستلام (وجود جدول اللجان يكفي للتفعيل).
+  Future<void> _loadV21() async {
+    if (!v4Ready) {
+      v21Ready = false;
+      return;
+    }
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        client.from('contract_variation_items').select().order('sort', ascending: true),
+        client.from('contract_variation_events').select().order('at', ascending: true),
+        client.from('contract_committees').select(),
+        client.from('contract_committee_members').select().order('sort', ascending: true),
+      ]);
+      final items = <String, List<VariationItem>>{};
+      for (final m in r[0]) {
+        final it = VariationItem.fromMap(m);
+        (items[it.variationId] ??= []).add(it);
+      }
+      final events = <String, List<VariationEvent>>{};
+      for (final m in r[1]) {
+        final e = VariationEvent.fromMap(m);
+        (events[e.variationId] ??= []).add(e);
+      }
+      final members = <String, List<CommitteeMember>>{};
+      for (final m in r[3]) {
+        (members[(m['committee_id'] ?? '').toString()] ??= []).add(CommitteeMember.fromMap(m));
+      }
+      committees = [
+        for (final m in r[2])
+          ContractCommittee.fromMap(m).withMembers([
+            ...?members[(m['id'] ?? '').toString()]?.where((x) => x.isChair),
+            ...?members[(m['id'] ?? '').toString()]?.where((x) => !x.isChair),
+          ]),
+      ];
+      variationItemsBy = items;
+      variationEventsBy = events;
+      v21Ready = true;
+    } catch (_) {
+      variationItemsBy = {};
+      variationEventsBy = {};
+      committees = [];
+      v21Ready = false;
+    }
+  }
+
+  /// بنود أمر تغيير بترتيبها.
+  List<VariationItem> variationItemsOf(String variationId) => variationItemsBy[variationId] ?? const [];
+
+  /// سجل أمر تغيير، الأقدم أولاً.
+  List<VariationEvent> variationEventsOf(String variationId) => variationEventsBy[variationId] ?? const [];
+
+  /// أوامر تغيير العقد المعتمدة وحدها (تدخل في قيمته).
+  List<ContractVariation> approvedVariationsOf(String projectId) => [for (final v in variationsOf(projectId)) if (v.isApproved) v];
+
+  /// لجنة العقد من نوع معيّن (لجنته هو، لا لجان العقود المدموجة فيه).
+  ContractCommittee? committeeOf(String projectId, String kind) {
+    for (final c in committees) {
+      if (c.projectId == projectId && c.kind == kind && !c.merged) return c;
+    }
+    return null;
+  }
+
+  /// لجان العقود المدموجة في هذا العقد.
+  List<ContractCommittee> mergedCommitteesOf(String projectId) =>
+      [for (final c in committees) if (c.projectId == projectId && c.merged) c];
+
+  /// اعتماد أوامر التغيير ورفضها: المدير ومن يختص بـ«اعتماد مستخلص» (كالدالة can_approve_variation).
+  bool canApproveVariation(Project p) {
+    if (!v21Ready || frozenForMe) return false;
+    if (isDirector) return true;
+    final d = formDef('f24');
+    return d != null && canEditForm(p, d);
+  }
+
+  /// تشكيل لجنة الاستلام: من يختص بنموذج تكليفها في الدورة المستندية.
+  bool canEditCommittee(Project p, String kind) {
+    if (!v21Ready || frozenForMe) return false;
+    final d = formDef(committeeFormKeys[kind] ?? '');
+    return d == null ? isDirector : canEditForm(p, d);
+  }
+
+  Future<void> setContractGuarantees(String projectId, Map<String, dynamic> data) async {
+    await client.rpc('set_contract_guarantees', params: {'p_project': projectId, 'p_data': data});
+    await loadAll();
+  }
+
+  Future<String> saveContractVariation(String? id, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_contract_variation', params: {'p_id': id, 'p_data': data});
+    await loadAll();
+    return res?.toString() ?? '';
+  }
+
+  /// approve اعتماد، reject رفض بسبب، reopen إعادة إلى مسودة (المدير).
+  Future<void> decideVariation(String id, String decision, {String note = '', DateTime? date}) async {
+    await client.rpc('decide_variation', params: {
+      'p_id': id,
+      'p_decision': decision,
+      'p_note': note.trim(),
+      'p_date': date == null ? null : dbDate(date),
+    });
+    await loadAll();
+  }
+
+  Future<String> saveCommittee(String projectId, String kind, Map<String, dynamic> data) async {
+    final res = await client.rpc('save_committee', params: {'p_project': projectId, 'p_kind': kind, 'p_data': data});
+    await _loadV21();
+    _notify();
+    return res?.toString() ?? '';
+  }
+
+  Future<void> deleteCommittee(String projectId, String kind) async {
+    await client.rpc('delete_committee', params: {'p_project': projectId, 'p_kind': kind});
+    await _loadV21();
+    _notify();
+  }
+
   /// علاقات أنشطة عقد.
   List<PmLink> linksOf(String projectId) {
     final ids = {for (final i in pmItems) if (i.projectId == projectId) i.id};
@@ -1866,7 +1989,8 @@ class AppState extends ChangeNotifier {
     final old4 = _channel4;
     if (old4 != null) client.removeChannel(old4);
     final ch4 = client.channel('dc-v4');
-    for (final t in const ['contract_variations', 'contract_extracts']) {
+    for (final t in const ['contract_variations', 'contract_extracts', 'contract_variation_items', 'contract_committees',
+      'contract_committee_members']) {
       ch4.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => scheduleReload());
     }
     ch4.subscribe();
@@ -2028,6 +2152,10 @@ class AppState extends ChangeNotifier {
     pmRates = [];
     pmLinks = [];
     pmVersions = [];
+    v21Ready = false;
+    variationItemsBy = {};
+    variationEventsBy = {};
+    committees = [];
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -2491,6 +2619,7 @@ class AppState extends ChangeNotifier {
     await loadAll();
   }
 
+  /// أمر تغيير بلا بنود. بعد الترحيل 37 يُحفظ مسودة حتى يُعتمد (approvedOn لا أثر له حينئذ).
   Future<String> saveVariation({
     String? id,
     required String projectId,
@@ -2502,6 +2631,17 @@ class AppState extends ChangeNotifier {
     DateTime? approvedOn,
     String notes = '',
   }) async {
+    if (v21Ready) {
+      return saveContractVariation(id, {
+        if (id == null) 'project_id': projectId,
+        'work_id': workId,
+        'ref_no': refNo.trim(),
+        'title': title.trim(),
+        'kind': kind,
+        'amount': amount,
+        'notes': notes.trim(),
+      });
+    }
     final res = await client.rpc('save_variation', params: {
       'p_id': id,
       'p_project': projectId,
@@ -2812,6 +2952,15 @@ class AppState extends ChangeNotifier {
 
   /// ملف العقد (الترحيل 35): يراه من يرى العقد بتفاصيله — مكتب المدير ومكتب العقود والقسم المشرف عليه.
   /// يطابق doc_items_read في قاعدة البيانات؛ ولا تراه الشؤون الفنية ولا الأقسام الأخرى ولا مدقق الأمن.
+  /// لجان استلام العقد: من يرى العقد بتفاصيله، والقسم المشرف عليه، وقسم المطابقة والاستلام (كسياسة القراءة).
+  bool seesCommittees(String projectId) {
+    final r = role;
+    if (!v21Ready || r == null || r == AppRole.securityAuditor) return false;
+    final sc = scope;
+    if (sc != null) return sc.allProjects || sc.supervised.contains(projectId) || seesSection('acceptance');
+    return true;
+  }
+
   bool seesContractFiles(String projectId) {
     final r = role;
     if (!v19Ready || r == null || r == AppRole.securityAuditor) return false;
@@ -3146,7 +3295,7 @@ class AppState extends ChangeNotifier {
             approvedOn: day('approved_on'),
             notes: 'اقتراح من مساعد Claude',
           );
-          a.result = 'سُجّل أمر التغيير';
+          a.result = v21Ready ? 'سُجّل أمر التغيير مسودة بانتظار الاعتماد' : 'سُجّل أمر التغيير';
         case 'propose_extract':
           await saveExtract(
             projectId: str('project_id'),

@@ -134,7 +134,20 @@ String auditDescription(AppState app, AuditEntry e) {
       }
       return 'عدّل قيم البند «${text(d['title'])}»: القيمة ${fromTo(d['contract_value'])}، المنفذ ${fromTo(d['executed_value'])}';
     case 'finance.variation_add':
+      if (d['status'] == 'draft') {
+        final both = d['added'] is num && d['deducted'] is num && (d['added'] as num) > 0 && (d['deducted'] as num) > 0;
+        return 'سجّل أمر تغيير مسودة «${text(d['title'])}»: '
+            '${both ? 'زيادة ${_m(d['added'])} ونقص ${_m(d['deducted'])}' : '${text(d['kind']) == 'deduct' ? 'نقص' : 'زيادة'} ${_m(d['amount'])}'}'
+            '${d['items'] is num && (d['items'] as num) > 0 ? ' في ${d['items']} بنداً' : ''}';
+      }
       return 'سجّل أمر تغيير (${text(d['kind']) == 'deduct' ? 'نقص' : 'زيادة'}) «${text(d['title'])}» بقيمة ${_m(d['amount'])}';
+    case 'finance.variation_approve':
+      final on = text(d['approved_on']).replaceAll('-', '/');
+      return 'اعتمد أمر التغيير «${text(d['title'])}» (${_varNet(d)})${on.isNotEmpty ? ' بتاريخ $on' : ''}${text(d['note']).isNotEmpty ? ' — ${text(d['note'])}' : ''}';
+    case 'finance.variation_reject':
+      return 'رفض أمر التغيير «${text(d['title'])}» (${_varNet(d)}) — ${text(d['note'])}';
+    case 'finance.variation_reopen':
+      return 'أعاد أمر التغيير «${text(d['title'])}» إلى مسودة وأخرج أثره من قيمة العقد — ${text(d['note'])}';
     case 'finance.variation_update':
       final amt = d['amount'] is Map ? '${_m((d['amount'] as Map)['from'])} ← ${_m((d['amount'] as Map)['to'])}' : '';
       return 'عدّل أمر التغيير «${text(d['title'])}»${amt.isNotEmpty ? ': $amt' : ''}';
@@ -160,6 +173,12 @@ String auditDescription(AppState app, AuditEntry e) {
       final on = d['paid_on'] is Map ? text((d['paid_on'] as Map)['to']) : '';
       if (to == null) return 'أزال الدفعة المقدمة للعقد (${_m(from)})';
       return 'الدفعة المقدمة للعقد: ${from == null ? '' : '${_m(from)} ← '}${_m(to)}${on.isNotEmpty ? ' · صُرفت ${on.replaceAll('-', '/')}' : ' · لم تُصرف'}';
+    case 'finance.guarantees':
+      return _guarantees(d);
+    case 'committee.save':
+      return _committee(d, deleted: false);
+    case 'committee.delete':
+      return _committee(d, deleted: true);
     case 'finance.guarantee_initial':
       return d['na'] == true
           ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
@@ -636,6 +655,51 @@ String _access(Object? v) => switch (v) {
 
 /// اسم القسم في وصف سجل التدقيق (الاسم الافتراضي؛ السجل لا يتغير بتخصيص الواجهة).
 String _sectionName(Object? key) => sectionDefaultNames[key] ?? '';
+
+/// صافي أمر التغيير في السجل: «زيادة 4,200 ونقص 4,750» أو «نقص 550».
+String _varNet(Map<String, dynamic> d) {
+  final a = d['added'] is num ? (d['added'] as num).toDouble() : null;
+  final r = d['deducted'] is num ? (d['deducted'] as num).toDouble() : null;
+  if (a != null && r != null && a > 0 && r > 0) return 'زيادة ${fmtMoney(a)} ونقص ${fmtMoney(r)}';
+  return '${d['kind'] == 'deduct' ? 'نقص' : 'زيادة'} ${_m(d['amount'])}';
+}
+
+/// تعديل ضمانات العقد وتأميناته (الترحيل 37): كل ما تغيّر بقيمتيه.
+String _guarantees(Map<String, dynamic> d) {
+  String pct(Object? v) => v is num ? rateText(v.toDouble()) : '—';
+  String ft(Object? v, String Function(Object?) f) => v is Map ? '${f(v['from'])} ← ${f(v['to'])}' : '';
+  String na(Object? v) => v == true ? 'لا ينطبق' : 'ينطبق';
+  String on(Object? v) => v == true ? 'مفعّل' : 'معطّل';
+  final parts = [
+    if (d['initial_rate'] is Map) 'نسبة الابتدائي ${ft(d['initial_rate'], pct)}',
+    if (d['initial_na'] is Map) 'الابتدائي ${ft(d['initial_na'], na)}',
+    if (d['final_rate'] is Map) 'نسبة النهائي ${ft(d['final_rate'], pct)}',
+    if (d['final_na'] is Map) 'النهائي ${ft(d['final_na'], na)}',
+    if (d['retention_deduct'] is Map) 'خصم التأمينات ${ft(d['retention_deduct'], on)}',
+    if (d['retention_rate'] is Map) 'نسبة التأمين ${ft(d['retention_rate'], pct)}',
+  ];
+  final amounts = [
+    if (d['initial'] is Map) 'الابتدائي ${ft(d['initial'], (v) => v == null ? '—' : _m(v))}',
+    if (d['final'] is Map) 'النهائي ${ft(d['final'], (v) => v == null ? '—' : _m(v))}',
+  ];
+  final head = d['source'] == 'migration_37' ? 'صحّح الضمانين بالقرار المعتمد' : 'عدّل ضمانات العقد وتأميناته';
+  return '$head: ${parts.join('، ')}${amounts.isEmpty ? '' : ' (المبلغان: ${amounts.join('، ')})'}';
+}
+
+/// تشكيل لجنة الاستلام أو تعديلها أو حذفها (الترحيل 37).
+String _committee(Map<String, dynamic> d, {required bool deleted}) {
+  final kind = committeeKindLabels['${d['kind'] ?? ''}'] ?? 'لجنة الاستلام';
+  String names(Object? v) {
+    if (v is! Map) return '';
+    final chair = v['chair'] is Map ? '${(v['chair'] as Map)['name'] ?? ''}' : '';
+    final members = v['members'] is List ? [for (final m in v['members'] as List) if (m is Map) '${m['name'] ?? ''}'] : const <String>[];
+    return [if (chair.isNotEmpty) 'الرئيس $chair', if (members.isNotEmpty) 'الأعضاء ${members.join('، ')}'].join(' · ');
+  }
+
+  if (deleted) return 'حذف تشكيل $kind (${names(d['from'])})';
+  if (d['from'] == null) return 'شكّل $kind: ${names(d['to'])}';
+  return 'عدّل $kind: ${names(d['to'])}';
+}
 
 /// «نهاية ← بداية +2» من نوع العلاقة وانتظارها (الترحيل 36).
 String _linkText(Object? kind, Object? lag) {
