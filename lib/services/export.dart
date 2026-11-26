@@ -423,7 +423,7 @@ void _header(Sheet sh, List<String> cols) => sh.appendRow([for (final c in cols)
 String _pname(AppState app, String? id) {
   if (id == null || id.isEmpty) return 'عام – متعدد المشاريع';
   final p = app.project(id);
-  return p == null ? '' : [p.assignNo, p.name].where((x) => x.trim().isNotEmpty).join(' · ');
+  return p?.label ?? '';
 }
 
 /// تصدير «سجل المخاطر ومتابعة المشاريع» كاملاً بأوراق الملف المعتمد.

@@ -251,9 +251,9 @@ class PlanEditorPage extends StatelessWidget {
       ]),
       body: PageBody(maxWidth: 1200, onRefresh: app.loadAll, children: [
         PageHeader(
-          title: p.name.isEmpty ? p.assignNo : p.name,
+          title: p.shortName,
           subtitle: [
-            if (p.assignNo.isNotEmpty) 'التكليف ${p.assignNo}',
+            if (p.contractNo.isNotEmpty) 'العقد ${p.contractNo}',
             if (p.company.isNotEmpty) p.company,
             'البرنامج: ${planStatusLabels[plan?.status ?? '']}${plan?.approved == true ? ' (الإصدار ${plan!.version})' : ''}',
           ].join(' · '),

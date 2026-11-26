@@ -53,6 +53,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('30_supervision_hub', 30, 'الإشراف: لوحة المتابعة ودورة حياة العقد وبنود العقود'),
   ManualChapter('31_customize_ideas', 31, 'تخصيص الواجهة والأفكار والتطوير'),
   ManualChapter('32_section_isolation', 32, 'عزل الأقسام والمهام المسندة'),
+  ManualChapter('33_contract_files', 33, 'ملف العقد ومرفقاته'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -92,7 +93,7 @@ List<ManualChapter> manualChaptersFor(bool Function(String section) sees) => [
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/23';
+const String manualUpdated = '2026/11/26';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {

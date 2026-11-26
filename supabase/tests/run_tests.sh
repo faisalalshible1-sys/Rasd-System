@@ -114,3 +114,13 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql"
 $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261123000034_section_isolation.sql"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/107_section_isolation_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# ملف العقد ومرفقاته: تصنيفات وقرار التكليف بالمهندس وأنواع الملفات حتى 50 ميغابايت، ولا تطّلع عليه الأقسام الأخرى (الترحيل 35)
+$P -d dctest -f "$DIR/migrations/20261126000035_contract_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261126000035_contract_files.sql"
+$P -d dctest -f "$DIR/migrations/20261126000035_contract_files.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261126000035_contract_files.sql"
+$P -d dctest -f "$DIR/rollbacks/20261126000035_contract_files_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 35 ولا مرفقات"
+$P -d dctest -f "$DIR/migrations/20261126000035_contract_files.sql" >/dev/null && echo "PASS: إعادة الترحيل 35 بعد التراجع"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/108_contract_files_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+$P -d dctest -c "insert into doc_items (kind, project_id, category, title, status) select 'attachment', id, 'other', 'مرفق يمنع التراجع', 'active' from projects limit 1" >/dev/null
+if $P -d dctest -f "$DIR/rollbacks/20261126000035_contract_files_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 35 مع وجود مرفقات"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.columns where table_name = 'doc_items' and column_name = 'engineer_id'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع ووجود مرفقات، والمنظومة كما هي"
+$P -d dctest -c "delete from doc_items where title = 'مرفق يمنع التراجع'" >/dev/null

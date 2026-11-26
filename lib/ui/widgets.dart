@@ -576,7 +576,7 @@ class ContractTag extends StatelessWidget {
           Icon(has ? Icons.description_outlined : Icons.tag_rounded, size: large ? 16 : 13, color: fg),
           const SizedBox(width: 4),
           Text(
-            has ? 'عقد ${project.contractNo}' : (project.assignNo.isEmpty ? 'بلا رقم' : project.assignNo),
+            has ? 'عقد ${project.contractNo}' : 'بلا رقم عقد',
             style: TextStyle(
               color: fg,
               fontWeight: FontWeight.w700,
@@ -832,7 +832,7 @@ class SelectField extends StatelessWidget {
 
 /// نافذة تأكيد بسيطة.
 Future<bool> confirmDialog(BuildContext context,
-    {required String title, required String message, required String confirmLabel, bool danger = false}) async {
+    {required String title, required String message, required String confirmLabel, bool danger = false, String cancelLabel = 'إلغاء'}) async {
   final sem = Sem.of(context);
   final ok = await showDialog<bool>(
     context: context,
@@ -840,7 +840,7 @@ Future<bool> confirmDialog(BuildContext context,
       title: Text(title),
       content: Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('إلغاء')),
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(cancelLabel)),
         FilledButton(
           style: danger ? FilledButton.styleFrom(backgroundColor: sem.danger, foregroundColor: Colors.white) : null,
           onPressed: () => Navigator.of(ctx).pop(true),

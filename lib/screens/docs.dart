@@ -10,6 +10,7 @@ import '../ui/motion.dart';
 import '../ui/slideshow.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'contract_files.dart' show attachmentCategoryIcon, showAttachmentEditor;
 import 'pm_common.dart';
 import 'supervision.dart' show showReportEditor;
 
@@ -37,7 +38,22 @@ class DocsNotReady extends StatelessWidget {
 IconData docKindIcon(String kind) => switch (kind) {
       'boq' => Icons.request_quote_outlined,
       'letter' => Icons.mark_email_read_outlined,
+      'attachment' => Icons.folder_shared_outlined,
       _ => Icons.architecture_rounded,
+    };
+
+/// أيقونة الملف حسب نوعه.
+IconData docFileIcon(DocFile f) => switch (f.typeLabel) {
+      'PDF' => Icons.picture_as_pdf_rounded,
+      'Word' => Icons.description_outlined,
+      'Excel' => Icons.table_chart_outlined,
+      'PowerPoint' => Icons.slideshow_outlined,
+      'DWG' || 'DXF' || 'Revit' => Icons.architecture_rounded,
+      'ملف مضغوط' => Icons.folder_zip_outlined,
+      'خريطة KML' => Icons.map_outlined,
+      'فيديو' => Icons.movie_rounded,
+      'نص' => Icons.notes_rounded,
+      _ => f.isImage || f.mime == 'image/heic' ? Icons.image_outlined : Icons.insert_drive_file_outlined,
     };
 
 /// أنواع الملفات المسموحة لكل نوع: المقايسات والمراسلات PDF، والتصاميم صور ومعها PDF.
@@ -161,18 +177,38 @@ Future<void> showDocEditor(BuildContext context, String kind, {DocItem? item, St
 }
 
 /// اختيار الملفات ورفعها مع نافذة تقدّم.
-Future<void> pickAndAttach(BuildContext context, String scope, String ownerId, {String kind = 'report'}) async {
+Future<void> pickAndAttach(BuildContext context, String scope, String ownerId, {String kind = 'report', String? ownerTitle}) async {
   final app = AppScope.read(context);
   // المستندات حسب نوعها؛ والتقارير اليومية وسجلات الوحدات تقبل PDF والصور والفيديو
   final allowed = scope == 'doc' ? docAllowedFiles(kind, videos: app.v10Ready) : (pdf: true, images: true, videos: app.v10Ready);
   List<PickedDoc> files;
   try {
-    files = await pickDocFiles(pdf: allowed.pdf, images: allowed.images, videos: allowed.videos);
+    files = await pickDocFiles(pdf: allowed.pdf, images: allowed.images, videos: allowed.videos, attachments: kind == 'attachment');
   } catch (e) {
     if (context.mounted) showToast(context, friendlyError(e), error: true);
     return;
   }
   if (files.isEmpty || !context.mounted) return;
+  // ملف العقد: الصور المصوّرة لمحضر أو مراسلة تُدمج في PDF واحد إن رغب المستخدم
+  final shots = files.where((f) => f.isImage).length;
+  if (kind == 'attachment' && shots >= 2) {
+    final merge = await confirmDialog(context,
+        title: 'دمج الصور في ملف PDF واحد؟',
+        message: 'اخترت $shots صور. دمجها يجعلها ملف PDF واحداً بصفحة لكل صورة بترتيب اختيارها، وهو الأنسب لمحضر أو خطاب مصوّر. '
+            'اختر «إبقاؤها صوراً» لرفع كل صورة ملفاً مستقلاً.',
+        confirmLabel: 'دمج في PDF',
+        cancelLabel: 'إبقاؤها صوراً');
+    if (!context.mounted) return;
+    if (merge) {
+      try {
+        files = await mergeImagesToPdf(files, ownerTitle ?? 'صور مدمجة');
+      } catch (e) {
+        if (context.mounted) showToast(context, friendlyError(e), error: true);
+        return;
+      }
+      if (!context.mounted) return;
+    }
+  }
   final progress = ValueNotifier<int>(0);
   final total = files.length;
   final size = files.fold<int>(0, (s, f) => s + f.bytes.length);
@@ -225,7 +261,7 @@ Future<void> showRevisionEditor(BuildContext context, DocItem item, {DocRevision
   if (!ok || !context.mounted) return;
   if (rev == null && newId != null) {
     showToast(context, 'أُضيف الإصدار');
-    await pickAndAttach(context, 'doc', newId!, kind: item.kind);
+    await pickAndAttach(context, 'doc', newId!, kind: item.kind, ownerTitle: item.title);
   } else {
     showToast(context, 'حُفظ الإصدار');
   }
@@ -590,7 +626,10 @@ class DocDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: brandAppBar(context, title: Text(docKindSingle[item.kind] ?? 'المستند'), actions: [
         if (canEdit)
-          IconButton(tooltip: 'تعديل البيانات', onPressed: () => showDocEditor(context, item.kind, item: item), icon: const Icon(Icons.edit_outlined)),
+          IconButton(
+              tooltip: 'تعديل البيانات',
+              onPressed: () => item.isAttachment ? showAttachmentEditor(context, item.projectId!, item: item) : showDocEditor(context, item.kind, item: item),
+              icon: const Icon(Icons.edit_outlined)),
         if (app.isDirector)
           IconButton(
             tooltip: 'حذف المستند',
@@ -618,10 +657,11 @@ class DocDetailPage extends StatelessWidget {
         PageHeader(
           title: item.title,
           subtitle: [docProjectName(app, item.projectId), if (item.refNo.isNotEmpty) 'رقم ${item.refNo}', pmDay(item.docDate)].join(' · '),
-          icon: docKindIcon(item.kind),
+          icon: item.isAttachment ? attachmentCategoryIcon(item.category) : docKindIcon(item.kind),
         ),
         Wrap(spacing: 6, runSpacing: 6, children: [
-          ToneBadge(item.statusLabel, color: docStatusColor(sem, item, today)),
+          if (item.isAttachment) ToneBadge('ملف العقد', color: sem.muted, icon: Icons.folder_shared_outlined),
+          if (!item.isAttachment) ToneBadge(item.statusLabel, color: docStatusColor(sem, item, today)),
           if (item.isLetter && item.direction != null) ToneBadge(letterDirectionLabels[item.direction] ?? '', color: sem.muted),
           if (item.category.isNotEmpty) ToneBadge(item.categoryLabel, color: sem.muted),
           if (item.overdue(today)) ToneBadge('تجاوز موعد الرد', color: sem.danger, icon: Icons.event_busy_outlined),
@@ -646,7 +686,8 @@ class DocDetailPage extends StatelessWidget {
           child: Column(children: [
             for (final (k, v) in [
               ('العقد', docProjectName(app, item.projectId)),
-              (item.isLetter ? 'الجهة' : (item.kind == 'design' ? 'المصمم / الاستشاري' : 'الجهة المعدّة'), item.party),
+              if (item.isAttachment && item.engineerId != null) ('المهندس المكلَّف', _engineerName(app, item)),
+              (switch (item.kind) { 'letter' => 'الجهة', 'design' => 'المصمم / الاستشاري', 'attachment' => 'الجهة المصدرة', _ => 'الجهة المعدّة' }, item.party),
               if (item.amount != null) ('القيمة الإجمالية', '${fmtMoney(item.amount)} $currencyLabel'),
               if (item.dueDate != null) ('موعد الرد', pmDay(item.dueDate)),
               ('ملاحظات', item.notes),
@@ -674,11 +715,15 @@ class DocDetailPage extends StatelessWidget {
         const SizedBox(height: 14),
         SectionCard(
           title: 'مسار التطوير',
-          subtitle: 'كل تعديل يُحفظ إصداراً مستقلاً بتاريخه وملاحظته وملفاته. الأحدث في الأعلى.',
+          subtitle: item.isAttachment
+              ? 'استبدال الملف يُضاف إصداراً جديداً ويبقى السابق محفوظاً للرجوع إليه. الأحدث في الأعلى.'
+              : 'كل تعديل يُحفظ إصداراً مستقلاً بتاريخه وملاحظته وملفاته. الأحدث في الأعلى.',
           icon: Icons.timeline_rounded,
           trailing: canEdit
               ? FilledButton.tonalIcon(
-                  onPressed: () => showRevisionEditor(context, item), icon: const Icon(Icons.add_rounded), label: const Text('إصدار جديد'))
+                  onPressed: () => showRevisionEditor(context, item),
+                  icon: Icon(item.isAttachment ? Icons.published_with_changes_rounded : Icons.add_rounded),
+                  label: Text(item.isAttachment ? 'استبدال الملف' : 'إصدار جديد'))
               : null,
           child: Column(children: [
             for (final (i, r) in revs.reversed.indexed) RevisionBlock(item: item, rev: r, latest: i == 0, last: i == revs.length - 1),
@@ -768,9 +813,9 @@ class RevisionBlock extends StatelessWidget {
                 Wrap(spacing: 4, children: [
                   if (canEdit)
                     TextButton.icon(
-                      onPressed: () => pickAndAttach(context, 'doc', rev.id, kind: item.kind),
+                      onPressed: () => pickAndAttach(context, 'doc', rev.id, kind: item.kind, ownerTitle: item.title),
                       icon: const Icon(Icons.attach_file_rounded, size: 18),
-                      label: Text(item.kind == 'design' ? 'إرفاق صور أو PDF' : 'إرفاق PDF'),
+                      label: Text(switch (item.kind) { 'design' => 'إرفاق صور أو PDF', 'attachment' => 'إرفاق ملفات', _ => 'إرفاق PDF' }),
                     ),
                   if (canEdit)
                     TextButton.icon(
@@ -805,6 +850,13 @@ class RevisionBlock extends StatelessWidget {
       ]),
     ]);
   }
+}
+
+String _engineerName(AppState app, DocItem item) {
+  for (final e in app.engineersOf(item.projectId ?? '')) {
+    if (e.id == item.engineerId) return [e.name, if (e.assignNo.isNotEmpty) 'تكليف ${e.assignNo}'].join(' · ');
+  }
+  return '';
 }
 
 List<Widget> _fileActions(BuildContext context, DocFile f) {
@@ -864,11 +916,10 @@ class DocFileTile extends StatelessWidget {
       dense: true,
       contentPadding: EdgeInsets.zero,
       visualDensity: dense ? VisualDensity.compact : null,
-      leading: Icon(file.isPdf ? Icons.picture_as_pdf_rounded : (file.isVideo ? Icons.movie_rounded : Icons.image_outlined),
-          color: file.isPdf ? sem.danger : (file.isVideo ? sem.wip : sem.muted)),
+      leading: Icon(docFileIcon(file), color: file.isPdf ? sem.danger : (file.isVideo ? sem.wip : sem.muted)),
       title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text('${fmtBytes(file.sizeBytes)} · ${app.people[file.createdBy]?.displayName ?? ''}'),
-      onTap: file.isPdf || file.isVideo
+      subtitle: Text('${file.typeLabel} · ${fmtBytes(file.sizeBytes)} · ${app.people[file.createdBy]?.displayName ?? ''}'),
+      onTap: !file.isImage
           ? () async {
               try {
                 await openDocExternally(await app.signedUrls.of(file.path));
@@ -964,7 +1015,7 @@ class StoragePage extends StatelessWidget {
     if (!app.v8Ready) return const DocsNotReady(title: 'مساحة التخزين', icon: Icons.cloud_outlined);
     final sem = Sem.of(context);
     final byKind = {
-      for (final k in docKinds)
+      for (final k in [...docKinds, if (app.docs.items.any((i) => i.isAttachment)) 'attachment'])
         k: app.docs.files
             .where((f) => f.revisionId != null && app.docs.items.any((i) => i.kind == k && app.docs.revisionsOf(i.id).any((r) => r.id == f.revisionId)))
             .fold<int>(0, (s, f) => s + f.sizeBytes),
@@ -973,7 +1024,8 @@ class StoragePage extends StatelessWidget {
     return PageBody(maxWidth: 900, onRefresh: app.loadAll, children: [
       const PageHeader(
         title: 'مساحة التخزين',
-        subtitle: 'ملفات المستندات والتقارير في مخزن خاص لا يُفتح إلا من داخل المنظومة، بحد 20 ميجابايت للملف.',
+        subtitle: 'ملفات المستندات والتقارير في مخزن خاص لا يُفتح إلا من داخل المنظومة، بحد 20 ميجابايت للملف '
+            'و50 ميجابايت للفيديو ولمرفقات ملف العقد.',
         icon: Icons.cloud_rounded,
       ),
       const StorageGauge(),
@@ -982,7 +1034,7 @@ class StoragePage extends StatelessWidget {
         title: 'التوزيع',
         icon: Icons.pie_chart_outline_rounded,
         child: Column(children: [
-          for (final k in docKinds) PmKv(docKindLabels[k]!, fmtBytes(byKind[k])),
+          for (final k in [...docKinds, if (byKind.containsKey('attachment')) 'attachment']) PmKv(docKindLabels[k]!, fmtBytes(byKind[k])),
           PmKv('التقارير اليومية', fmtBytes(reports)),
         ]),
       ),

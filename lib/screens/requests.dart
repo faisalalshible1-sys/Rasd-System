@@ -148,7 +148,7 @@ class _RequestCardState extends State<RequestCard> {
             children: [
               Row(
                 children: [
-                  NoTag(p?.assignNo ?? ''),
+                  NoTag(p?.contractNo ?? ''),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(p?.title ?? 'مشروع محذوف', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: sem.muted, fontSize: 13)),

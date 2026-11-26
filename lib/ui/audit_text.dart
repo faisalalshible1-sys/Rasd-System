@@ -1,5 +1,5 @@
 import '../app_state.dart';
-import '../docs.dart' show fmtBytes;
+import '../docs.dart' show docCategoryLabel, fmtBytes;
 import '../models.dart';
 import '../rasd.dart' show grantLabel, sectionDefaultNames;
 import '../registers.dart';
@@ -313,7 +313,8 @@ String auditDescription(AppState app, AuditEntry e) {
       };
       return 'حذف $what ${text(d['code'] ?? d['company'])}${text(d['description']).isNotEmpty ? ': ${text(d['description'])}' : ''}';
     case 'doc.create':
-      return 'أضاف ${_docKind(d['kind'])}: ${text(d['title'])}${text(d['ref_no']).isNotEmpty ? ' (رقم ${text(d['ref_no'])})' : ''}';
+      final cat = d['kind'] == 'attachment' && text(d['category']).isNotEmpty ? ' — ${docCategoryLabel('attachment', text(d['category']))}' : '';
+      return 'أضاف ${_docKind(d['kind'])}$cat: ${text(d['title'])}${text(d['ref_no']).isNotEmpty ? ' (رقم ${text(d['ref_no'])})' : ''}';
     case 'doc.update':
       return 'عدّل ${_docKind(d['kind'])} «${text(d['title'])}»${_changed(d['changes'])}';
     case 'doc.delete':
@@ -598,7 +599,13 @@ const Map<String, String> settingLabels = {
   'swot.meta': 'بيانات وثيقة تحليل SWOT',
 };
 
-String _docKind(Object? k) => switch (k?.toString()) { 'boq' => 'المقايسة', 'letter' => 'المراسلة', 'design' => 'التصميم', _ => 'المستند' };
+String _docKind(Object? k) => switch (k?.toString()) {
+      'boq' => 'المقايسة',
+      'letter' => 'المراسلة',
+      'design' => 'التصميم',
+      'attachment' => 'مرفق ملف العقد',
+      _ => 'المستند',
+    };
 
 String _unitKind(Object? k) => unitKinds[k?.toString()]?.single ?? 'سجلاً';
 String _unitName(Object? u) => unitNames[u?.toString()] ?? 'وحدة';

@@ -21,7 +21,7 @@ String pmProjectName(AppState app, String? id) {
   if (id == null || id.isEmpty) return 'عام – متعدد المشاريع';
   final p = app.project(id);
   if (p == null) return 'عقد غير متاح';
-  return [p.assignNo, p.name].where((x) => x.trim().isNotEmpty).join(' · ');
+  return p.label;
 }
 
 /// خيارات العقود القائمة مرتبة كما في سجل العقود.
@@ -29,7 +29,7 @@ List<(String, String)> pmProjectOptions(AppState app, {String? general, List<Pro
   final list = [...from ?? app.projects]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   return [
     if (general != null) ('', general),
-    for (final p in list) (p.id, [p.assignNo, p.name].where((x) => x.trim().isNotEmpty).join(' · ')),
+    for (final p in list) (p.id, p.label),
   ];
 }
 

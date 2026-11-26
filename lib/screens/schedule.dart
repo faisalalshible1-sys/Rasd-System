@@ -269,9 +269,9 @@ Future<String?> pickScheduleProject(BuildContext context, AppState app) {
                   final t = s.tracks[p.id];
                   return ListTile(
                     dense: true,
-                    title: Text(p.name.isEmpty ? p.assignNo : p.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    title: Text(p.shortName, maxLines: 2, overflow: TextOverflow.ellipsis),
                     subtitle: Text(
-                        [if (p.assignNo.isNotEmpty) p.assignNo, if (t != null) '${itemsText(t.items.length)} · ${perfLabels[t.perf]}' else 'بلا جدول']
+                        [if (p.contractNo.isNotEmpty) 'العقد ${p.contractNo}', if (t != null) '${itemsText(t.items.length)} · ${perfLabels[t.perf]}' else 'بلا جدول']
                             .join(' · ')),
                     trailing: t == null ? null : PerfBadge(t.perf),
                     onTap: () => Navigator.of(ctx).pop(p.id),
@@ -461,9 +461,9 @@ class ProjectSchedulePage extends StatelessWidget {
       ]),
       body: PageBody(maxWidth: 1200, onRefresh: app.loadAll, children: [
         PageHeader(
-          title: p.name.isEmpty ? p.assignNo : p.name,
+          title: p.shortName,
           subtitle: [
-            if (p.assignNo.isNotEmpty) 'التكليف ${p.assignNo}',
+            if (p.contractNo.isNotEmpty) 'العقد ${p.contractNo}',
             if (pmSchedule?.startDate != null) 'البرنامج الزمني ${pmDay(pmSchedule!.startDate)} إلى ${pmDay(pmSchedule.endDate)}',
             'تاريخ الإسناد ${pmDay(track.ref)}',
           ].join(' · '),

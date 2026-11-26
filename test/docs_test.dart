@@ -85,4 +85,68 @@ void main() {
     expect(fmtBytes(5 * 1024 * 1024), '5.0 م.ب');
     expect(fmtBytes(null), '—');
   });
+
+  test('ملف العقد: التصنيفات والترتيب وقرار التكليف بالمهندس (الترحيل 35)', () {
+    final idx = DocIndex(
+      items: [
+        DocItem.fromMap({'id': 'o', 'kind': 'attachment', 'project_id': 'p', 'title': 'صور', 'category': 'other', 'doc_date': '2026-11-01'}),
+        DocItem.fromMap({'id': 'c1', 'kind': 'attachment', 'project_id': 'p', 'title': 'العقد', 'category': 'contract', 'doc_date': '2026-10-01'}),
+        DocItem.fromMap({'id': 'c2', 'kind': 'attachment', 'project_id': 'p', 'title': 'ملحق', 'category': 'contract', 'doc_date': '2026-11-20'}),
+        DocItem.fromMap({
+          'id': 'a', 'kind': 'attachment', 'project_id': 'p', 'title': 'قرار', 'category': 'assignment', 'engineer_id': 'e1', //
+          'doc_date': '2026-11-05', 'status': 'active',
+        }),
+        DocItem.fromMap({'id': 'x', 'kind': 'attachment', 'project_id': 'q', 'title': 'عقد آخر', 'category': 'contract'}),
+        DocItem.fromMap({'id': 'l', 'kind': 'letter', 'project_id': 'p', 'title': 'مراسلة', 'direction': 'in'}),
+      ],
+      revisions: const [],
+      files: const [],
+      reports: const [],
+    );
+    expect(idx.attachmentsOf('p').map((i) => i.id), ['c2', 'c1', 'a', 'o'], reason: 'بترتيب التصنيفات ثم الأحدث، دون مستندات الشؤون الفنية');
+    expect(idx.ofKind('letter').length, 1);
+    final a = idx.assignmentOf('e1')!;
+    expect(a.id, 'a');
+    expect(a.isAttachment, isTrue);
+    expect(a.categoryLabel, 'قرارات التكليف');
+    expect(a.statusLabel, 'نافذ');
+    expect(a.toJson()['engineer_id'], 'e1');
+    expect(idx.assignmentOf('e2'), isNull);
+    expect(DocItem.fromMap({'id': 'b', 'kind': 'boq', 'title': 'م'}).toJson().containsKey('engineer_id'), isFalse);
+    for (final c in attachmentCategories) {
+      expect(attachmentCategoryLabels[c], isNotNull);
+    }
+    expect(attachmentCategories.length, 9);
+  });
+
+  test('أنواع مرفقات العقد: الامتداد يحدد النوع كما في attachment_mime()', () {
+    const expected = {
+      'pdf': 'application/pdf',
+      'jpg': 'image/jpeg',
+      'png': 'image/png',
+      'heic': 'image/heic',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'dwg': 'image/vnd.dwg',
+      'dxf': 'image/vnd.dxf',
+      'rvt': 'application/vnd.autodesk.revit',
+      'zip': 'application/zip',
+      'kmz': 'application/vnd.google-earth.kmz',
+    };
+    expected.forEach((ext, mime) => expect(mimeOfExt(ext), mime, reason: ext));
+    expect(attachmentExts, containsAll(expected.keys));
+    expect(attachmentExts, isNot(contains('exe')));
+    expect(attachmentExts, isNot(contains('mp4')));
+    expect(maxAttachmentBytes, 50 * 1024 * 1024);
+    // ملفات الرسم لا تُعرض صوراً، والصور العادية تُعرض
+    final dwg = DocFile.fromMap({'id': '1', 'path': 'doc/x/a.dwg', 'name': 'a.dwg', 'mime': 'image/vnd.dwg'});
+    expect(dwg.isImage, isFalse);
+    expect(dwg.isCad, isTrue);
+    expect(dwg.typeLabel, 'DWG');
+    expect(DocFile.fromMap({'id': '2', 'path': 'p', 'name': 'a.png', 'mime': 'image/png'}).isImage, isTrue);
+    expect(DocFile.fromMap({'id': '3', 'path': 'p', 'name': 'a.heic', 'mime': 'image/heic'}).isImage, isFalse);
+    expect(fileTypeLabel('application/vnd.ms-excel'), 'Excel');
+    expect(fileTypeLabel('application/msword'), 'Word');
+  });
 }

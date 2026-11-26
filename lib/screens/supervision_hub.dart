@@ -766,9 +766,9 @@ class ProjectFollowPage extends StatelessWidget {
       ]),
       body: PageBody(maxWidth: 1250, onRefresh: app.loadAll, children: [
         PageHeader(
-          title: p.name.isEmpty ? p.assignNo : p.name,
+          title: p.shortName,
           subtitle: [
-            if (p.assignNo.isNotEmpty) 'التكليف ${p.assignNo}',
+            if (p.contractNo.isNotEmpty) 'العقد ${p.contractNo}',
             if (p.company.isNotEmpty) p.company,
             if ((f.schedule?.location ?? '').isNotEmpty) f.schedule!.location,
             plan == null ? 'لا برنامج زمني بعد' : (approved ? 'البرنامج المعتمد (الإصدار ${plan.version})' : 'البرنامج مسودة لدى الشؤون الفنية'),
