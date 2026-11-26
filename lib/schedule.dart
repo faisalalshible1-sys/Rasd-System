@@ -55,6 +55,7 @@ class PmItem {
     this.unit = '',
     this.qty,
     this.notApplicable = false,
+    this.startNotBefore,
   });
 
   final String id;
@@ -91,6 +92,9 @@ class PmItem {
   /// «لا ينطبق»: يبقى في البرنامج ويخرج من الحساب.
   final bool notApplicable;
 
+  /// «لا يبدأ قبل» تاريخ (الترحيل 36).
+  final DateTime? startNotBefore;
+
   factory PmItem.fromMap(Map<String, dynamic> m) => PmItem(
         id: _str(m['id']),
         projectId: _str(m['project_id']),
@@ -117,9 +121,19 @@ class PmItem {
         unit: _str(m['unit']),
         qty: _num(m['qty']),
         notApplicable: m['not_applicable'] == true,
+        startNotBefore: _day(m['start_not_before']),
       );
 
-  PmItem copyWith({int? durationDays, int? offsetDays, String? phaseId, String? dependsOn, bool clearDepends = false, String? boqSheetId}) => PmItem(
+  PmItem copyWith(
+          {int? durationDays,
+          int? offsetDays,
+          String? phaseId,
+          String? dependsOn,
+          bool clearDepends = false,
+          String? boqSheetId,
+          DateTime? startNotBefore,
+          bool clearStartNotBefore = false}) =>
+      PmItem(
         id: id,
         projectId: projectId,
         workId: workId,
@@ -145,6 +159,7 @@ class PmItem {
         unit: unit,
         qty: qty,
         notApplicable: notApplicable,
+        startNotBefore: clearStartNotBefore ? null : (startNotBefore ?? this.startNotBefore),
       );
 
   /// المدة بالأيام: المسجلة، وإلا الفرق بين التاريخين المخططين.
@@ -248,26 +263,51 @@ class PhaseSpan {
   int get days => daysBetween(end, start);
 }
 
-/// حساب تواريخ البرنامج (كدالة pm_plan_recalc في قاعدة البيانات):
-///   البنود دون مرحلة تبدأ ببداية البرنامج أو بنهاية البند الذي تتبعه، + إزاحتها.
+/// حساب تواريخ البرنامج (كدالة pm_plan_recalc في قاعدة البيانات بعد الترحيل 36):
+///   الأساس = بداية المرحلة (وبداية البرنامج لما خارج المراحل). القيد من كل علاقة:
+///     نهاية←بداية = نهاية السابق + الانتظار، بداية←بداية = بداية السابق + الانتظار،
+///     نهاية←نهاية = نهاية السابق + الانتظار − المدة، بداية←نهاية = بداية السابق + الانتظار − المدة.
+///   البداية = أكبر (الأساس، القيود) + الإزاحة، ثم لا تسبق «لا يبدأ قبل»، والنهاية = البداية + المدة.
+///   «يتبع البند» القديم نهاية←بداية بلا انتظار إن لم تقابله علاقة.
 ///   المرحلة الأولى تبدأ ببداية البرنامج، وكل مرحلة تالية بنهاية سابقتها + فاصلها (ولا تسبق بداية البرنامج).
-///   البند يبدأ ببداية مرحلته أو بنهاية البند الذي يتبعه (أيهما أبعد) + إزاحته، وينتهي بعد مدته.
 ///   البند بلا مدة يحتفظ بتاريخيه، ونهاية المرحلة أبعد نهايات بنودها.
 class PlanLayout {
-  PlanLayout(this.start, List<PmPhase> phases, List<PmItem> items) {
+  PlanLayout(this.start, List<PmPhase> phases, List<PmItem> items, {List<PmLink> links = const []}) {
     final ph = [...phases]..sort((a, b) => a.sort.compareTo(b.sort));
+    final starts = <String, DateTime>{};
     final ends = <String, DateTime>{};
+    final into = <String, List<PmLink>>{};
+    for (final l in links) {
+      (into[l.succId] ??= []).add(l);
+    }
     DateTime place(PmItem i, DateTime base) {
       if (i.durationDays == null) {
         dates[i.id] = (i.plannedStart, i.plannedEnd);
+        starts[i.id] = i.plannedStart;
         ends[i.id] = i.plannedEnd;
         return i.plannedEnd;
       }
+      final d = i.durationDays!;
+      var s = base;
+      for (final l in into[i.id] ?? const <PmLink>[]) {
+        final ps = starts[l.predId], pe = ends[l.predId];
+        if (ps == null || pe == null) continue;
+        final c = switch (l.kind) {
+          'SS' => addDays(ps, l.lagDays),
+          'FF' => addDays(pe, l.lagDays - d),
+          'SF' => addDays(ps, l.lagDays - d),
+          _ => addDays(pe, l.lagDays),
+        };
+        if (c.isAfter(s)) s = c;
+      }
       final dep = i.dependsOn == null ? null : ends[i.dependsOn];
-      final b = dep != null && dep.isAfter(base) ? dep : base;
-      final s = addDays(b, i.offsetDays);
-      final e = addDays(s, i.durationDays!);
+      if (dep != null && !(into[i.id] ?? const <PmLink>[]).any((l) => l.predId == i.dependsOn) && dep.isAfter(s)) s = dep;
+      s = addDays(s, i.offsetDays);
+      final snb = i.startNotBefore;
+      if (snb != null && snb.isAfter(s)) s = snb;
+      final e = addDays(s, d);
       dates[i.id] = (s, e);
+      starts[i.id] = s;
       ends[i.id] = e;
       return e;
     }
@@ -277,6 +317,7 @@ class PlanLayout {
       (byPhase[ph.any((p) => p.id == i.phaseId) ? i.phaseId : null] ??= []).add(i);
     }
     for (final i in byPhase[null] ?? const <PmItem>[]) {
+      order.add(i);
       place(i, start);
     }
     DateTime? prev;
@@ -285,6 +326,7 @@ class PlanLayout {
       if (ps.isBefore(start)) ps = start;
       var pe = ps;
       for (final i in byPhase[p.id] ?? const <PmItem>[]) {
+        order.add(i);
         final e = place(i, ps);
         if (e.isAfter(pe)) pe = e;
       }
@@ -297,6 +339,9 @@ class PlanLayout {
   final Map<String, (DateTime, DateTime)> dates = {};
   final List<PhaseSpan> spans = [];
 
+  /// الأنشطة بترتيب الحساب (ما خارج المراحل ثم المراحل).
+  final List<PmItem> order = [];
+
   DateTime get end {
     var e = start;
     for (final d in dates.values) {
@@ -307,6 +352,376 @@ class PlanLayout {
 
   /// المدة الإجمالية للبرنامج (يوم).
   int get totalDays => daysBetween(end, start);
+}
+
+// ---------------------------------------------------------------------
+// العلاقات والمسار الحرج (الترحيل 36)
+// ---------------------------------------------------------------------
+
+/// أنواع العلاقات: نهاية←بداية، بداية←بداية، نهاية←نهاية، بداية←نهاية.
+const List<String> linkKinds = ['FS', 'SS', 'FF', 'SF'];
+const Map<String, String> linkKindLabels = {
+  'FS': 'نهاية ← بداية',
+  'SS': 'بداية ← بداية',
+  'FF': 'نهاية ← نهاية',
+  'SF': 'بداية ← نهاية',
+};
+const Map<String, String> linkKindHelp = {
+  'FS': 'يبدأ بعد انتهاء السابق',
+  'SS': 'يبدأ مع بداية السابق',
+  'FF': 'ينتهي مع نهاية السابق',
+  'SF': 'ينتهي مع بداية السابق',
+};
+
+class PmLink {
+  const PmLink({required this.id, required this.predId, required this.succId, this.kind = 'FS', this.lagDays = 0});
+
+  final String id;
+  final String predId;
+  final String succId;
+  final String kind;
+  final int lagDays;
+
+  factory PmLink.fromMap(Map<String, dynamic> m) => PmLink(
+        id: _str(m['id']),
+        predId: _str(m['pred_id']),
+        succId: _str(m['succ_id']),
+        kind: linkKinds.contains(_str(m['kind'])) ? _str(m['kind']) : 'FS',
+        lagDays: _int(m['lag_days']) ?? 0,
+      );
+
+  /// «نهاية ← بداية +2»
+  String get label => '${linkKindLabels[kind]}${lagDays == 0 ? '' : (lagDays > 0 ? ' +$lagDays' : ' $lagDays')}';
+}
+
+/// المسار الحرج: تمريرة عكسية على تواريخ [PlanLayout] تعطي آخر بداية وآخر نهاية لكل نشاط دون تأخير نهاية البرنامج،
+/// والمرونة الكلية = آخر نهاية − النهاية المخططة. النشاط حرج إن كانت مرونته صفراً.
+///   قيود العلاقة على السابق (ب = التالي، والإزاحة تُطرح من آخر بدايته ونهايته):
+///     نهاية←بداية: آخر نهاية ≤ آخر بداية ب − الانتظار؛ بداية←بداية: آخر نهاية ≤ آخر بداية ب − الانتظار + المدة؛
+///     نهاية←نهاية: آخر نهاية ≤ آخر نهاية ب − الانتظار؛ بداية←نهاية: آخر نهاية ≤ آخر نهاية ب − الانتظار + المدة.
+///   وقيد المراحل: نهاية كل نشاط في مرحلة ≤ آخر بداية المرحلة التالية − فاصلها، وآخر بداية المرحلة
+///   = أصغر (آخر بداية كل نشاط فيها − إزاحته)، ولا تتجاوز آخر بداية التالية − فاصلها.
+class PlanFloat {
+  PlanFloat(PlanLayout layout, List<PmPhase> phases, List<PmLink> links) {
+    final finish = layout.end;
+    final ph = [...phases]..sort((a, b) => a.sort.compareTo(b.sort));
+    final phaseOf = <String, int>{};
+    for (final i in layout.order) {
+      final k = ph.indexWhere((p) => p.id == i.phaseId);
+      phaseOf[i.id] = k;
+    }
+    final out = <String, List<PmLink>>{};
+    for (final l in links) {
+      (out[l.predId] ??= []).add(l);
+    }
+    final byId = {for (final i in layout.order) i.id: i};
+    final followers = <String, List<PmItem>>{};
+    for (final s in layout.order) {
+      if (s.dependsOn != null) (followers[s.dependsOn!] ??= []).add(s);
+    }
+    // آخر بداية كل مرحلة (من الأخيرة)، تُحسب بعد أنشطتها
+    final phaseLatest = List<DateTime?>.filled(ph.length + 1, null);
+    DateTime? limitAfter(int k) {
+      // قيد نهاية أنشطة المرحلة k: آخر بداية المرحلة التالية − فاصلها
+      if (k < 0 || k + 1 >= ph.length) return null;
+      final nl = phaseLatest[k + 1];
+      return nl == null ? null : addDays(nl, -ph[k + 1].lagDays);
+    }
+
+    var lastPhase = ph.length;
+    for (final i in layout.order.reversed) {
+      final k = phaseOf[i.id] ?? -1;
+      // عند الانتقال إلى مرحلة أسبق: أكمل آخر بدايات المراحل الفارغة بينهما
+      while (lastPhase - 1 > k && lastPhase - 1 >= 0) {
+        lastPhase--;
+        _closePhase(lastPhase, ph, phaseLatest, byId, phaseOf);
+      }
+      final (es, ef) = layout.dates[i.id]!;
+      final d = daysBetween(ef, es);
+      var lf = finish;
+      final lim = limitAfter(k);
+      if (lim != null && lim.isBefore(lf)) lf = lim;
+      for (final l in out[i.id] ?? const <PmLink>[]) {
+        final s = byId[l.succId];
+        final sl = latest[l.succId];
+        if (s == null || sl == null) continue;
+        final ls = addDays(sl.$1, -s.offsetDays), lfs = addDays(sl.$2, -s.offsetDays);
+        final c = switch (l.kind) {
+          'SS' => addDays(ls, d - l.lagDays),
+          'FF' => addDays(lfs, -l.lagDays),
+          'SF' => addDays(lfs, d - l.lagDays),
+          _ => addDays(ls, -l.lagDays),
+        };
+        if (c.isBefore(lf)) lf = c;
+      }
+      // «يتبع البند» القديم دون علاقة مقابلة
+      for (final s in followers[i.id] ?? const <PmItem>[]) {
+        if (!(out[i.id] ?? const <PmLink>[]).any((l) => l.succId == s.id)) {
+          final sl = latest[s.id];
+          if (sl == null) continue;
+          final c = addDays(sl.$1, -s.offsetDays);
+          if (c.isBefore(lf)) lf = c;
+        }
+      }
+      latest[i.id] = (addDays(lf, -d), lf);
+      total[i.id] = daysBetween(lf, ef);
+    }
+    while (lastPhase > 0) {
+      lastPhase--;
+      _closePhase(lastPhase, ph, phaseLatest, byId, phaseOf);
+    }
+    this.finish = finish;
+  }
+
+  void _closePhase(int k, List<PmPhase> ph, List<DateTime?> phaseLatest, Map<String, PmItem> byId, Map<String, int> phaseOf) {
+    DateTime? m;
+    for (final e in phaseOf.entries) {
+      if (e.value != k) continue;
+      final i = byId[e.key]!;
+      if (i.durationDays == null) continue;
+      final l = latest[e.key];
+      if (l == null) continue;
+      final c = addDays(l.$1, -i.offsetDays);
+      if (m == null || c.isBefore(m)) m = c;
+    }
+    if (k + 1 < ph.length && phaseLatest[k + 1] != null) {
+      final c = addDays(phaseLatest[k + 1]!, -ph[k + 1].lagDays);
+      if (m == null || c.isBefore(m)) m = c;
+    }
+    phaseLatest[k] = m;
+  }
+
+  late final DateTime finish;
+
+  /// آخر بداية وآخر نهاية لكل نشاط.
+  final Map<String, (DateTime, DateTime)> latest = {};
+
+  /// المرونة الكلية بالأيام.
+  final Map<String, int> total = {};
+
+  bool critical(String id) => (total[id] ?? 1) <= 0;
+  List<String> get criticalIds => [for (final e in total.entries) if (e.value <= 0) e.key];
+}
+
+// ---------------------------------------------------------------------
+// معدلات الإنتاجية (الترحيل 36)، كالدوال pm_unit_norm وpm_text_norm وpm_rate_for في قاعدة البيانات
+// ---------------------------------------------------------------------
+String pmUnitNorm(String s) {
+  final b = StringBuffer();
+  for (final r in s.runes) {
+    if (r >= 0x0660 && r <= 0x0669) {
+      b.writeCharCode(0x30 + r - 0x0660);
+    } else if (r >= 0x06F0 && r <= 0x06F9) {
+      b.writeCharCode(0x30 + r - 0x06F0);
+    } else if (r == 0xB2) {
+      b.write('2');
+    } else if (r == 0xB3) {
+      b.write('3');
+    } else if (r == 0x20 || r == 0x09 || r == 0x0A || r == 0x2E || r == 0x2F || r == 0x5F || r == 0x2D) {
+      continue;
+    } else {
+      b.writeCharCode(r);
+    }
+  }
+  return b.toString().toLowerCase();
+}
+
+String pmTextNorm(String s) {
+  final b = StringBuffer();
+  for (final r in s.runes) {
+    if (r == 0x0640 || (r >= 0x064B && r <= 0x0652) || r == 0x0670) continue;
+    var c = r;
+    if (c == 0x0623 || c == 0x0625 || c == 0x0622 || c == 0x0671) c = 0x0627;
+    if (c == 0x0629) c = 0x0647;
+    if (c == 0x0649) c = 0x064A;
+    b.writeCharCode(c);
+  }
+  return b.toString().toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+class PmRate {
+  const PmRate({
+    required this.id,
+    required this.unit,
+    this.keyword = '',
+    required this.rate,
+    this.label = '',
+    this.active = true,
+    required this.validFrom,
+    this.note = '',
+    this.createdAt,
+    this.createdBy,
+  });
+
+  final String id;
+  final String unit;
+  final String keyword;
+
+  /// الكمية المنجزة في يوم عمل.
+  final double rate;
+  final String label;
+  final bool active;
+  final DateTime validFrom;
+  final String note;
+  final DateTime? createdAt;
+  final String? createdBy;
+
+  String get key => '${pmUnitNorm(unit)}|${pmTextNorm(keyword)}';
+
+  factory PmRate.fromMap(Map<String, dynamic> m) => PmRate(
+        id: _str(m['id']),
+        unit: _str(m['unit']),
+        keyword: _str(m['keyword']),
+        rate: _num(m['rate']) ?? 0,
+        label: _str(m['label']),
+        active: m['active'] != false,
+        validFrom: _day(m['valid_from']) ?? pmToday(),
+        note: _str(m['note']),
+        createdAt: DateTime.tryParse(_str(m['created_at']))?.toLocal(),
+        createdBy: _id(m['created_by']),
+      );
+}
+
+/// المعدلات السارية في [today]: لكل وحدة وكلمة أحدث إصدار بلغ تاريخه.
+List<PmRate> currentRates(List<PmRate> all, DateTime today) {
+  final best = <String, PmRate>{};
+  for (final r in all) {
+    if (r.validFrom.isAfter(today)) continue;
+    final b = best[r.key];
+    final newer = b == null ||
+        r.validFrom.isAfter(b.validFrom) ||
+        (r.validFrom == b.validFrom && (r.createdAt ?? DateTime(0)).isAfter(b.createdAt ?? DateTime(0)));
+    if (newer) best[r.key] = r;
+  }
+  return best.values.toList();
+}
+
+/// المعدل المطابق: الوحدة نفسها، وأطول كلمة يحويها الوصف، أو المعدل العام للوحدة.
+PmRate? rateFor(List<PmRate> current, String unit, String desc) {
+  final u = pmUnitNorm(unit);
+  if (u.isEmpty) return null;
+  final d = pmTextNorm(desc);
+  PmRate? best;
+  for (final r in current) {
+    if (!r.active || pmUnitNorm(r.unit) != u) continue;
+    final k = pmTextNorm(r.keyword);
+    if (k.isNotEmpty && !d.contains(k)) continue;
+    if (best == null || k.length > pmTextNorm(best.keyword).length) best = r;
+  }
+  return best;
+}
+
+/// المدة بالإنتاجية = ⌈الكمية ÷ المعدل⌉ بين يوم و3650 يوماً.
+int? rateDays(List<PmRate> current, String unit, String desc, double? qty) {
+  if (qty == null || qty <= 0) return null;
+  final r = rateFor(current, unit, desc);
+  if (r == null || r.rate <= 0) return null;
+  return math.min(3650, math.max(1, (qty / r.rate).ceil()));
+}
+
+// ---------------------------------------------------------------------
+// إصدارات البرنامج المعتمدة (الترحيل 36)
+// ---------------------------------------------------------------------
+class PlanVersionItem {
+  const PlanVersionItem({required this.id, this.code = '', required this.title, required this.start, required this.end, this.duration});
+
+  final String id;
+  final String code;
+  final String title;
+  final DateTime start;
+  final DateTime end;
+  final int? duration;
+}
+
+class PmPlanVersion {
+  const PmPlanVersion({
+    required this.id,
+    required this.projectId,
+    required this.version,
+    this.source = 'approval',
+    required this.startDate,
+    this.endDate,
+    this.items = const [],
+    this.approvedAt,
+    this.approvedBy,
+  });
+
+  final String id;
+  final String projectId;
+  final int version;
+  final String source;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final List<PlanVersionItem> items;
+  final DateTime? approvedAt;
+  final String? approvedBy;
+
+  int get totalDays => endDate == null ? 0 : daysBetween(endDate!, startDate);
+
+  factory PmPlanVersion.fromMap(Map<String, dynamic> m) => PmPlanVersion(
+        id: _str(m['id']),
+        projectId: _str(m['project_id']),
+        version: _int(m['version']) ?? 1,
+        source: _str(m['source']),
+        startDate: _day(m['start_date']) ?? pmToday(),
+        endDate: _day(m['end_date']),
+        items: [
+          for (final x in (m['items'] is List ? m['items'] as List : const []))
+            if (x is Map)
+              PlanVersionItem(
+                id: _str(x['id']),
+                code: _str(x['code']),
+                title: _str(x['title']),
+                start: _day(x['start']) ?? pmToday(),
+                end: _day(x['end']) ?? pmToday(),
+                duration: _int(x['duration']),
+              ),
+        ],
+        approvedAt: DateTime.tryParse(_str(m['approved_at']))?.toLocal(),
+        approvedBy: _id(m['approved_by']),
+      );
+}
+
+/// مقارنة نشاط بين إصدار أساس والبرنامج الحالي والتنفيذ الفعلي.
+class VersionDelta {
+  const VersionDelta({required this.title, this.base, this.current, this.startShift, this.endShift, this.actualEndShift, this.added = false, this.removed = false});
+
+  final String title;
+  final PlanVersionItem? base;
+  final PmItem? current;
+
+  /// فرق البداية والنهاية المخططتين (الحالي − الأساس) بالأيام، وفرق النهاية الفعلية عن نهاية الأساس.
+  final int? startShift;
+  final int? endShift;
+  final int? actualEndShift;
+  final bool added;
+  final bool removed;
+}
+
+List<VersionDelta> compareVersion(PmPlanVersion base, List<PmItem> current) {
+  final cur = {for (final i in current) i.id: i};
+  final seen = <String>{};
+  final out = <VersionDelta>[];
+  for (final b in base.items) {
+    final c = cur[b.id];
+    seen.add(b.id);
+    if (c == null) {
+      out.add(VersionDelta(title: b.title, base: b, removed: true));
+      continue;
+    }
+    out.add(VersionDelta(
+      title: c.title,
+      base: b,
+      current: c,
+      startShift: daysBetween(c.plannedStart, b.start),
+      endShift: daysBetween(c.plannedEnd, b.end),
+      actualEndShift: c.actualEnd == null ? null : daysBetween(c.actualEnd!, b.end),
+    ));
+  }
+  for (final c in current) {
+    if (!seen.contains(c.id)) out.add(VersionDelta(title: c.title, current: c, added: true));
+  }
+  return out;
 }
 
 /// تصنيف الأداء بمؤشر SPI وحدود الإعدادات (كالمستعمل في سجل المشاريع).

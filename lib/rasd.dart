@@ -35,6 +35,14 @@ List<GrantScope> grantCatalog(List<FormDef> forms) => [
           note: 'البنود والمراحل والمدد والتوليد من المقايسة المعتمدة، دون الاعتماد'),
       const GrantScope('pm:track', 'متابعة تنفيذ البرامج الزمنية', 'الإشراف',
           note: 'الإنجاز والتواريخ الفعلية و«لا ينطبق» على البرامج المعتمدة لكل العقود'),
+      // صلاحيات البرنامج الزمني الدقيقة (الترحيل 36)
+      const GrantScope('docs:pm_view', 'عرض البرامج الزمنية', 'البرنامج الزمني', note: 'يُظهر قسم الشؤون الفنية بالبرامج دون تعديلها'),
+      const GrantScope('docs:pm_add', 'إضافة أنشطة البرنامج الزمني', 'البرنامج الزمني', note: 'إضافة الأنشطة وحذفها وتعديل أسمائها وبياناتها'),
+      const GrantScope('docs:pm_duration', 'تعديل مدد الأنشطة', 'البرنامج الزمني'),
+      const GrantScope('docs:pm_dates', 'تعديل تواريخ البداية والنهاية', 'البرنامج الزمني',
+          note: 'الإزاحة و«لا يبدأ قبل» والعلاقات بين الأنشطة'),
+      const GrantScope('docs:pm_approve', 'اعتماد البرنامج الزمني', 'البرنامج الزمني',
+          note: 'الاعتماد وإعادة الفتح ومعدلات الإنتاجية'),
       for (final k in unitKinds.values) GrantScope('unit:${k.key}', k.label, unitNames[k.unit] ?? k.unit),
       const GrantScope('swot', 'تحليل SWOT', 'التخطيط الاستراتيجي'),
     ];
