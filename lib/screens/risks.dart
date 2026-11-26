@@ -852,7 +852,7 @@ void showRiskDetails(BuildContext context, Risk r) {
             kv('مؤشر الإنذار المبكر', r.earlyWarning),
             kv('القسم المختص · مالك الخطر · منفذ الإجراء', [r.department, r.owner, r.executor].where((x) => x.isNotEmpty).join(' · ')),
             kv('المشروع', r.projectGroup),
-            kv('العقد المرتبط', project == null ? '' : '${project.assignNo} · ${project.name}'),
+            kv('العقد المرتبط', project == null ? '' : project.label),
             kv('المرحلة والتصنيف', [r.phase, r.category].where((x) => x.isNotEmpty).join(' · ')),
             kv('التواريخ',
                 'التسجيل ${_day(r.registeredOn)} · الموعد المستهدف للإجراء ${_day(r.targetDate)}${r.closedOn == null ? '' : ' · الإغلاق ${_day(r.closedOn)}'}'),
@@ -1317,7 +1317,7 @@ class _RiskEditorState extends State<_RiskEditor> {
           SelectField(
             label: 'العقد المرتبط (اختياري)',
             value: _project ?? '',
-            items: [('', 'بلا عقد'), for (final p in projects) (p.id, '${p.assignNo} · ${p.name}')],
+            items: [('', 'بلا عقد'), for (final p in projects) (p.id, p.label)],
             onChanged: (v) => setState(() => _project = v.isEmpty ? null : v),
           ),
         ),

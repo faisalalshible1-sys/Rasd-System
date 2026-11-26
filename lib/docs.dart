@@ -20,9 +20,26 @@ String _iso(DateTime? d) =>
 // ---------------------------------------------------------------------
 // التسميات
 // ---------------------------------------------------------------------
+/// مستندات الشؤون الفنية (لكل نوع صفحته). مرفقات العقد «attachment» في ملف العقد نفسه (الترحيل 35).
 const List<String> docKinds = ['boq', 'letter', 'design'];
-const Map<String, String> docKindLabels = {'boq': 'المقايسات', 'letter': 'المراسلات', 'design': 'التصاميم'};
-const Map<String, String> docKindSingle = {'boq': 'مقايسة', 'letter': 'مراسلة', 'design': 'تصميم'};
+const Map<String, String> docKindLabels = {'boq': 'المقايسات', 'letter': 'المراسلات', 'design': 'التصاميم', 'attachment': 'ملفات العقود'};
+const Map<String, String> docKindSingle = {'boq': 'مقايسة', 'letter': 'مراسلة', 'design': 'تصميم', 'attachment': 'مرفق عقد'};
+
+/// تصنيفات ملف العقد بترتيب عرضها (الترحيل 35).
+const List<String> attachmentCategories = [
+  'contract', 'boq', 'drawings', 'handover', 'assignment', 'extract', 'variation', 'correspondence', 'other', //
+];
+const Map<String, String> attachmentCategoryLabels = {
+  'contract': 'العقد وملاحقه',
+  'boq': 'المقايسة',
+  'drawings': 'المخططات',
+  'handover': 'محاضر التسليم والاستلام',
+  'assignment': 'قرارات التكليف',
+  'extract': 'المستخلصات',
+  'variation': 'أوامر التغيير',
+  'correspondence': 'المراسلات',
+  'other': 'أخرى',
+};
 
 const List<String> boqCategories = ['estimate', 'contract', 'variation', 'final'];
 const Map<String, String> boqCategoryLabels = {
@@ -81,10 +98,18 @@ const Set<String> weatherAdverse = {'rain', 'wind', 'dust'};
 String docCategoryLabel(String kind, String c) => switch (kind) {
       'boq' => boqCategoryLabels[c] ?? c,
       'letter' => letterCategoryLabels[c] ?? c,
+      'attachment' => attachmentCategoryLabels[c] ?? c,
       _ => designCategoryLabels[c] ?? c,
     };
 
-String docStatusLabel(String kind, String s) => kind == 'letter' ? (letterStatusLabels[s] ?? s) : (docStatusLabels[s] ?? s);
+String docStatusLabel(String kind, String s) => switch (kind) {
+      'letter' => letterStatusLabels[s] ?? s,
+      'attachment' => 'نافذ',
+      _ => docStatusLabels[s] ?? s,
+    };
+
+/// يعزل نصاً لاتينياً أو رقماً (DWG-12، PDF) داخل سطر عربي حتى لا يعيد اتجاه النص ترتيب ما حوله.
+String isolate(String s) => s.isEmpty ? s : '\u2068$s\u2069';
 
 /// حجم ملف مقروء: 850 ك.ب، 2.4 م.ب.
 String fmtBytes(num? b) {
@@ -115,6 +140,7 @@ class DocItem {
     this.replyTo,
     this.dueDate,
     this.notes = '',
+    this.engineerId,
     this.createdAt,
     this.createdBy,
     this.updatedAt,
@@ -135,6 +161,9 @@ class DocItem {
   final String? replyTo;
   final DateTime? dueDate;
   final String notes;
+
+  /// قرار التكليف في ملف العقد: المهندس المكلَّف به (الترحيل 35).
+  final String? engineerId;
   final DateTime? createdAt;
   final String? createdBy;
   final DateTime? updatedAt;
@@ -155,6 +184,7 @@ class DocItem {
         replyTo: m['reply_to'] as String?,
         dueDate: _day(m['due_date']),
         notes: _s(m['notes']),
+        engineerId: m['engineer_id'] as String?,
         createdAt: _ts(m['created_at']),
         createdBy: m['created_by'] as String?,
         updatedAt: _ts(m['updated_at']),
@@ -174,9 +204,11 @@ class DocItem {
         'reply_to': replyTo ?? '',
         'due_date': _iso(dueDate),
         'notes': notes,
+        if (isAttachment) 'engineer_id': engineerId ?? '',
       };
 
   bool get isLetter => kind == 'letter';
+  bool get isAttachment => kind == 'attachment';
 
   /// مراسلة واردة بانتظار رد تجاوزت موعد الرد.
   bool overdue(DateTime today) => isLetter && status == 'open' && dueDate != null && dueDate!.isBefore(today);
@@ -258,10 +290,34 @@ class DocFile {
         createdBy: m['created_by'] as String?,
       );
 
-  bool get isImage => mime.startsWith('image/');
+  bool get isImage => mime.startsWith('image/') && !isCad && mime != 'image/heic';
   bool get isVideo => mime.startsWith('video/');
   bool get isPdf => mime == 'application/pdf';
+
+  /// ملفات الرسم الهندسي (DWG/DXF) نوعها «image/vnd.*» لكنها لا تُعرض صورة.
+  bool get isCad => mime == 'image/vnd.dwg' || mime == 'image/vnd.dxf' || mime == 'application/vnd.autodesk.revit';
+
+  /// نوع الملف بكلمة: PDF، Word، Excel، …
+  String get typeLabel => fileTypeLabel(mime);
 }
+
+/// تسمية نوع الملف للعرض.
+String fileTypeLabel(String mime) => switch (mime) {
+      'application/pdf' => 'PDF',
+      'application/msword' || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'Word',
+      'application/vnd.ms-excel' || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 'text/csv' => 'Excel',
+      'application/vnd.ms-powerpoint' || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'PowerPoint',
+      'image/vnd.dwg' => 'DWG',
+      'image/vnd.dxf' => 'DXF',
+      'application/vnd.autodesk.revit' => 'Revit',
+      'application/zip' || 'application/vnd.rar' || 'application/x-7z-compressed' => 'ملف مضغوط',
+      'application/vnd.google-earth.kml+xml' || 'application/vnd.google-earth.kmz' => 'خريطة KML',
+      'text/plain' => 'نص',
+      'image/heic' => 'صورة HEIC',
+      _ when mime.startsWith('image/') => 'صورة',
+      _ when mime.startsWith('video/') => 'فيديو',
+      _ => 'ملف',
+    };
 
 class SiteReport {
   const SiteReport({
@@ -421,6 +477,33 @@ class DocIndex {
       ];
 
   List<DocItem> itemsOfProject(String projectId) => items.where((i) => i.projectId == projectId).toList();
+
+  /// ملف العقد: مرفقاته بترتيب التصنيفات ثم الأحدث تاريخاً (الترحيل 35).
+  List<DocItem> attachmentsOf(String projectId) {
+    final l = items.where((i) => i.isAttachment && i.projectId == projectId).toList();
+    int rank(String c) {
+      final i = attachmentCategories.indexOf(c);
+      return i < 0 ? attachmentCategories.length : i;
+    }
+
+    l.sort((a, b) {
+      final c = rank(a.category).compareTo(rank(b.category));
+      if (c != 0) return c;
+      return (b.docDate ?? DateTime(2000)).compareTo(a.docDate ?? DateTime(2000));
+    });
+    return l;
+  }
+
+  /// قرار التكليف المرفق لمهندس (الأحدث إن تعدد).
+  DocItem? assignmentOf(String engineerId) {
+    DocItem? best;
+    for (final i in items) {
+      if (i.isAttachment && i.engineerId == engineerId && (best == null || (i.docDate ?? DateTime(2000)).isAfter(best.docDate ?? DateTime(2000)))) {
+        best = i;
+      }
+    }
+    return best;
+  }
   List<SiteReport> reportsOfProject(String projectId) =>
       reports.where((r) => r.projectId == projectId).toList()..sort((a, b) => b.reportDate.compareTo(a.reportDate));
 

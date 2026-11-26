@@ -132,7 +132,8 @@ void main() {
     expect(p.executionRatio, closeTo(0.25, 1e-9));
     expect(p.paymentsTotal, 50000);
     final noContract = Project.fromMap({'id': 'p2', 'assign_no': '006'});
-    expect(noContract.contractTitle, 'تكليف 006');
+    expect(noContract.contractTitle, 'عقد بلا رقم');
+    expect(noContract.label, '006', reason: 'عقد قديم بلا اسم ولا رقم عقد: يبقى رقمه القديم حتى لا يظهر فارغاً');
     expect(noContract.executionRatio, isNull);
     expect(roundMoney(100000 * guaranteeInitialRate), 5000);
     expect(roundMoney(100000 * guaranteeFinalRate), 2000);

@@ -9,7 +9,8 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_finance.dart';
-import 'docs.dart' show ContractDocsCard;
+import 'contract_files.dart' show ContractFilesCard, showAttachmentEditor;
+import 'docs.dart' show ContractDocsCard, DocDetailPage;
 import 'pm_projects.dart' show ProjectTrackCard;
 import 'projects.dart';
 
@@ -351,8 +352,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     String s(String k) => (m[k] ?? '').toString().trim();
     final parts = [
       if (s('contract_no').isNotEmpty) 'عقد ${s('contract_no')}',
-      if (s('assign_no').isNotEmpty) 'تكليف ${s('assign_no')}',
       if (s('name').isNotEmpty) s('name'),
+      if (s('contract_no').isEmpty && s('name').isEmpty && s('assign_no').isNotEmpty) s('assign_no'),
     ];
     return parts.isEmpty ? 'سجل مدمج' : parts.join(' · ');
   }
@@ -501,6 +502,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       _hero(context, app, p, pr),
       if (app.v3Ready) _worksCard(context, app, p),
       if (app.v3Ready) _engineersCard(context, app, p),
+      // ملف العقد: لمكتب المدير ومكتب العقود وللقسم المشرف عليه (الترحيل 35)
+      if (app.seesContractFiles(p.id)) ContractFilesCard(project: p),
       _financeCard(context, app, p),
       if (app.v4Ready)
         ExtractsCard(app: app, project: p, originLabel: _originLabel, onChanged: _loadSide),
@@ -577,8 +580,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           const SizedBox(height: 10),
           Text(p.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
-          fact(Icons.tag_rounded, 'رقم التكليف', p.assignNo),
-          fact(Icons.qr_code_2_rounded, 'رمز المشروع', p.code),
+              fact(Icons.qr_code_2_rounded, 'رمز المشروع', p.code),
           fact(Icons.account_balance_outlined, 'مالك المشروع', p.owner),
           fact(Icons.business_outlined, term('company'), p.company),
           fact(Icons.apartment_rounded, 'القسم المشرف', app.departmentName(p.department)),
@@ -642,7 +644,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         );
 
     final facts = <Widget>[
-      fact(Icons.tag_rounded, 'رقم التكليف', p.assignNo),
       fact(Icons.qr_code_2_rounded, 'رمز المشروع', p.code),
       fact(Icons.account_balance_outlined, 'مالك المشروع', p.owner),
       fact(Icons.business_outlined, companies.length > 1 ? 'الشركات' : term('company'), companies.join('، ')),
@@ -1059,6 +1060,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   Widget _engineerTile(BuildContext context, AppState app, Project p, ContractEngineer e, bool can) {
     final sem = Sem.of(context);
     final w = app.work(e.workId);
+    final decision = app.seesContractFiles(p.id) ? app.docs.assignmentOf(e.id) : null;
     final parts = [
       if (e.assignedOn != null) 'بتاريخ ${dayText(e.assignedOn)}',
       if (w != null) 'العمل: ${w.title.isEmpty ? w.company : w.title}',
@@ -1092,6 +1094,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   Tooltip(message: 'رقم التكليف', child: NoTag(e.assignNo))
                 else
                   Text('بلا رقم تكليف', style: TextStyle(color: sem.muted, fontSize: 11.5)),
+                if (decision != null)
+                  IconButton(
+                    tooltip: 'قرار التكليف: ${decision.title}',
+                    icon: Icon(Icons.badge_outlined, size: 19, color: Theme.of(context).colorScheme.primary),
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DocDetailPage(itemId: decision.id))),
+                  )
+                else if (app.canEditDoc('attachment', p.id))
+                  IconButton(
+                    tooltip: 'إرفاق قرار التكليف',
+                    icon: Icon(Icons.upload_file_rounded, size: 19, color: sem.muted),
+                    onPressed: () => showAttachmentEditor(context, p.id, engineerId: e.id),
+                  ),
                 if (can)
                   IconButton(
                     tooltip: 'إلغاء التكليف',
@@ -2168,7 +2182,6 @@ class _MergeSheetState extends State<_MergeSheet> {
                           title: Text(x.title, maxLines: 2, overflow: TextOverflow.ellipsis),
                           subtitle: Text(
                             [
-                              if (x.assignNo.isNotEmpty) 'تكليف ${x.assignNo}',
                               ...app.companiesOf(x),
                               if (x.contractValue != null) '${fmtMoney(x.contractValue)} $currencyLabel',
                             ].join(' · '),

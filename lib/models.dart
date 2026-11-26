@@ -376,10 +376,17 @@ class Project {
   final bool limited;
 
   String get title => name.trim().isNotEmpty ? name.trim() : 'مشروع بدون اسم';
-  String get label => [if (contractNo.isNotEmpty) 'عقد $contractNo' else assignNo, name].where((s) => s.trim().isNotEmpty).join(' — ');
+  /// «عقد 5/2026 — اسم المشروع». رقم التكليف القديم لا يُعرض (الإصدار 1.4.0) إلا لعقد قديم بلا اسم ولا رقم.
+  String get label {
+    final parts = [if (contractNo.isNotEmpty) 'عقد $contractNo', name].where((s) => s.trim().isNotEmpty).toList();
+    return parts.isNotEmpty ? parts.join(' — ') : (assignNo.isEmpty ? 'عقد بلا اسم' : assignNo);
+  }
 
   /// عنوان مختصر للعقد: «عقد 12/2026» أو رقم التكليف عند غياب رقم العقد.
-  String get contractTitle => contractNo.isNotEmpty ? 'عقد $contractNo' : (assignNo.isNotEmpty ? 'تكليف $assignNo' : 'عقد بلا رقم');
+  String get contractTitle => contractNo.isNotEmpty ? 'عقد $contractNo' : 'عقد بلا رقم';
+
+  /// اسم المشروع، وإلا رقم العقد (للعناوين القصيرة).
+  String get shortName => name.trim().isNotEmpty ? name : (contractNo.isNotEmpty ? 'عقد $contractNo' : assignNo);
   String engineer(String field) => engineers[field] ?? '';
 
   double get paymentsTotal => (paymentFirst ?? 0) + (paymentSecond ?? 0) + (paymentFinal ?? 0);
@@ -1135,9 +1142,9 @@ const Map<String, String> auditActionLabels = {
   'security.device_block': 'حظر جهازاً',
   'security.device_unblock': 'رفع حظر جهاز',
   'security.device_blocked_attempt': 'حاول الدخول من جهاز محظور',
-  'doc.create': 'أضاف مستنداً فنياً',
-  'doc.update': 'عدّل مستنداً فنياً',
-  'doc.delete': 'حذف مستنداً فنياً',
+  'doc.create': 'أضاف مستنداً أو مرفق عقد',
+  'doc.update': 'عدّل مستنداً أو مرفق عقد',
+  'doc.delete': 'حذف مستنداً أو مرفق عقد',
   'doc.revision_add': 'أضاف إصداراً لمستند',
   'doc.revision_update': 'عدّل إصدار مستند',
   'doc.revision_delete': 'حذف إصدار مستند',

@@ -194,7 +194,7 @@ List<ExportSource> _all(AppState app) => [
         project: (p) => p.id,
         columns: const [
           _C('contract_no', 'رقم العقد'),
-          _C('assign_no', 'رقم التكليف', flex: 0.8),
+          _C('assign_no', 'رقم التكليف القديم', flex: 0.8, on: false),
           _C('name', 'اسم المشروع', flex: 2.2),
           _C('owner', 'مالك المشروع', flex: 1.2),
           _C('companies', 'الشركات', flex: 1.4),
@@ -1197,7 +1197,7 @@ ExportSource _unitSource(UnitKind k) {
 // ---------------------------------------------------------------------
 // الوسائط: مصدر الملف (مستند، تقرير يومي، سجل قسم) وعقده
 // ---------------------------------------------------------------------
-String mediaTypeLabel(DocFile f) => f.isVideo ? 'فيديو' : (f.isImage ? 'صورة' : (f.isPdf ? 'PDF' : 'ملف'));
+String mediaTypeLabel(DocFile f) => f.typeLabel;
 
 String? mediaProjectOf(AppState app, DocFile f) {
   if (f.reportId != null) return app.docs.reports.where((r) => r.id == f.reportId).firstOrNull?.projectId;

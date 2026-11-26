@@ -35,6 +35,7 @@ import 'package:dc_app/screens/cycle_guide.dart';
 import 'package:dc_app/screens/control/appearance.dart';
 import 'package:dc_app/screens/control/settings.dart';
 import 'package:dc_app/screens/dashboard.dart';
+import 'package:dc_app/screens/contract_files.dart';
 import 'package:dc_app/screens/docs.dart';
 import 'package:dc_app/screens/units.dart';
 import 'package:dc_app/units.dart';
@@ -347,6 +348,7 @@ AppState _sampleState() {
   _registers(app);
   _tracking(app);
   _documents(app);
+  _contractFiles(app);
   _units(app);
   // قوالب الطباعة (الترحيل 22)
   app.v10Ready = true;
@@ -968,6 +970,56 @@ MemoryImage _demoImage(String key, int seed) => _demoImages.putIfAbsent(key, () 
     });
 
 /// بيانات تجريبية للمستندات الفنية والتقارير اليومية.
+/// ملف العقد (الترحيل 35): مرفقات مصنّفة لعقد p-003 بإصداراتها وملفاتها، وقرار تكليف مربوط بالمهندس e4.
+void _contractFiles(AppState app) {
+  final items = [...app.docs.items];
+  final revs = [...app.docs.revisions];
+  final files = [...app.docs.files];
+  var fid = 9000;
+  void file(String rev, String name, String mime, int size) {
+    fid++;
+    files.add(DocFile.fromMap({
+      'id': 'file$fid', 'revision_id': rev, 'path': 'doc/$rev/f$fid', 'name': name, 'mime': mime, 'size_bytes': size,
+      'sort': fid, 'created_by': 'u-1', 'created_at': _iso(3),
+    }));
+  }
+
+  const pdfMime = 'application/pdf';
+  const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const atts = [
+    ('at1', 'contract', 'نسخة العقد الموقّعة', 'ع-2026/41', 'مكتب العقود', 40, null),
+    ('at2', 'contract', 'ملحق تمديد المدة 30 يوماً', 'م/3', 'مكتب العقود', 3, null),
+    ('at3', 'boq', 'جدول الكميات الموقّع مع العقد', 'BOQ-41', 'قسم الشؤون الفنية', 38, null),
+    ('at4', 'drawings', 'المخطط العام للموقع', 'DWG-12', 'الاستشاري', 35, null),
+    ('at5', 'handover', 'محضر تسليم الموقع', 'ت م/7', 'لجنة التسليم', 33, null),
+    ('at6', 'assignment', 'قرار تكليف م. أحمد الفيتوري', 'ت-81', 'مدير المكتب', 32, 'e4'),
+    ('at7', 'extract', 'المستخلص الثاني الموقّع', 'مس/2', 'أثمار', 8, null),
+    ('at8', 'other', 'موقع المشروع على الخريطة', '', '', 30, null),
+  ];
+  for (final a in atts) {
+    items.add(DocItem.fromMap({
+      'id': a.$1, 'kind': 'attachment', 'project_id': 'p-003', 'category': a.$2, 'title': a.$3, 'ref_no': a.$4, 'party': a.$5,
+      'doc_date': _day(a.$6), 'engineer_id': a.$7, 'status': 'active', 'created_by': 'u-1', 'updated_at': _iso(a.$6),
+    }));
+    revs.add(DocRevision.fromMap({'id': '${a.$1}r1', 'item_id': a.$1, 'rev_no': 1, 'rev_date': _day(a.$6), 'created_by': 'u-1', 'created_at': _iso(a.$6)}));
+  }
+  file('at1r1', 'العقد الموقّع.pdf', pdfMime, 2480000);
+  revs.add(DocRevision.fromMap({'id': 'at1r2', 'item_id': 'at1', 'rev_no': 2, 'rev_date': _day(12),
+    'note': 'نسخة مصححة بعد تعديل جدول الدفعات', 'created_by': 'u-1', 'created_at': _iso(12)}));
+  file('at1r2', 'العقد الموقّع - نسخة مصححة.pdf', pdfMime, 2610000);
+  file('at2r1', 'ملحق التمديد.pdf', pdfMime, 410000);
+  file('at3r1', 'جدول الكميات.xlsx', xlsx, 185000);
+  file('at4r1', 'المخطط العام.dwg', 'image/vnd.dwg', 18400000);
+  file('at4r1', 'المخطط العام.pdf', pdfMime, 3900000);
+  file('at5r1', 'محضر تسليم الموقع.pdf', pdfMime, 1350000);
+  file('at6r1', 'قرار التكليف.pdf', pdfMime, 260000);
+  file('at7r1', 'المستخلص الثاني.pdf', pdfMime, 980000);
+  file('at7r1', 'جدول الحصر.xlsx', xlsx, 96000);
+  file('at8r1', 'موقع المشروع.kmz', 'application/vnd.google-earth.kmz', 42000);
+  app.docs = DocIndex(items: items, revisions: revs, files: files, reports: app.docs.reports);
+  app.v19Ready = true;
+}
+
 void _documents(AppState app) {
   final items = <DocItem>[];
   final revs = <DocRevision>[];
@@ -1634,6 +1686,7 @@ void main() {
     _planning(app);
     _supervisionPlans(app);
     _documents(app);
+    _contractFiles(app);
     _units(app);
     // جهات النماذج كما في قاعدة البيانات (الترحيل 19)
     const heads = {
@@ -1682,6 +1735,20 @@ void main() {
         allStatuses);
     app.showHub = true;
     await _shot(tester, 'q6_ciso_hub_dark_mobile', app, const HomeShell(), size: const Size(400, 1300), dark: true);
+  });
+
+  testWidgets('contract files', (tester) async {
+    final app = _sampleState();
+    await _preload(tester);
+    final p = app.project('p-003')!;
+    Widget card() => _scaffold(ListView(padding: const EdgeInsets.all(20), children: [ContractFilesCard(project: p)]));
+    await _shot(tester, 'r0_contract_files_light', app, card(), size: const Size(1200, 900));
+    await _shot(tester, 'r1_contract_files_dark_mobile', app, card(), size: const Size(400, 1500), dark: true);
+    await _shot(tester, 'r2_attachment_detail_light', app, const DocDetailPage(itemId: 'at1'), size: const Size(1200, 1500));
+    await _shot(tester, 'r3_attachment_cad_mobile', app, const DocDetailPage(itemId: 'at4'), size: const Size(400, 1400));
+    await _shot(tester, 'r4_contract_page_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 6400));
+    app.manualAnchor = '33_contract_files';
+    await _shot(tester, 'r5_manual_contract_files_light', app, _scaffold(const ManualPage()), size: const Size(1440, 4600));
   });
 
   testWidgets('print center', (tester) async {

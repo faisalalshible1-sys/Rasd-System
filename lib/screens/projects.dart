@@ -205,10 +205,6 @@ class ProjectCard extends StatelessWidget {
                     tag: 'contract-${project.id}',
                     child: Material(type: MaterialType.transparency, child: ContractTag(project)),
                   ),
-                  if (project.contractNo.isNotEmpty && project.assignNo.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Text('تكليف ${project.assignNo}', style: TextStyle(color: sem.muted, fontSize: 11.5)),
-                  ],
                   const SizedBox(width: 8),
                   if (pendingCount > 0)
                     Tooltip(
@@ -309,7 +305,6 @@ class _ProjectEditor extends StatefulWidget {
 }
 
 class _ProjectEditorState extends State<_ProjectEditor> {
-  late final TextEditingController _assign;
   late final TextEditingController _code;
   late final TextEditingController _name;
   late final TextEditingController _owner;
@@ -323,13 +318,6 @@ class _ProjectEditorState extends State<_ProjectEditor> {
   void initState() {
     super.initState();
     final p = widget.project;
-    var next = '';
-    if (p == null) {
-      final nums = widget.app.projects.map((x) => int.tryParse(x.assignNo)).whereType<int>().toList();
-      final mx = nums.isEmpty ? 0 : nums.reduce((a, b) => a > b ? a : b);
-      next = (mx + 1).toString().padLeft(3, '0');
-    }
-    _assign = TextEditingController(text: p?.assignNo ?? next);
     _code = TextEditingController(text: p?.code ?? '');
     _name = TextEditingController(text: p?.name ?? '');
     _owner = TextEditingController(text: p?.owner ?? '');
@@ -340,7 +328,6 @@ class _ProjectEditorState extends State<_ProjectEditor> {
 
   @override
   void dispose() {
-    _assign.dispose();
     _code.dispose();
     _name.dispose();
     _owner.dispose();
@@ -350,21 +337,16 @@ class _ProjectEditorState extends State<_ProjectEditor> {
   }
 
   Future<void> _save() async {
+    // رقم التكليف القديم للعقد لم يعد يُدخل ولا يُرسل؛ يبقى في قاعدة البيانات كما هو (الإصدار 1.4.0)
     final data = <String, dynamic>{
-      'assign_no': _assign.text.trim(),
       'code': _code.text.trim(),
       'name': _name.text.trim(),
       'owner': _owner.text.trim(),
       'company': _company.text.trim(),
       'department': _department,
     };
-    if ((data['assign_no'] as String).isEmpty && (data['name'] as String).isEmpty) {
-      setState(() => _error = 'اكتب رقم التكليف أو اسم المشروع على الأقل.');
-      return;
-    }
-    final dup = widget.app.projects.any((x) => x.assignNo == data['assign_no'] && x.id != widget.project?.id && x.assignNo.isNotEmpty);
-    if (dup) {
-      setState(() => _error = 'رقم التكليف ${data['assign_no']} مستخدم في مشروع آخر.');
+    if ((data['name'] as String).isEmpty) {
+      setState(() => _error = 'اكتب اسم المشروع.');
       return;
     }
     final no = _contractNo.text.trim();
@@ -443,13 +425,7 @@ class _ProjectEditorState extends State<_ProjectEditor> {
               ),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _assign, decoration: fieldDeco('رقم التكليف'), keyboardType: TextInputType.number)),
-                const SizedBox(width: 10),
-                Expanded(child: TextField(controller: _code, decoration: fieldDeco('رمز المشروع'))),
-              ],
-            ),
+            TextField(controller: _code, decoration: fieldDeco('رمز المشروع')),
             const SizedBox(height: 12),
             TextField(controller: _name, decoration: fieldDeco('اسم المشروع'), minLines: 1, maxLines: 3),
             const SizedBox(height: 12),

@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:pdf/pdf.dart' as pdfp;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,6 +24,18 @@ const int maxVideoBytes = 50 * 1024 * 1024;
 
 const List<String> videoExts = ['mp4', 'mov', 'webm'];
 
+/// الحد الأعلى لملفات «ملف العقد» (الترحيل 35)، دون ضغط إلا للصور.
+const int maxAttachmentBytes = 50 * 1024 * 1024;
+
+/// امتدادات مرفقات العقد كما تقبلها attachment_mime() في قاعدة البيانات.
+const List<String> attachmentExts = [
+  'pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', //
+  'dwg', 'dxf', 'rvt', 'zip', 'rar', '7z', 'kml', 'kmz',
+];
+
+/// الصور التي تُضغط وتُدمج في PDF (HEIC يُرفع كما هو).
+const List<String> _rasterExts = ['jpg', 'png', 'webp', 'gif'];
+
 /// الصور الأكبر من هذا البعد تُصغَّر، والأكبر من هذا الحجم تُضغط.
 const int _maxSide = 2400;
 const int _keepBytes = 1536 * 1024;
@@ -36,18 +50,36 @@ class PickedDoc {
   final int? width;
   final int? height;
 
-  bool get isImage => mime.startsWith('image/');
+  bool get isImage => _rasterExts.contains(ext);
   bool get isVideo => mime.startsWith('video/');
 }
 
+/// نوع الملف من امتداده (يطابق attachment_mime() في قاعدة البيانات، والفيديو للتقارير والتصاميم).
 String mimeOfExt(String ext) => switch (ext) {
       'pdf' => 'application/pdf',
       'png' => 'image/png',
       'webp' => 'image/webp',
       'gif' => 'image/gif',
+      'heic' => 'image/heic',
       'mp4' => 'video/mp4',
       'mov' => 'video/quicktime',
       'webm' => 'video/webm',
+      'doc' => 'application/msword',
+      'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls' => 'application/vnd.ms-excel',
+      'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt' => 'application/vnd.ms-powerpoint',
+      'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'csv' => 'text/csv',
+      'txt' => 'text/plain',
+      'dwg' => 'image/vnd.dwg',
+      'dxf' => 'image/vnd.dxf',
+      'rvt' => 'application/vnd.autodesk.revit',
+      'zip' => 'application/zip',
+      'rar' => 'application/vnd.rar',
+      '7z' => 'application/x-7z-compressed',
+      'kml' => 'application/vnd.google-earth.kml+xml',
+      'kmz' => 'application/vnd.google-earth.kmz',
       _ => 'image/jpeg',
     };
 
@@ -76,17 +108,21 @@ String extOf(String name) {
   return (out, 'jpg', resized.width, resized.height);
 }
 
-/// يختار المستخدم ملفاً أو أكثر. [pdf] و[images] و[videos] تحدد الأنواع المسموحة.
-/// الصور تُضغط وتُصغَّر تلقائياً؛ وما تجاوز 20 ميجابايت يُرفض برسالة، والفيديو حتى 50 ميجابايت دون ضغط.
-Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true, bool videos = false}) async {
-  final exts = <String>[if (pdf) 'pdf', if (images) ...['jpg', 'jpeg', 'png', 'webp', 'gif'], if (videos) ...videoExts];
+/// يختار المستخدم ملفاً أو أكثر. [pdf] و[images] و[videos] تحدد الأنواع المسموحة، و[attachments] أنواع ملف العقد كلها.
+/// الصور تُضغط وتُصغَّر تلقائياً؛ وما تجاوز 20 ميجابايت يُرفض برسالة، والفيديو ومرفقات العقد حتى 50 ميجابايت دون ضغط.
+Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true, bool videos = false, bool attachments = false}) async {
+  final exts = attachments
+      ? attachmentExts
+      : <String>[if (pdf) 'pdf', if (images) ...['jpg', 'jpeg', 'png', 'webp', 'gif'], if (videos) ...videoExts];
+  final limit = attachments ? maxAttachmentBytes : maxDocBytes;
+  final limitMb = limit ~/ (1024 * 1024);
   final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: exts);
   final out = <PickedDoc>[];
   for (final f in picked) {
     var ext = extOf(f.name);
     if (ext == 'jpeg') ext = 'jpg';
     if (!exts.contains(ext)) {
-      throw StateError('نوع الملف «${f.name}» غير مسموح. المسموح: ${exts.join('، ')}');
+      throw StateError('نوع الملف «${f.name}» غير مسموح. المسموح: ${exts.where((e) => e != 'jpeg').join('، ')}');
     }
     var bytes = await f.readAsBytes();
     int? w, h;
@@ -97,18 +133,55 @@ Future<List<PickedDoc>> pickDocFiles({bool pdf = true, bool images = true, bool 
       out.add(PickedDoc(name: f.name, bytes: bytes, ext: ext, mime: mimeOfExt(ext)));
       continue;
     }
-    if (ext != 'pdf') {
+    if (_rasterExts.contains(ext)) {
       final r = await compute(_shrink, (bytes, ext));
       bytes = r.$1;
       ext = r.$2;
       w = r.$3;
       h = r.$4;
     }
-    if (bytes.length > maxDocBytes) {
-      throw StateError('الملف «${f.name}» أكبر من 20 ميجابايت. قسّمه أو اضغطه ثم أعد المحاولة.');
+    if (bytes.isEmpty) {
+      throw StateError('الملف «${f.name}» فارغ.');
+    }
+    if (bytes.length > limit) {
+      throw StateError('الملف «${f.name}» أكبر من $limitMb ميجابايت. قسّمه أو اضغطه ثم أعد المحاولة.');
     }
     final base = f.name.contains('.') ? f.name.substring(0, f.name.lastIndexOf('.')) : f.name;
     out.add(PickedDoc(name: '$base.$ext', bytes: bytes, ext: ext, mime: mimeOfExt(ext), width: w, height: h));
+  }
+  return out;
+}
+
+/// يدمج الصور المختارة في ملف PDF واحد، صفحة لكل صورة بترتيب اختيارها (لمحاضر الاستلام والمراسلات المصوّرة).
+/// تبقى الملفات الأخرى كما هي، ويوضع الـPDF مكان أول صورة.
+Future<List<PickedDoc>> mergeImagesToPdf(List<PickedDoc> files, String name) async {
+  final images = [for (final f in files) if (f.isImage) f];
+  if (images.length < 2) return files;
+  final doc = pw.Document(title: name, creator: 'منظومة رصد');
+  for (final f in images) {
+    final image = pw.MemoryImage(f.bytes);
+    final landscape = (f.width ?? 1) > (f.height ?? 1);
+    doc.addPage(pw.Page(
+      pageFormat: landscape ? pdfp.PdfPageFormat.a4.landscape : pdfp.PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(18),
+      build: (_) => pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
+    ));
+  }
+  final bytes = await doc.save();
+  if (bytes.length > maxAttachmentBytes) {
+    throw StateError('ملف PDF الناتج أكبر من 50 ميجابايت. قلّل عدد الصور أو ارفعها منفصلة.');
+  }
+  final safe = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ').trim();
+  final merged = PickedDoc(name: '${safe.isEmpty ? 'صور مدمجة' : safe}.pdf', bytes: bytes, ext: 'pdf', mime: 'application/pdf');
+  final out = <PickedDoc>[];
+  var placed = false;
+  for (final f in files) {
+    if (f.isImage) {
+      if (!placed) out.add(merged);
+      placed = true;
+    } else {
+      out.add(f);
+    }
   }
   return out;
 }

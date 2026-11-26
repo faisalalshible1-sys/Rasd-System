@@ -20,7 +20,7 @@ Future<void> showScheduleEditor(BuildContext context, Project p) async {
   final s = app.schedules[p.id];
   final ok = await showPmForm(
     context,
-    title: 'البرنامج الزمني · ${p.assignNo.isEmpty ? p.name : p.assignNo}',
+    title: 'البرنامج الزمني · ${p.shortName}',
     note: 'القيمة والشركة والقسم المشرف ورقم العقد تُقرأ من بيانات العقد نفسه. التمديد المعتمد يُحسب من التغييرات المعتمدة وأحداث التأخير.',
     sections: [
       PmSection('بيانات المشروع', [
@@ -101,7 +101,7 @@ List<(String, String)> trackRows(AppState app, ProjectTrack t) {
   final p = t.project;
   final s = t.schedule;
   return [
-    ('العقد', [if (p.contractNo.isNotEmpty) 'رقم العقد ${p.contractNo}', if (p.assignNo.isNotEmpty) 'التكليف ${p.assignNo}'].join(' · ')),
+    ('العقد', p.contractNo.isNotEmpty ? 'رقم العقد ${p.contractNo}' : ''),
     ('نوع المشروع · الموقع', [s?.projectType ?? '', s?.location ?? ''].where((x) => x.isNotEmpty).join(' · ')),
     ('الشركة المنفذة', app.companiesOf(p).join('، ')),
     ('الاستشاري / جهة الإشراف', s?.consultant ?? ''),
@@ -138,7 +138,7 @@ Future<void> showTrackDetails(BuildContext context, ProjectTrack t) {
   final p = t.project;
   return showPmSheet(
     context,
-    code: p.assignNo,
+    code: p.contractNo,
     title: p.name,
     badges: [
       PerfBadge(t.perf),
@@ -281,7 +281,7 @@ class _PmProjectsPageState extends State<PmProjectsPage> {
       items: [
         for (final t in list)
           PmTile(
-            code: t.project.assignNo,
+            code: t.project.contractNo,
             meta: [t.schedule?.projectType ?? '', app.companiesOf(t.project).join('، ')].where((x) => x.isNotEmpty).join(' · '),
             title: t.project.name,
             leading: _PctBox(actual: t.actual, planned: t.planned, color: perfColor(context, t.perf)),
@@ -366,7 +366,7 @@ class _PmProgressPageState extends State<PmProgressPage> {
             padding: const EdgeInsets.only(bottom: 12),
             child: InfoBanner(
               text: '${stale.length} عقداً جارياً دون قياس خلال آخر ${app.pmConfig.staleDays} أيام: '
-                  '${stale.take(6).map((t) => t.project.assignNo.isEmpty ? t.project.name : t.project.assignNo).join('، ')}${stale.length > 6 ? '…' : ''}',
+                  '${stale.take(6).map((t) => t.project.shortName).join('، ')}${stale.length > 6 ? '…' : ''}',
               level: 'warning',
             ),
           ),

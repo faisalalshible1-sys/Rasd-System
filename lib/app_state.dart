@@ -137,6 +137,9 @@ class AppState extends ChangeNotifier {
   // الترحيل 33: الأفكار بالقسم والصفحة، وحذف المقايسة يحذف بنودها من البرنامج الزمني
   bool v18Ready = false;
 
+  // الترحيل 35: ملف العقد ومرفقاته المصنّفة
+  bool v19Ready = false;
+
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
 
@@ -816,6 +819,7 @@ class AppState extends ChangeNotifier {
       await _loadV15();
       await _loadV17();
       await _loadV18();
+      await _loadV19();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1321,6 +1325,20 @@ class AppState extends ChangeNotifier {
       v18Ready = true;
     } catch (_) {
       v18Ready = false;
+    }
+  }
+
+  /// ملف العقد (الترحيل 35): وجود عمود المهندس المكلَّف في المستندات يكفي.
+  Future<void> _loadV19() async {
+    if (!v8Ready) {
+      v19Ready = false;
+      return;
+    }
+    try {
+      await client.from('doc_items').select('engineer_id').limit(1);
+      v19Ready = true;
+    } catch (_) {
+      v19Ready = false;
     }
   }
 
@@ -1892,6 +1910,7 @@ class AppState extends ChangeNotifier {
     _autoRefreshed = false;
     v17Ready = false;
     v18Ready = false;
+    v19Ready = false;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -2659,6 +2678,7 @@ class AppState extends ChangeNotifier {
   bool canEditDoc(String kind, String? projectId) {
     final r = role;
     if (!v8Ready || r == null || r == AppRole.securityAuditor) return false;
+    if (kind == 'attachment') return canEditContractFiles(projectId);
     if (r == AppRole.director) return true;
     if (frozenForMe) return false;
     final dep = me?.department;
@@ -2672,6 +2692,23 @@ class AppState extends ChangeNotifier {
       _ => false,
     };
   }
+
+  /// ملف العقد (الترحيل 35): يراه من يرى العقد بتفاصيله — مكتب المدير ومكتب العقود والقسم المشرف عليه.
+  /// يطابق doc_items_read في قاعدة البيانات؛ ولا تراه الشؤون الفنية ولا الأقسام الأخرى ولا مدقق الأمن.
+  bool seesContractFiles(String projectId) {
+    final r = role;
+    if (!v19Ready || r == null || r == AppRole.securityAuditor) return false;
+    final sc = scope;
+    if (sc != null) return sc.allProjects || sc.supervised.contains(projectId);
+    return r == AppRole.director ||
+        r == AppRole.officeStaff ||
+        r == AppRole.contracts ||
+        (r == AppRole.deptHead && project(projectId)?.department == me?.department);
+  }
+
+  /// الإضافة إلى ملف العقد واستبدال ملفاته: من يراه، ما لم تُجمَّد الكتابة (المدير مستثنى). الحذف للمدير وحده.
+  bool canEditContractFiles(String? projectId) =>
+      projectId != null && projectId.isNotEmpty && seesContractFiles(projectId) && (isDirector || !frozenForMe);
 
   /// هل يملك إضافة هذا النوع لأي عقد أو بشكل عام؟ (لإظهار زر الإضافة)
   bool canAddDoc(String kind) =>

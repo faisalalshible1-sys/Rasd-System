@@ -24,11 +24,8 @@ class _PmPresentationPageState extends State<PmPresentationPage> {
 
   static String _m(double v) => (v / 1000000).toStringAsFixed(2);
 
-  /// رمز العقد للعرض: رقم العقد، وإلا رقم الإسناد.
-  static String _code(ProjectTrack t) {
-    final p = t.project;
-    return p.contractNo.trim().isNotEmpty ? p.contractNo.trim() : p.assignNo.trim();
-  }
+  /// رمز العقد للعرض: رقم العقد.
+  static String _code(ProjectTrack t) => t.project.contractNo.trim();
 
   @override
   Widget build(BuildContext context) {
