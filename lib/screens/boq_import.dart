@@ -348,14 +348,18 @@ class _BoqImportPageState extends State<BoqImportPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             TextField(controller: _title, decoration: const InputDecoration(labelText: 'عنوان المقايسة', border: OutlineInputBorder())),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: SelectField(label: 'العقد', value: _project, items: projects, onChanged: (v) => setState(() => _project = v))),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 200,
-                child: TextField(controller: _ref, decoration: const InputDecoration(labelText: 'الرقم الإشاري', border: OutlineInputBorder())),
-              ),
-            ]),
+            LayoutBuilder(builder: (context, c) {
+              final project = SelectField(label: 'العقد', value: _project, items: projects, onChanged: (v) => setState(() => _project = v));
+              final ref = TextField(controller: _ref, decoration: const InputDecoration(labelText: 'الرقم الإشاري', border: OutlineInputBorder()));
+              if (c.maxWidth < 520) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [project, const SizedBox(height: 10), ref]);
+              }
+              return Row(children: [
+                Expanded(child: project),
+                const SizedBox(width: 10),
+                SizedBox(width: 200, child: ref),
+              ]);
+            }),
             const SizedBox(height: 12),
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -414,10 +418,19 @@ class _BoqImportPageState extends State<BoqImportPage> {
                     '${l.unit.isEmpty ? '—' : l.unit} · الكمية ${_num(l.qty)} · السعر ${_num(l.price)} · الإجمالي ${_num(l.computed)}',
                     style: TextStyle(color: sem.muted, fontSize: 12),
                   ),
-                  if (issues.isNotEmpty)
+                  for (final i in issues)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Wrap(spacing: 4, runSpacing: 4, children: [for (final i in issues) ToneBadge(i, color: sem.danger)]),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(Icons.error_outline_rounded, size: 14, color: sem.danger),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(i, style: TextStyle(color: sem.danger, fontWeight: FontWeight.w700, fontSize: 11.5)),
+                        ),
+                      ]),
                     ),
                 ]),
               ),
