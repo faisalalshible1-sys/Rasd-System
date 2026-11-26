@@ -11,13 +11,17 @@ import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'contract_finance.dart' show DayField, money;
+import 'schedule.dart' show itemsText;
 
 /// الإصدار 1.6.0 (الترحيل 37): لوحة معلومات العقد، وضمانات العقد وتأميناته، وأوامر التغيير ببنودها واعتمادها وسجلها،
 /// ولجان الاستلام برئيسها وأعضائها.
 
 const _tabular = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
 
-String _signed(double v) => v == 0 ? fmtMoney(0) : '${v > 0 ? '+' : '−'}${fmtMoney(v.abs())}';
+/// مبلغ بإشارة معزول الاتجاه («+4,200» و«-550») حتى لا تنتقل الإشارة إلى يمين الرقم في السطر العربي.
+String _signed(double v) => v == 0 ? fmtMoney(0) : isolate('${v > 0 ? '+' : '-'}${fmtMoney(v.abs())}');
+String _plus(double v) => isolate('+${fmtMoney(v)}');
+String _minus(double v) => isolate('-${fmtMoney(v)}');
 
 // ---------------------------------------------------------------------
 // لوحة معلومات العقد
@@ -74,12 +78,12 @@ class ContractDashboardCard extends StatelessWidget {
         children: [
           ResponsiveGrid(minItemWidth: 170, spacing: 8, children: [
             stat('القيمة الأصلية للعقد', money(p.contractValue), icon: Icons.description_outlined),
-            stat('أوامر التغيير بالزيادة', '+${fmtMoney(p.variationsAdd)}', icon: Icons.add_circle_outline_rounded, color: sem.ok,
+            stat('أوامر التغيير بالزيادة', _plus(p.variationsAdd), icon: Icons.add_circle_outline_rounded, color: sem.ok,
                 sub: pendingVo.isEmpty ? 'المعتمدة' : 'المعتمدة · ${pendingVo.length} بانتظار الاعتماد'),
-            stat('أوامر التغيير بالنقصان', '−${fmtMoney(p.variationsDeduct)}', icon: Icons.remove_circle_outline_rounded, color: sem.danger,
+            stat('أوامر التغيير بالنقصان', _minus(p.variationsDeduct), icon: Icons.remove_circle_outline_rounded, color: sem.danger,
                 sub: 'تنقص القيمة، لا من المستخلصات'),
             stat('القيمة الإجمالية المعدلة', money(adjusted), icon: Icons.functions_rounded, color: cs.primary,
-                sub: 'الأصلية + الزيادة − النقص'),
+                sub: 'الأصلية + الزيادة - النقص'),
             stat('المستخلصات المقدمة', money(p.extractsSubmitted), icon: Icons.outbox_outlined, sub: '$submittedCount مستخلص'),
             stat('المستخلصات المعتمدة', money(p.extractsGross), icon: Icons.fact_check_outlined, sub: '${p.extractsCount} مستخلص'),
             stat('المبالغ المدفوعة', money(p.paidTotal), icon: Icons.payments_outlined, color: sem.ok,
@@ -89,10 +93,10 @@ class ContractDashboardCard extends StatelessWidget {
             stat('التأمينات والاستقطاعات', money(p.extractDeductions), icon: Icons.lock_outline_rounded,
                 sub: p.retentionHeld > 0 ? 'منها تأمين محتجز ${compactMoney(p.retentionHeld)}' : 'من المستخلصات المعتمدة'),
             stat('صافي المستحقات', money(p.outstanding), icon: Icons.account_balance_wallet_outlined,
-                color: p.outstanding > 0 ? sem.wip : null, sub: 'الصافي المعتمد − المدفوع'),
+                color: p.outstanding > 0 ? sem.wip : null, sub: 'الصافي المعتمد بعد المدفوع'),
             stat('نسبة الإنجاز المالي', progress == null ? '—' : pctText(progress, digits: 1), icon: Icons.donut_large_rounded,
                 color: cs.primary,
-                sub: 'المعتمد ÷ القيمة المعدلة',
+                sub: 'المعتمد من القيمة المعدلة',
                 extra: AnimatedMeter(value: (progress ?? 0).clamp(0, 1).toDouble(), color: (progress ?? 0) > 1 ? sem.danger : sem.ok)),
           ]),
           if ((adjusted ?? 0) > 0 || (p.contractValue ?? 0) > 0) ...[
@@ -100,8 +104,8 @@ class ContractDashboardCard extends StatelessWidget {
             LayoutBuilder(builder: (context, c) {
               final value = _Bars(title: 'من القيمة الأصلية إلى المعدلة', rows: [
                 ('الأصلية', p.contractValue ?? 0, cs.primary.withValues(alpha: 0.55), fmtMoney(p.contractValue ?? 0)),
-                ('الزيادة', p.variationsAdd, sem.ok, '+${fmtMoney(p.variationsAdd)}'),
-                ('النقص', p.variationsDeduct, sem.danger, '−${fmtMoney(p.variationsDeduct)}'),
+                ('الزيادة', p.variationsAdd, sem.ok, _plus(p.variationsAdd)),
+                ('النقص', p.variationsDeduct, sem.danger, _minus(p.variationsDeduct)),
                 ('المعدلة', adjusted ?? 0, cs.primary, fmtMoney(adjusted ?? 0)),
               ]);
               final flow = _Bars(title: 'المستخلصات من التقديم إلى الصرف', rows: [
@@ -308,9 +312,12 @@ class _GuaranteesDialogState extends State<_GuaranteesDialog> {
   Widget _block({required String title, required TextEditingController c, required bool off, required ValueChanged<bool> onOff,
       required String offLabel, String? amount, bool invert = false}) {
     final sem = Sem.of(context);
-    return Container(
+    // Material لا Container: مفتاح القائمة يرسم أثره على أقرب Material
+    return Material(
+      color: sem.surface2,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -328,6 +335,7 @@ class _GuaranteesDialogState extends State<_GuaranteesDialog> {
           decoration: fieldDeco('النسبة', error: _rate(c) == null ? 'من 0 إلى 50' : null).copyWith(suffixText: '%'),
         ),
       ]),
+      ),
     );
   }
 
@@ -505,7 +513,7 @@ class VariationPage extends StatelessWidget {
 
     return Scaffold(
       appBar: brandAppBar(context, title: Text(v.refNo.isEmpty ? 'أمر تغيير' : 'أمر التغيير ${isolate(v.refNo)}')),
-      body: PageBody(maxWidth: 1000, children: [
+      body: PageBody(maxWidth: 1000, children: _gap([
         PageHeader(
           icon: Icons.swap_vert_rounded,
           title: v.title,
@@ -523,8 +531,8 @@ class VariationPage extends StatelessWidget {
               text: 'مسودة: لا تدخل في قيمة العقد حتى يعتمدها مدير المكتب أو من يعتمد المستخلصات.', level: 'warning'),
         if (v.isRejected && v.decisionNote.isNotEmpty) InfoBanner(text: 'سبب الرفض: ${v.decisionNote}', level: 'critical'),
         ResponsiveGrid(minItemWidth: 170, spacing: 10, children: [
-          StatCard(label: 'الأعمال المضافة', value: '+${fmtMoney(v.addedValue)}', icon: Icons.add_rounded, color: sem.ok),
-          StatCard(label: 'الأعمال الملغاة أو المخفضة', value: '−${fmtMoney(v.deductedValue)}', icon: Icons.remove_rounded, color: sem.danger),
+          StatCard(label: 'الأعمال المضافة', value: _plus(v.addedValue), icon: Icons.add_rounded, color: sem.ok),
+          StatCard(label: 'الأعمال الملغاة أو المخفضة', value: _minus(v.deductedValue), icon: Icons.remove_rounded, color: sem.danger),
           StatCard(label: 'الصافي على قيمة العقد', value: _signed(net), icon: Icons.functions_rounded, color: cs.primary),
           if (adjustedAfter != null)
             StatCard(
@@ -565,13 +573,13 @@ class VariationPage extends StatelessWidget {
                       subtitle: Text([
                         if (e.at != null) fmtDate(e.at),
                         'زيادة ${fmtMoney(e.added ?? 0)} · نقص ${fmtMoney(e.deducted ?? 0)}',
-                        if (e.itemCount > 0) '${e.itemCount} بنداً',
+                        if (e.itemCount > 0) itemsText(e.itemCount),
                         if (e.note.isNotEmpty) e.note,
                       ].join(' · ')),
                     ),
                 ]),
         ),
-      ]),
+      ])),
     );
   }
 
@@ -626,12 +634,17 @@ class _ItemRow extends StatelessWidget {
               ),
             ]),
           ),
-          Text('${item.isAdd ? '+' : '−'}${fmtMoney(item.amount)}', style: _tabular.copyWith(fontWeight: FontWeight.w800, color: c)),
+          Text(item.isAdd ? _plus(item.amount) : _minus(item.amount), style: _tabular.copyWith(fontWeight: FontWeight.w800, color: c)),
         ]),
       ),
     );
   }
 }
+
+/// مسافة ثابتة بين أقسام الصفحة.
+List<Widget> _gap(List<Widget> items) => [
+      for (var i = 0; i < items.length; i++) ...[if (i > 0) const SizedBox(height: 14), items[i]],
+    ];
 
 /// الكمية بلا أصفار زائدة.
 String fmtQtyV(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '');
@@ -923,7 +936,7 @@ class _VariationEditorPageState extends State<VariationEditorPage> {
           ),
         ),
       ]),
-      body: PageBody(maxWidth: 1000, children: [
+      body: PageBody(maxWidth: 1000, children: _gap([
         PageHeader(
           icon: Icons.swap_vert_rounded,
           title: _v == null ? 'أمر تغيير جديد' : _v!.title,
@@ -989,13 +1002,13 @@ class _VariationEditorPageState extends State<VariationEditorPage> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: cs.primaryContainer.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(14)),
           child: Wrap(spacing: 22, runSpacing: 8, children: [
-            _total('الزيادة', '+${fmtMoney(_lines.isEmpty ? (_kind == 'add' ? _net : 0) : _added)}', sem.ok),
-            _total('النقص', '−${fmtMoney(_lines.isEmpty ? (_kind == 'deduct' ? -_net : 0) : _deducted)}', sem.danger),
+            _total('الزيادة', _plus(_lines.isEmpty ? (_kind == 'add' ? _net : 0) : _added), sem.ok),
+            _total('النقص', _minus(_lines.isEmpty ? (_kind == 'deduct' ? -_net : 0) : _deducted), sem.danger),
             _total('الصافي', _signed(_net), cs.primary),
             if (adjusted != null) _total('القيمة المعدلة إن اعتُمد', fmtMoney(adjusted + _net - (_v?.isApproved == true ? _v!.signed : 0)), null),
           ]),
         ),
-      ]),
+      ])),
     );
   }
 
@@ -1043,7 +1056,7 @@ class _VariationEditorPageState extends State<VariationEditorPage> {
                 style: TextStyle(color: sem.muted, fontSize: 12),
               ),
             ),
-            Text('${l.direction == 'add' ? '+' : '−'}${fmtMoney(l.value)}', style: _tabular.copyWith(fontWeight: FontWeight.w800, color: c)),
+            Text(l.direction == 'add' ? _plus(l.value) : _minus(l.value), style: _tabular.copyWith(fontWeight: FontWeight.w800, color: c)),
             IconButton(
               tooltip: 'إزالة البند',
               icon: const Icon(Icons.close_rounded, size: 18),
@@ -1434,14 +1447,9 @@ class _CommitteeDialogState extends State<_CommitteeDialog> {
     }
   }
 
-  Widget _person(_MemberCtl m, {required String label, VoidCallback? onRemove}) {
+  Widget _person(_MemberCtl m, {required String label, VoidCallback? onRemove, bool narrow = false}) {
     final sem = Sem.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          flex: 3,
-          child: TextField(
+    final name = TextField(
             controller: m.name,
             onChanged: (_) => setState(() => m.profileId = null),
             decoration: fieldDeco(label,
@@ -1451,14 +1459,28 @@ class _CommitteeDialogState extends State<_CommitteeDialog> {
                       size: 18, color: m.profileId == null ? sem.muted : Theme.of(context).colorScheme.primary),
                   onPressed: () => _pickPerson(m),
                 )),
-          ),
-        ),
+    );
+    final title = TextField(controller: m.title, decoration: fieldDeco('الصفة الوظيفية'));
+    final remove = onRemove != null
+        ? IconButton(tooltip: 'إزالة', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onRemove)
+        : const SizedBox(width: 40);
+    // الشاشة الضيقة: الاسم ثم الصفة تحته
+    if (narrow) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [name, const SizedBox(height: 6), title])),
+          remove,
+        ]),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(flex: 3, child: name),
         const SizedBox(width: 8),
-        Expanded(flex: 2, child: TextField(controller: m.title, decoration: fieldDeco('الصفة الوظيفية'))),
-        if (onRemove != null)
-          IconButton(tooltip: 'إزالة', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onRemove)
-        else
-          const SizedBox(width: 40),
+        Expanded(flex: 2, child: title),
+        remove,
       ]),
     );
   }
@@ -1467,21 +1489,27 @@ class _CommitteeDialogState extends State<_CommitteeDialog> {
   Widget build(BuildContext context) {
     final sem = Sem.of(context);
     final cs = Theme.of(context).colorScheme;
+    final narrow = MediaQuery.sizeOf(context).width < 560;
+    final decision = TextField(controller: _decision, decoration: fieldDeco('رقم قرار التشكيل'));
+    final date = DayField(label: 'تاريخ القرار', value: _date, onChanged: (d) => setState(() => _date = d));
     return AlertDialog(
       title: Text(committeeKindLabels[widget.kind]!),
+      insetPadding: narrow ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24) : null,
       content: SizedBox(
         width: 620,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              Expanded(child: TextField(controller: _decision, decoration: fieldDeco('رقم قرار التشكيل'))),
-              const SizedBox(width: 8),
-              Expanded(child: DayField(label: 'تاريخ القرار', value: _date, onChanged: (d) => setState(() => _date = d))),
-            ]),
+            if (narrow) ...[decision, const SizedBox(height: 10), date]
+            else
+              Row(children: [
+                Expanded(child: decision),
+                const SizedBox(width: 8),
+                Expanded(child: date),
+              ]),
             const SizedBox(height: 14),
             Text('رئيس اللجنة', style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary)),
             const SizedBox(height: 6),
-            _person(_chair, label: 'اسم رئيس اللجنة'),
+            _person(_chair, label: 'اسم رئيس اللجنة', narrow: narrow),
             const SizedBox(height: 6),
             Row(children: [
               Expanded(child: Text('الأعضاء', style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary))),
@@ -1495,6 +1523,7 @@ class _CommitteeDialogState extends State<_CommitteeDialog> {
             for (var i = 0; i < _members.length; i++)
               _person(_members[i],
                   label: 'العضو ${i + 1}',
+                  narrow: narrow,
                   onRemove: _members.length <= 1 ? null : () => setState(() => _members.removeAt(i).dispose())),
             TextField(controller: _notes, maxLines: 2, decoration: fieldDeco('ملاحظات')),
             const SizedBox(height: 8),

@@ -1899,6 +1899,7 @@ void main() {
         CommitteeMember(name: 'م. هدى العبيدي', title: 'ممثل الإشراف', profileId: 'u-2'),
       ]),
     ];
+    app.indexData();
     await _shot(tester, 's0_contract_dashboard_light', app, const ProjectDetailPage(projectId: 'p-003'), size: const Size(1200, 2300));
     await _shot(tester, 's1_contract_dashboard_dark_mobile', app,
         _scaffold(ListView(padding: const EdgeInsets.all(12), children: [ContractDashboardCard(project: app.project('p-003')!)])),

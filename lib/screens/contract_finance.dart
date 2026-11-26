@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../docs.dart' show isolate;
 import '../models.dart';
 import '../ui/charts.dart';
 import '../ui/motion.dart';
@@ -329,7 +330,7 @@ class VariationsCard extends StatelessWidget {
                               ),
                             ]),
                           ),
-                          Text('${v.isAdd ? '+' : '−'}${fmtMoney(v.amount)}',
+                          Text(isolate('${v.isAdd ? '+' : '-'}${fmtMoney(v.amount)}'),
                               style: _tabular.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: v.isRejected ? sem.muted : (v.isAdd ? sem.ok : sem.danger),
@@ -348,8 +349,8 @@ class VariationsCard extends StatelessWidget {
             ], stepMs: 40),
             Divider(height: 20, color: sem.rule),
             Wrap(spacing: 18, runSpacing: 6, children: [
-              _pair(context, v21 ? 'الزيادة المعتمدة' : 'إجمالي الزيادة', '+${fmtMoney(adds)}', sem.ok),
-              _pair(context, v21 ? 'النقص المعتمد' : 'إجمالي النقص', '−${fmtMoney(deducts)}', sem.danger),
+              _pair(context, v21 ? 'الزيادة المعتمدة' : 'إجمالي الزيادة', isolate('+${fmtMoney(adds)}'), sem.ok),
+              _pair(context, v21 ? 'النقص المعتمد' : 'إجمالي النقص', isolate('-${fmtMoney(deducts)}'), sem.danger),
               _pair(context, 'الصافي', fmtMoney(adds - deducts), null),
               if (base > 0) _pair(context, 'نسبته من القيمة', pctText((adds - deducts) / base, digits: 1), null),
               if (drafts.isNotEmpty)
