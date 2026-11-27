@@ -10,6 +10,7 @@ import '../ui/charts.dart';
 import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'budget_view.dart';
 import 'contract_finance.dart';
 import 'dashboard.dart' show ScopeFilters;
 import 'project_detail.dart';
@@ -23,6 +24,7 @@ const List<(String, String, IconData)> financeViews = [
   ('variations', 'أوامر التغيير', Icons.swap_vert_rounded),
   ('guarantees', 'التأمينات والضمانات', Icons.verified_user_outlined),
   ('cash', 'المدفوع والمتبقي', Icons.account_balance_wallet_outlined),
+  ('budget', 'الميزانية والالتزامات', Icons.account_balance_outlined),
   ('log', 'سجل التعديلات', Icons.history_rounded),
 ];
 
@@ -186,7 +188,7 @@ class _FinancePageState extends State<FinancePage> {
     final req = app.financeRequest;
     if (req != null) {
       app.financeRequest = null;
-      _view = financeViews.any((v) => v.$1 == req.view) ? req.view : 'summary';
+      _view = financeViews.any((v) => v.$1 == req.view && (v.$1 != 'budget' || app.canSeeBudget)) ? req.view : 'summary';
       _statusFilter = req.status;
       _reqSeq = req.seq;
     }
@@ -227,6 +229,7 @@ class _FinancePageState extends State<FinancePage> {
             scrollDirection: Axis.horizontal,
             child: Row(children: [
               for (final v in financeViews)
+                if (v.$1 != 'budget' || app.canSeeBudget)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(end: 8),
                   child: ChoiceChip(
@@ -254,6 +257,7 @@ class _FinancePageState extends State<FinancePage> {
               'variations' => _VariationsView(app: app, st: st),
               'guarantees' => _GuaranteesView(app: app, st: st),
               'cash' => _cash(context, app, st),
+              'budget' when app.canSeeBudget => const BudgetView(),
               'log' => const _FinanceLog(),
               _ => _summary(context, app, st),
             },
