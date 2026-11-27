@@ -398,6 +398,10 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'غيّر حالة إجراء الخطر ${e.projectLabel} «${text(d['title'])}» من ${riskActionStatusLabels[text(d['from'])] ?? text(d['from'])} إلى ${riskActionStatusLabels[text(d['to'])] ?? text(d['to'])}${text(d['note']).isEmpty ? '' : ' — ${text(d['note'])}'}';
     case 'risk.action_delete':
       return 'حذف إجراء الاستجابة «${text(d['title'])}» للخطر ${e.projectLabel}';
+    case 'geo.set':
+      return 'حدّد موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} على الخريطة (${text(d['lat'])}, ${text(d['lng'])})';
+    case 'geo.clear':
+      return 'أزال موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} من الخريطة';
     case 'risk.sync_sections':
       return 'حدّث مخاطر الأقسام تلقائياً: فُتح ${text(d['opened'])} وحُدّث ${text(d['updated'])} وأُغلق ${text(d['closed'])}';
     case 'swot.auto':

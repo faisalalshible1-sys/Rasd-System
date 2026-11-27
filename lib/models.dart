@@ -1372,6 +1372,8 @@ const Map<String, String> auditActionLabels = {
   'risk.action_status': 'غيّر حالة إجراء استجابة',
   'risk.action_delete': 'حذف إجراء استجابة',
   'risk.sync_sections': 'حدّث مخاطر الأقسام تلقائياً',
+  'geo.set': 'حدّد موقعاً على الخريطة',
+  'geo.clear': 'أزال موقعاً من الخريطة',
   'swot.auto': 'ترجم التنفيذ إلى تحليل SWOT',
   'pm.issue_create': 'سجّل مشكلة',
   'pm.issue_update': 'عدّل مشكلة',
