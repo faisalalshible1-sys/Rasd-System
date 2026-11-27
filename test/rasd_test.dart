@@ -217,13 +217,14 @@ void main() {
       final keys = c.map((g) => g.key).toSet();
       expect(keys, containsAll(['form:f01', 'docs:boq', 'docs:letter', 'docs:design', 'supervision:reports', 'unit:ncr', 'swot', 'pm:plan', 'pm:track',
         'docs:pm_view', 'docs:pm_add', 'docs:pm_duration', 'docs:pm_dates', 'docs:pm_approve',
-        'stores:admin', 'stores:manager', 'stores:audit', 'stores:assets', 'stores:keeper:11111111-2222-3333-4444-555555555555']));
+        'stores:admin', 'stores:manager', 'stores:audit', 'stores:assets', 'stores:keeper:11111111-2222-3333-4444-555555555555',
+        'maintenance:admin', 'maintenance:manager', 'maintenance:tech', 'maintenance:audit']));
       expect(keys.contains('form:f02'), isFalse);
       expect(c.firstWhere((g) => g.key == 'form:f01').note, contains('المالية'));
       for (final k in keys) {
-        // شرط user_grants_scope_check كما في الترحيل 39
+        // شرط user_grants_scope_check كما في الترحيلين 39 و40
         expect(
-            RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design|pm_view|pm_add|pm_duration|pm_dates|pm_approve)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track)|stores:(admin|manager|audit|assets)|stores:keeper:[0-9a-f-]{36})$')
+            RegExp(r'^(form:[a-z0-9_]{1,40}|docs:(boq|letter|design|pm_view|pm_add|pm_duration|pm_dates|pm_approve)|supervision:reports|unit:[a-z_]{2,40}|swot|pm:(plan|track)|stores:(admin|manager|audit|assets)|maintenance:(admin|manager|tech|audit)|stores:keeper:[0-9a-f-]{36})$')
                 .hasMatch(k),
             isTrue,
             reason: 'نطاق لا تقبله قاعدة البيانات: $k');

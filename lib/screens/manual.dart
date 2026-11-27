@@ -69,6 +69,17 @@ Map<String, String> manualValues(AppState app) {
       for (final c in app.stores.categories)
         if (app.storeAssets.policyOf(c.id) != null) (c.name, app.storeAssets.policyOf(c.id)!),
     ]),
+    'MT_SLA_URGENT': '${app.maint.settings.slaHours('urgent')}',
+    'MT_SLA_HIGH': '${app.maint.settings.slaHours('high')}',
+    'MT_SLA_NORMAL': '${app.maint.settings.slaHours('normal')}',
+    'MT_SLA_LOW': '${app.maint.settings.slaHours('low')}',
+    'MT_ASSIGN_HOURS': '${app.maint.settings.assignHours}',
+    'MT_HOLD_DAYS': '${app.maint.settings.holdDays}',
+    'MT_CONFIRM_DAYS': '${app.maint.settings.confirmDays}',
+    'MT_SOON_HOURS': '${app.maint.settings.soonHours}',
+    'MT_REPEAT_COUNT': '${app.maint.settings.repeatCount}',
+    'MT_REPEAT_DAYS': '${app.maint.settings.repeatDays}',
+    'MT_PLAN_LEAD_DAYS': '${app.maint.settings.planLeadDays}',
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

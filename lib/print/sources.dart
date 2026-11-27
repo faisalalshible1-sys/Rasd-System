@@ -14,6 +14,7 @@ import '../rasd.dart' show sectionDefaultNames;
 import '../registers.dart';
 import '../schedule.dart';
 import '../assets.dart';
+import '../maintenance.dart';
 import '../stores.dart';
 import '../units.dart';
 import 'model.dart';
@@ -79,6 +80,7 @@ const Map<String, String> exportSectionNames = {
   'acceptance': 'المطابقة والاستلام',
   'print': 'الطباعة والتصدير',
   'stores': 'المخازن والأصول',
+  'maintenance': 'الصيانة',
 };
 
 DateTime _d0(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -1429,6 +1431,81 @@ List<ExportSource> _all(AppState app) => [
           ];
         },
         summary: (a, l) => [('المحاضر', '${l.length}'), ('القائمة', '${l.where((x) => x.isOpen).length}')],
+      ),
+
+      // ============================================================ الصيانة (الترحيل 40)
+      _src<MtRequest>(
+        id: 'maintenance:requests',
+        section: 'maintenance',
+        title: 'بلاغات الصيانة',
+        icon: Icons.build_circle_rounded,
+        ready: (a) => a.v24Ready && a.mtSeesAll,
+        items: (a) => a.maint.requests,
+        columns: const [
+          _C('no', 'رقم البلاغ', flex: 0.9),
+          _C('title', 'العنوان', flex: 1.8),
+          _C('category', 'التصنيف', flex: 0.9),
+          _C('priority', 'الأولوية', flex: 0.7),
+          _C('status', 'الحالة', flex: 0.8),
+          _C('source', 'المصدر', flex: 0.7, on: false),
+          _C('asset', 'الأصل', flex: 1.3),
+          _C('place', 'الموقع', flex: 1.3),
+          _C('reporter', 'صاحب البلاغ', flex: 1.2),
+          _C('executor', 'المنفّذ', flex: 1.2),
+          _C('reported', 'تاريخ الرفع', type: ColType.date, flex: 0.9),
+          _C('due', 'الموعد المستهدف', type: ColType.date, flex: 0.9),
+          _C('done', 'تاريخ الإنجاز', type: ColType.date, flex: 0.9, on: false),
+          _C('rating', 'التقييم', flex: 0.5, on: false),
+        ],
+        row: (a, x) => [
+          x.reqNo,
+          x.title,
+          mtCategoryLabels[x.category] ?? x.category,
+          mtPriorityLabels[x.priority] ?? x.priority,
+          mtStatusLabels[x.status] ?? x.status,
+          x.isPlan ? 'صيانة دورية' : 'بلاغ',
+          x.assetText,
+          a.maint.locationPath(x.locationId),
+          x.reporterName,
+          x.executor,
+          x.reportedAt,
+          x.dueAt,
+          x.doneAt,
+          x.rating == null ? '' : '${x.rating}/5',
+        ],
+        summary: (a, l) {
+          final now = DateTime.now();
+          return [('البلاغات', '${l.length}'), ('المفتوحة', '${l.where((x) => x.isOpen).length}'), ('المتأخرة', '${l.where((x) => x.isOverdue(now)).length}')];
+        },
+      ),
+      _src<MtPlan>(
+        id: 'maintenance:plans',
+        section: 'maintenance',
+        title: 'خطط الصيانة الدورية',
+        icon: Icons.event_repeat_rounded,
+        ready: (a) => a.v24Ready && a.mtStaff,
+        items: (a) => a.maint.plans,
+        columns: const [
+          _C('no', 'رقم الخطة', flex: 0.8),
+          _C('title', 'الخطة', flex: 1.8),
+          _C('category', 'التصنيف', flex: 0.9),
+          _C('every', 'التكرار', flex: 0.8),
+          _C('asset', 'الأصل', flex: 1.2),
+          _C('next', 'الموعد القادم', type: ColType.date, flex: 0.9),
+          _C('last', 'آخر تنفيذ', type: ColType.date, flex: 0.9),
+          _C('active', 'الحالة', flex: 0.6),
+        ],
+        row: (a, x) => [
+          x.planNo,
+          x.title,
+          mtCategoryLabels[x.category] ?? x.category,
+          x.intervalText,
+          x.assetTag.isEmpty ? '' : '${x.assetTag} — ${x.assetName}',
+          x.nextDue,
+          x.lastDone,
+          x.active ? 'نشطة' : 'موقوفة',
+        ],
+        summary: (a, l) => [('الخطط', '${l.length}'), ('النشطة', '${l.where((x) => x.active).length}')],
       ),
 
       // ============================================================ الوسائط والملفات

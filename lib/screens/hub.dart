@@ -56,6 +56,9 @@ const List<(String, String, String, IconData)> appSections = [
   ('stores', 'المخازن والأصول',
       'المخازن والأصناف وأرصدتها، والوارد والصرف والمرتجع والتحويل والتسوية باعتماد وترحيل، وسجل الموظفين، وما صُرف لكل موظف.',
       Icons.warehouse_rounded),
+  ('maintenance', 'الصيانة',
+      'بلاغات الصيانة من رفعها إلى تأكيد صاحبها، والفرز والإسناد للفنيين، والصيانة الدورية الوقائية، والتنبيهات بالمتأخر والمتكرر والضمان.',
+      Icons.build_circle_rounded),
 ];
 
 /// اسم مختصر للقسم في المبدّل الجانبي.
@@ -74,6 +77,7 @@ const Map<String, String> sectionShortNames = {
   'print': 'الطباعة',
   'manual': 'الدليل',
   'stores': 'المخازن',
+  'maintenance': 'الصيانة',
 };
 
 /// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والشؤون الفنية والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
@@ -84,6 +88,7 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
       'heritage' || 'planning_qa' || 'safety' || 'acceptance' => app.v9Ready,
       'chat' => app.v12Ready,
       'stores' => app.v22Ready || app.isDirector,
+      'maintenance' => app.v24Ready || app.isDirector,
       'security' => app.v13Ready && app.canAudit,
       _ => app.v6Ready,
     };
@@ -166,6 +171,7 @@ Color defaultSectionColor(BuildContext context, String key) {
     'chat' => dark ? const Color(0xFF6FD0C8) : const Color(0xFF00796B),
     'security' => dark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C),
     'stores' => dark ? const Color(0xFFE0B26B) : const Color(0xFF8D5B12),
+    'maintenance' => dark ? const Color(0xFFFFB46B) : const Color(0xFFB4530A),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -742,6 +748,24 @@ List<(String, String, Color?)> hubStats(BuildContext context, AppState app, Stri
         ('${st.activeItems}', 'صنفاً نشطاً', null),
         ('$low', 'يحتاج توريداً', low > 0 ? sem.wip : null),
         ('${st.pendingApproval}', 'بانتظار الاعتماد', st.pendingApproval > 0 ? sem.wip : null),
+      ];
+    case 'maintenance':
+      if (!app.v24Ready) return const [];
+      final mt = app.maint;
+      final now = DateTime.now();
+      if (!app.mtStaff) {
+        final mine = mt.reportedBy(app.me?.id);
+        final waiting = mine.where(app.canMtConfirm).length;
+        return [
+          ('${mine.where((r) => r.isOpen).length}', 'بلاغاً مفتوحاً لي', null),
+          ('$waiting', 'ينتظر تأكيدي', waiting > 0 ? sem.wip : null),
+        ];
+      }
+      final late = mt.overdue(now).length;
+      return [
+        ('${mt.open.length}', 'بلاغاً مفتوحاً', null),
+        ('$late', 'متأخر', late > 0 ? sem.danger : null),
+        ('${mt.unassigned.length}', 'بانتظار الإسناد', mt.unassigned.isNotEmpty ? sem.wip : null),
       ];
     case 'manual':
       return [

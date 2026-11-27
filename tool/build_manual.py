@@ -134,6 +134,21 @@ def rate_text(r):
     return f'{round(v)}%' if v == round(v) else f'{v:.1f}%'
 
 
+_MT = live.get('maintenance_settings') or {}
+_MT_SLA = {'urgent': 8, 'high': 48, 'normal': 120, 'low': 240}
+_MT_NUM = {'assign_hours': 4, 'hold_days': 7, 'confirm_days': 3, 'soon_hours': 24, 'repeat_count': 3, 'repeat_days': 90, 'plan_lead_days': 7}
+
+
+def mt_sla(p):
+    v = (_MT.get('sla_hours') or {}).get(p)
+    return int(v) if isinstance(v, (int, float)) else _MT_SLA[p]
+
+
+def mt_num(k):
+    v = _MT.get(k)
+    return int(v) if isinstance(v, (int, float)) else _MT_NUM[k]
+
+
 count = len(forms)
 req = count - 1
 pm_cfg = settings.get('pm.config') if isinstance(settings.get('pm.config'), dict) else {}
@@ -167,6 +182,18 @@ values = {
     'STR_EXPIRY_DAYS': str(int((live.get('stores_settings') or {}).get('expiry_days', 60))),
     'STR_SEPARATION': 'مفعّل' if (live.get('stores_settings') or {}).get('separation', True) else 'معطّل',
     'STR_DEP_POLICIES': dep_policies_text(live.get('stores_dep_policies') or []),
+    # حدود قسم الصيانة (الترحيل 40): مدد الإنجاز بالأولوية وحدود التنبيهات
+    'MT_SLA_URGENT': str(mt_sla('urgent')),
+    'MT_SLA_HIGH': str(mt_sla('high')),
+    'MT_SLA_NORMAL': str(mt_sla('normal')),
+    'MT_SLA_LOW': str(mt_sla('low')),
+    'MT_ASSIGN_HOURS': str(mt_num('assign_hours')),
+    'MT_HOLD_DAYS': str(mt_num('hold_days')),
+    'MT_CONFIRM_DAYS': str(mt_num('confirm_days')),
+    'MT_SOON_HOURS': str(mt_num('soon_hours')),
+    'MT_REPEAT_COUNT': str(mt_num('repeat_count')),
+    'MT_REPEAT_DAYS': str(mt_num('repeat_days')),
+    'MT_PLAN_LEAD_DAYS': str(mt_num('plan_lead_days')),
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML
