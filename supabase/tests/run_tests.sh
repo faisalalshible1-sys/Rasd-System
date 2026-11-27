@@ -204,3 +204,12 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 psql -h "$H" -p "$PORT" -U postgres -d dctest -qc "insert into public.geo_points (project_id, lat, lng) select id, 1, 1 from public.projects limit 1 on conflict do nothing" >/dev/null
 if $P -d dctest -1 -f "$DIR/rollbacks/20261205000044_geo_points_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 44 مع وجود مواقع"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'geo_points'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع ومواقع مسجَّلة، والمنظومة كما هي"
+# المعالم والمؤشرات (الترحيل 45)
+$P -d dctest -f "$DIR/migrations/20261206000045_milestones_kpi.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261206000045_milestones_kpi.sql"
+$P -d dctest -f "$DIR/migrations/20261206000045_milestones_kpi.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261206000045_milestones_kpi.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261206000045_milestones_kpi_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 45 ولا بيانات"
+$P -d dctest -1 -f "$DIR/migrations/20261206000045_milestones_kpi.sql" >/dev/null && echo "PASS: إعادة الترحيل 45 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/127_milestones_kpi_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+psql -h "$H" -p "$PORT" -U postgres -d dctest -qc "insert into public.pm_milestones (project_id, title, planned_date) select id, 'باقٍ', current_date from public.projects limit 1" >/dev/null
+if $P -d dctest -1 -f "$DIR/rollbacks/20261206000045_milestones_kpi_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 45 مع وجود معالم"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'pm_milestones'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع ومعالم مسجَّلة، والمنظومة كما هي"
