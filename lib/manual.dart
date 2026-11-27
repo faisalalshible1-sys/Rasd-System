@@ -57,6 +57,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('34_stores', 34, 'المخازن والأصول والخدمات العامة'),
   ManualChapter('35_maintenance', 35, 'الصيانة والبلاغات'),
   ManualChapter('36_procurement', 36, 'المشتريات وطلبات الاحتياج'),
+  ManualChapter('37_site_map', 37, 'خريطة المواقع'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -70,6 +71,7 @@ const Map<String, List<String>> manualChapterSections = {
   '09_risk_register': ['risks'],
   '10_risk_review': ['risks'],
   '11_risk_board': ['risks'],
+  '37_site_map': ['risks'],
   '12_pm_projects': ['risks'],
   '13_pm_registers': ['risks'],
   '14_contractors': ['risks'],
@@ -124,6 +126,7 @@ const Map<int, String> manualTabAnchors = {
   20: '11_risk_board',
   21: '09_risk_register',
   22: '11_risk_board',
+  23: '37_site_map',
   28: '23_admin',
   29: '23_admin',
   40: '15_pm_dashboard',

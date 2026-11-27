@@ -175,6 +175,7 @@ values = {
     'CHAT_MAX_MB': str(int(chat_cfg.get('max_file_mb', 50))),
     'CHAT_EDIT_MIN': str(int(chat_cfg.get('edit_minutes', 60))),
     'REF_TABLE': '\n'.join(ref_rows),
+    'RISK_HIGH_MIN': str(levels[-2]['min']),
     'SPI_AHEAD': f"{float(pm_cfg.get('spi_ahead', 1.05)):.2f}",
     'SPI_OK': f"{float(pm_cfg.get('spi_ok', 0.95)):.2f}",
     'SPI_WARN': f"{float(pm_cfg.get('spi_warn', 0.85)):.2f}",

@@ -16,6 +16,7 @@ import 'config.dart';
 import 'maintenance.dart';
 import 'procurement.dart';
 import 'docs.dart';
+import 'geo.dart';
 import 'models.dart';
 import 'pm.dart';
 import 'prices.dart';
@@ -186,6 +187,12 @@ class AppState extends ChangeNotifier {
 
   /// إجراءات الاستجابة للمخاطر ومخاطر الأقسام الآلية (الإصدار 1.12.0، الترحيل 43).
   bool v27Ready = false;
+
+  /// مواقع المشاريع وبلاغات الصيانة على الخريطة (الإصدار 1.13.0، الترحيل 44).
+  bool v28Ready = false;
+  List<GeoPoint> geoPoints = [];
+  RealtimeChannel? _channel28;
+  Timer? _geoDebounce;
   List<RiskAction> riskActions = [];
   bool _sectionRisksRefreshed = false;
   RealtimeChannel? _channel27;
@@ -891,6 +898,7 @@ class AppState extends ChangeNotifier {
       await _loadV25();
       await _loadV26();
       await _loadV27();
+      await _loadV28();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1960,6 +1968,62 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------
+  // الخريطة (الإصدار 1.13.0، الترحيل 44)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV28() async {
+    try {
+      final rows = await _allRows('geo_points', ['updated_at', 'id']);
+      geoPoints = rows.map(GeoPoint.fromMap).toList();
+      v28Ready = true;
+    } catch (_) {
+      geoPoints = [];
+      v28Ready = false;
+    }
+  }
+
+  void _scheduleGeoReload() {
+    _geoDebounce?.cancel();
+    _geoDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV28();
+      _notify();
+    });
+  }
+
+  GeoPoint? geoOfProject(String id) {
+    for (final g in geoPoints) {
+      if (g.projectId == id) return g;
+    }
+    return null;
+  }
+
+  GeoPoint? geoOfRequest(String id) {
+    for (final g in geoPoints) {
+      if (g.requestId == id) return g;
+    }
+    return null;
+  }
+
+  /// يحدّد موقع المشروع: مدير المكتب وموظفوه.
+  bool get canSetProjectGeo => v28Ready && !frozenForMe && canManageProjects;
+
+  /// يحدّد موقع البلاغ: من يديرون الصيانة (ومقدّم البلاغ لبلاغه يُراعيه الخادم).
+  bool get canSetRequestGeo => v28Ready && canMtManage;
+
+  Future<void> setGeo(String kind, String ref, double lat, double lng, {String note = ''}) async {
+    await client.rpc('geo_set', params: {'p_kind': kind, 'p_ref': ref, 'p_lat': lat, 'p_lng': lng, 'p_note': note});
+    await _loadV28();
+    _notify();
+  }
+
+  Future<void> clearGeo(String kind, String ref) async {
+    await client.rpc('geo_clear', params: {'p_kind': kind, 'p_ref': ref});
+    await _loadV28();
+    _notify();
+  }
+
+  // ---------------------------------------------------------------
   // إجراءات الاستجابة ومخاطر الأقسام (الإصدار 1.12.0، الترحيل 43)
   // ---------------------------------------------------------------
 
@@ -2975,6 +3039,17 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة مواقع الخريطة (الترحيل 44)
+    final old28 = _channel28;
+    if (old28 != null) client.removeChannel(old28);
+    _channel28 = null;
+    if (v28Ready) {
+      final ch28 = client.channel('dc-v28');
+      ch28.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'geo_points', callback: (_) => _scheduleGeoReload());
+      ch28.subscribe();
+      _channel28 = ch28;
+    }
+
     // قناة إجراءات الاستجابة (الترحيل 43)
     final old27 = _channel27;
     if (old27 != null) client.removeChannel(old27);
@@ -3106,6 +3181,12 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v28Ready = false;
+    geoPoints = [];
+    _geoDebounce?.cancel();
+    final old28 = _channel28;
+    if (old28 != null) client.removeChannel(old28);
+    _channel28 = null;
     v27Ready = false;
     riskActions = [];
     _sectionRisksRefreshed = false;
@@ -3229,6 +3310,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _geoDebounce?.cancel();
+    final old28d = _channel28;
+    if (old28d != null) client.removeChannel(old28d);
     _riskActDebounce?.cancel();
     final old27 = _channel27;
     if (old27 != null) client.removeChannel(old27);

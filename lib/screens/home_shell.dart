@@ -46,6 +46,7 @@ import 'chat.dart';
 import 'ref_numbers.dart';
 import 'security_center.dart';
 import 'risks.dart';
+import 'site_map.dart';
 import 'schedule.dart';
 import 'plans.dart';
 import 'supervision.dart';
@@ -78,6 +79,7 @@ class Tabs {
   static const riskDashboard = 20;
   static const riskRegister = 21;
   static const riskMatrix = 22;
+  static const siteMap = 23;
   static const pmDashboard = 40;
   static const pmProjects = 41;
   static const pmProgress = 42;
@@ -383,6 +385,7 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
         const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
         _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
         const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
+        if (app.v28Ready) const _Dest(Tabs.siteMap, 'خريطة المواقع', Icons.map_outlined, Icons.map_rounded),
         ..._adminDests(app, 20),
       ];
     }
@@ -399,6 +402,7 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
       _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
       const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
+      if (app.v28Ready) const _Dest(Tabs.siteMap, 'خريطة المواقع', Icons.map_outlined, Icons.map_rounded),
       _Dest(Tabs.pmIssues, 'سجل المشاكل', Icons.report_problem_outlined, Icons.report_problem_rounded, badge: pm.overdueIssues),
       _Dest(Tabs.pmDelays, 'التأخيرات وأسبابها', Icons.hourglass_bottom_outlined, Icons.hourglass_bottom_rounded,
           badge: pm.pendingEot),
@@ -731,6 +735,7 @@ Widget _page(int id) => switch (id) {
       Tabs.riskDashboard => const RiskDashboardPage(),
       Tabs.riskRegister => const RiskRegisterPage(),
       Tabs.riskMatrix => const RiskMatrixPage(),
+      Tabs.siteMap => const SiteMapPage(),
       Tabs.pmDashboard => const PmDashboardPage(),
       Tabs.pmProjects => const PmProjectsPage(),
       Tabs.pmProgress => const PmProgressPage(),
