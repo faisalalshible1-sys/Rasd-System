@@ -40,6 +40,29 @@
       "sort": 4
     }
   ],
+  "finance_rates": [
+    {
+      "active": false,
+      "code": "extra_rule",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "percent": 3.75
+    },
+    {
+      "active": true,
+      "code": "income_tax",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "percent": 3.0
+    },
+    {
+      "active": true,
+      "code": "insurance",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "percent": 5.0
+    }
+  ],
   "forms": [
     {
       "active": true,
@@ -376,6 +399,32 @@
       "stage": 4
     }
   ],
+  "maintenance_settings": {
+    "assign_hours": 4,
+    "confirm_days": 3,
+    "hold_days": 7,
+    "plan_lead_days": 7,
+    "repeat_count": 3,
+    "repeat_days": 90,
+    "sla_hours": {
+      "high": 48,
+      "low": 240,
+      "normal": 120,
+      "urgent": 8
+    },
+    "soon_hours": 24
+  },
+  "payroll_config": {
+    "days_in_month": 30.0,
+    "overtime_factor": 1.5,
+    "weekly_hours": 42.0
+  },
+  "procurement_settings": {
+    "approve_days": 3,
+    "grace_days": 3,
+    "min_quotes": 3,
+    "review_days": 3
+  },
   "ref_schemes": [
     {
       "active": true,
@@ -712,6 +761,7 @@
     },
     "ui.labels": {},
     "ui.layout": {
+      "hub_style": "icons",
       "section_order": [
         "cycle",
         "risks",
@@ -725,7 +775,10 @@
         "security",
         "chat",
         "print",
-        "manual"
+        "manual",
+        "stores",
+        "maintenance",
+        "procurement"
       ]
     },
     "ui.motion": "full",
