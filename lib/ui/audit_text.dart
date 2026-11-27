@@ -1,8 +1,10 @@
 import '../app_state.dart';
+import '../assets.dart' show assetConditionLabels, assetStatusLabels, disposalKindLabels;
 import '../docs.dart' show docCategoryLabel, fmtBytes;
 import '../models.dart';
 import '../rasd.dart' show grantLabel, sectionDefaultNames;
 import '../registers.dart';
+import '../stores.dart' show fmtQty;
 import '../units.dart';
 
 /// وصف سطر من سجل التدقيق بلغة مفهومة.
@@ -209,6 +211,17 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'أنشأ المستند العكسي ${e.projectLabel} للمستند ${text(d['reverses_no'])} — ${text(d['note'])}';
     case 'stores.receipt_confirm':
       return 'أكّد استلام ما صُرف له بالمستند ${e.projectLabel}';
+    case 'stores.asset':
+    case 'stores.asset_transfer':
+    case 'stores.asset_status':
+    case 'stores.custody_out':
+    case 'stores.custody_in':
+    case 'stores.custody_confirm':
+    case 'stores.asset_dispose_request':
+    case 'stores.asset_dispose':
+    case 'stores.assets_import':
+    case 'stores.asset_policy':
+      return _storesAsset(e.action, d, e.projectLabel);
     case 'finance.guarantee_initial':
       return d['na'] == true
           ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
@@ -790,6 +803,54 @@ String _storesDocAction(String action, Map<String, dynamic> d, String no) {
     'stores.doc_post' => 'رحّل $kind $no إلى الأرصدة',
     _ => 'ألغى $kind $no${note.isEmpty ? '' : ' — $note'}',
   };
+}
+
+/// أحداث الأصول والعهد (الترحيل 39).
+String _storesAsset(String action, Map<String, dynamic> d, String label) {
+  String t(Object? v) => v == null ? '' : '$v'.trim();
+  final tag = t(d['tag']).isEmpty ? label : t(d['tag']);
+  final name = t(d['name']);
+  final asset = name.isEmpty ? 'الأصل $tag' : 'الأصل $tag «$name»';
+  final no = t(d['custody_no']).isEmpty ? label : t(d['custody_no']);
+  String st(Object? s) => assetStatusLabels[t(s)] ?? t(s);
+  String cond(Object? c) => assetConditionLabels[t(c)] ?? t(c);
+  String kind(Object? k) => disposalKindLabels[t(k)] ?? t(k);
+  switch (action) {
+    case 'stores.asset':
+      return switch (t(d['op'])) {
+        'create' => 'سجّل $asset',
+        'delete' => 'حذف $asset (سُجّل خطأً)',
+        _ => 'عدّل بيانات $asset',
+      };
+    case 'stores.asset_transfer':
+      return 'نقل $asset إلى مكان آخر';
+    case 'stores.asset_status':
+      final note = t(d['note']);
+      return 'غيّر وضع $asset من «${st(d['from'])}» إلى «${st(d['to'])}» (الحالة: ${cond(d['condition'])})${note.isEmpty ? '' : ' — $note'}';
+    case 'stores.custody_out':
+      return 'سلّم $asset عهدةً إلى ${t(d['employee'])} بالمحضر $no (الحالة: ${cond(d['condition'])})';
+    case 'stores.custody_in':
+      return 'استلم $asset من ${t(d['employee'])} (المحضر $no) بحالة ${cond(d['condition'])}، ووضعه بعد الإرجاع «${st(d['status'])}»';
+    case 'stores.custody_confirm':
+      return d['kind'] == 'return' ? 'أكّد إرجاع عهدته بالمحضر $no' : 'أكّد استلام عهدته بالمحضر $no';
+    case 'stores.asset_dispose_request':
+      final v = d['value'];
+      return 'طلب استبعاد $asset (${kind(d['kind'])}${v is num ? ' بقيمة ${fmtQty(v)}' : ''}) — ${t(d['reason'])}';
+    case 'stores.asset_dispose':
+      final note = t(d['note']);
+      return d['approve'] == true
+          ? 'اعتمد استبعاد $asset (${kind(d['kind'])})${note.isEmpty ? '' : ' — $note'}'
+          : 'رفض استبعاد $asset — السبب: $note';
+    case 'stores.assets_import':
+      return 'استورد ${t(d['rows'])} صفاً من الأصول: أُضيف ${t(d['inserted'])} وحُدّث ${t(d['updated'])}'
+          '${(d['custody'] as num? ?? 0) > 0 ? ' وسُجّلت ${t(d['custody'])} عهدة' : ''}';
+    default:
+      final to = d['to'] is Map ? d['to'] as Map : const {};
+      final pct = to['salvage_pct'];
+      return to['dep_method'] == 'none'
+          ? 'سياسة إهلاك «${t(d['name'])}»: بلا إهلاك'
+          : 'سياسة إهلاك «${t(d['name'])}»: ${t(to['life_months'])} شهراً${pct is num && pct > 0 ? '، خردة ${fmtQty(pct)}%' : ''}';
+  }
 }
 
 /// «نهاية ← بداية +2» من نوع العلاقة وانتظارها (الترحيل 36).

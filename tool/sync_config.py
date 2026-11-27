@@ -85,6 +85,13 @@ if code == 200 and isinstance(refs, list):
 code, st = sb("GET", "/rest/v1/st_settings?select=key,value&order=key.asc")
 if code == 200 and isinstance(st, list):
     cfg["stores_settings"] = {x["key"]: x["value"] for x in st}
+# سياسات الإهلاك لكل تصنيف أصول (الترحيل 39) لقيمتها الحية في نسخة PDF من الدليل
+code, dp = sb("GET", "/rest/v1/st_asset_policies?select=dep_method,life_months,salvage_pct,st_categories(code,name,sort)")
+if code == 200 and isinstance(dp, list):
+    cfg["stores_dep_policies"] = sorted(
+        [{"name": (x.get("st_categories") or {}).get("name", ""), "sort": (x.get("st_categories") or {}).get("sort", 0),
+          "dep_method": x.get("dep_method"), "life_months": x.get("life_months"), "salvage_pct": x.get("salvage_pct")} for x in dp],
+        key=lambda x: (x["sort"] or 0, x["name"]))
 write("config/live-settings.json", cfg)
 print(f"الإعدادات: {len(cfg.get('settings', {}))} إعداداً، {len(cfg.get('forms', []))} نموذجاً، {len(cfg.get('custom_fields', []))} حقلاً")
 

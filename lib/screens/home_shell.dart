@@ -53,6 +53,7 @@ import 'supervision_hub.dart';
 import 'swot.dart';
 import 'swot_presentation.dart';
 import 'stores.dart';
+import 'stores_assets.dart';
 import 'stores_docs.dart';
 import 'stores_setup.dart';
 import 'units.dart';
@@ -192,6 +193,8 @@ class Tabs {
   static const storesSetup = 204;
   static const storesPeople = 205;
   static const storesMine = 206;
+  static const storesAssets = 207;
+  static const storesCustody = 210;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -476,13 +479,23 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
         ..._adminDests(app, 200),
       ];
     }
+    // المخزون لمن يراه (المدير ومدير المخازن والمراجع وأمناء المخازن)، والأصول والعهد لمن يراها (ومسؤول الأصول)
+    final inv = app.storesInventory;
+    final assets = app.storesAssetsSees;
     return [
-      _Dest(Tabs.storesDashboard, 'لوحة المخازن', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
-          badge: s.lowStock().length),
-      const _Dest(Tabs.storesItems, 'الأصناف', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
-      _Dest(Tabs.storesDocs, 'المستندات', Icons.receipt_long_outlined, Icons.receipt_long_rounded,
-          badge: app.canStoresApprove ? s.pendingApproval : s.awaitingPost),
-      const _Dest(Tabs.storesBalances, 'الأرصدة', Icons.stacked_bar_chart_outlined, Icons.stacked_bar_chart_rounded),
+      if (inv) ...[
+        _Dest(Tabs.storesDashboard, 'لوحة المخازن', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
+            badge: s.lowStock().length),
+        const _Dest(Tabs.storesItems, 'الأصناف', Icons.inventory_2_outlined, Icons.inventory_2_rounded),
+        _Dest(Tabs.storesDocs, 'المستندات', Icons.receipt_long_outlined, Icons.receipt_long_rounded,
+            badge: app.canStoresApprove ? s.pendingApproval : s.awaitingPost),
+        const _Dest(Tabs.storesBalances, 'الأرصدة', Icons.stacked_bar_chart_outlined, Icons.stacked_bar_chart_rounded),
+      ],
+      if (assets) ...[
+        _Dest(Tabs.storesAssets, 'الأصول', Icons.chair_alt_outlined, Icons.chair_alt_rounded,
+            badge: app.canStoresApprove ? app.storeAssets.pendingDisposal.length : 0),
+        const _Dest(Tabs.storesCustody, 'العهد', Icons.assignment_ind_outlined, Icons.assignment_ind_rounded),
+      ],
       const _Dest(Tabs.storesPeople, 'الإدارات والموظفون', Icons.groups_2_outlined, Icons.groups_2_rounded),
       const _Dest(Tabs.storesSetup, 'التهيئة', Icons.settings_suggest_outlined, Icons.settings_suggest_rounded),
       if (app.myEmployee != null) const _Dest(Tabs.storesMine, 'ما صُرف لي', Icons.person_pin_outlined, Icons.person_pin_rounded),
@@ -571,6 +584,8 @@ Widget _page(int id) => switch (id) {
       Tabs.storesSetup => const StoresSetupPage(),
       Tabs.storesPeople => const StoresPeoplePage(),
       Tabs.storesMine => const StoresMinePage(),
+      Tabs.storesAssets => const StoresAssetsPage(),
+      Tabs.storesCustody => const StoresCustodyPage(),
       Tabs.printRefs => const RefNumbersPage(),
       Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
       Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),

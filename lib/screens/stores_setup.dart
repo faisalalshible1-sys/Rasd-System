@@ -3,8 +3,10 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../assets.dart';
 import '../docs.dart' show isolate;
 import '../models.dart';
+import '../registers.dart' show isoDay;
 import '../print/export_dialog.dart' show ExportButton;
 import '../services/boq_files.dart' show BoqSheetRows, readCsv, readXlsx;
 import '../services/doc_files.dart' show extOf;
@@ -20,7 +22,7 @@ import 'stores.dart' show StoresNotReady, storesRun, qtyWithUnit;
 // =====================================================================
 
 /// نافذة نموذج بسيطة: محتوى، وحفظ يرمي خطأً مفهوماً، وحذف اختياري.
-Future<void> _formDialog(
+Future<void> storeFormDialog(
   BuildContext context, {
   required String title,
   required Widget Function(StateSetter setLocal) body,
@@ -118,6 +120,7 @@ class StoresSetupPage extends StatelessWidget {
         _LocationsCard(edit: edit),
         const SizedBox(height: 14),
         _CategoriesCard(edit: edit),
+        if (app.v23Ready) ...[const SizedBox(height: 14), _DepPoliciesCard(edit: edit)],
         const SizedBox(height: 14),
         _UnitsCard(edit: edit),
         const SizedBox(height: 14),
@@ -145,7 +148,7 @@ class _WarehousesCard extends StatelessWidget {
     var parent = w?.parentId ?? '';
     var loc = w?.locationId ?? '';
     var active = w?.active ?? true;
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: w == null ? 'مخزن جديد' : 'تعديل المخزن',
       body: (setLocal) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -248,7 +251,7 @@ class _LocationsCard extends StatelessWidget {
     var kind = loc?.kind ?? switch (parentKind) { null => 'building', 'building' => 'floor', _ => 'room' };
     var parent = loc?.parentId ?? parentId ?? '';
     var active = loc?.active ?? true;
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: loc == null ? 'موقع جديد' : 'تعديل الموقع',
       body: (setLocal) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -358,7 +361,7 @@ class _CategoriesCard extends StatelessWidget {
     var kind = c?.kind ?? 'consumable';
     var parent = c?.parentId ?? '';
     var active = c?.active ?? true;
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: c == null ? 'تصنيف جديد' : 'تعديل التصنيف',
       body: (setLocal) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -406,11 +409,92 @@ class _CategoriesCard extends StatelessWidget {
         for (final c in s.categories)
           ActionChip(
             avatar: Icon(c.kind == 'asset' ? Icons.chair_outlined : Icons.inventory_2_outlined, size: 16),
-            label: Text('${c.name} · ${c.code} (${s.items.where((i) => i.categoryId == c.id).length})',
+            label: Text(
+                '${c.name} · ${c.code} (${c.isAsset ? app.storeAssets.assets.where((a) => a.categoryId == c.id && !a.isDisposed).length : s.items.where((i) => i.categoryId == c.id).length})',
                 style: TextStyle(color: c.active ? null : sem.muted)),
             onPressed: edit ? () => _edit(context, c) : null,
           ),
       ]),
+    );
+  }
+}
+
+/// سياسة الإهلاك الافتراضية لكل تصنيف أصول (الترحيل 39): تُقترح للأصل الجديد، ولا تغيّر الأصول المسجلة.
+class _DepPoliciesCard extends StatelessWidget {
+  const _DepPoliciesCard({required this.edit});
+
+  final bool edit;
+
+  Future<void> _edit(BuildContext context, StCategory c) {
+    final app = AppScope.read(context);
+    final p = app.storeAssets.policyOf(c.id);
+    var method = p?.depMethod ?? 'straight';
+    final life = TextEditingController(text: p?.lifeMonths?.toString() ?? '');
+    final pct = TextEditingController(text: p == null || p.salvagePct == 0 ? '' : fmtQty(p.salvagePct));
+    return storeFormDialog(
+      context,
+      title: 'سياسة إهلاك «${c.name}»',
+      width: 420,
+      body: (setLocal) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SelectField(
+          label: 'طريقة الإهلاك',
+          value: method,
+          items: [for (final e in depMethodLabels.entries) (e.key, e.value)],
+          onChanged: (v) => setLocal(() => method = v),
+        ),
+        if (method == 'straight') ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: life,
+            keyboardType: TextInputType.number,
+            decoration: fieldDeco('العمر الإنتاجي بالأشهر', helper: '60 شهراً = خمس سنوات'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: pct,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: fieldDeco('نسبة الخردة من التكلفة %', hint: '0'),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Text('تُقترح للأصل الجديد في التصنيف، ولا تتغير بها الأصول المسجلة.', style: TextStyle(color: Sem.of(context).muted, fontSize: 12.5)),
+      ]),
+      onSave: () {
+        final l = int.tryParse(life.text.trim());
+        if (method == 'straight' && (l == null || l < 1 || l > 600)) {
+          throw StateError('العمر بالأشهر عدد صحيح من 1 إلى 600');
+        }
+        final x = pct.text.trim().isEmpty ? 0.0 : parseImportNumber(pct.text);
+        if (x == null || x < 0 || x > 100) throw StateError('نسبة الخردة من 0 إلى 100');
+        return app.stSaveAssetPolicy(c.id, {'dep_method': method, 'life_months': method == 'straight' ? l : null, 'salvage_pct': x});
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final sem = Sem.of(context);
+    final cats = [for (final c in app.stores.categories) if (c.isAsset) c];
+    return SectionCard(
+      title: 'سياسات الإهلاك',
+      icon: Icons.trending_down_rounded,
+      subtitle: 'العمر الافتراضي ونسبة الخردة لكل تصنيف أصول؛ تُقترح للأصل الجديد وحده.',
+      child: cats.isEmpty
+          ? Text('لا تصنيفات أصول بعد. اجعل نوع التصنيف «أصل» ليظهر هنا.', style: TextStyle(color: sem.muted))
+          : Column(children: [
+              for (final c in cats)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.chair_outlined, color: sem.muted),
+                  title: Text('${c.name} · ${c.code}'),
+                  subtitle: Text(app.storeAssets.policyOf(c.id)?.label ?? 'لا سياسة: يُحدَّد العمر لكل أصل',
+                      style: TextStyle(color: sem.muted, fontSize: 12)),
+                  trailing: edit ? const Icon(Icons.edit_outlined, size: 18) : null,
+                  onTap: edit ? () => _edit(context, c) : null,
+                ),
+            ]),
     );
   }
 }
@@ -424,7 +508,7 @@ class _UnitsCard extends StatelessWidget {
     final app = AppScope.read(context);
     final name = TextEditingController(text: u?.name ?? '');
     var active = u?.active ?? true;
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: u == null ? 'وحدة جديدة' : 'تعديل الوحدة',
       width: 380,
@@ -551,7 +635,7 @@ class _StoresPeoplePageState extends State<StoresPeoplePage> {
     final code = TextEditingController(text: d?.code ?? '');
     var parent = d?.parentId ?? '';
     var active = d?.active ?? true;
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: d == null ? 'إدارة أو قسم جديد' : 'تعديل الإدارة',
       body: (setLocal) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -594,7 +678,7 @@ class _StoresPeoplePageState extends State<StoresPeoplePage> {
       for (final p in app.people.values)
         if (p.active && !linked.contains(p.id)) p,
     ]..sort((a, b) => a.displayName.compareTo(b.displayName));
-    return _formDialog(
+    return storeFormDialog(
       context,
       title: e == null ? 'موظف جديد' : 'تعديل سجل الموظف',
       width: 560,
@@ -805,9 +889,45 @@ class _ImportPageState extends State<_ImportPage> {
   bool _busy = false;
   String? _error;
 
-  Map<String, List<String>> get _spec => widget.kind == 'employees' ? employeeImportColumns : itemImportColumns;
-  List<String> get _required => widget.kind == 'employees' ? const ['emp_no', 'full_name'] : const ['name', 'category', 'unit'];
-  List<String> get _numeric => widget.kind == 'employees' ? const [] : const ['min_qty', 'max_qty', 'reorder_qty', 'critical_qty'];
+  bool get _assets => widget.kind == 'assets';
+  Map<String, List<String>> get _spec => switch (widget.kind) {
+        'employees' => employeeImportColumns,
+        'assets' => assetImportColumns,
+        _ => itemImportColumns,
+      };
+  List<String> get _required => switch (widget.kind) {
+        'employees' => const ['emp_no', 'full_name'],
+        'assets' => const ['name', 'category'],
+        _ => const ['name', 'category', 'unit'],
+      };
+  List<String> get _numeric => switch (widget.kind) {
+        'employees' => const [],
+        'assets' => const ['cost', 'life_months', 'salvage'],
+        _ => const ['min_qty', 'max_qty', 'reorder_qty', 'critical_qty'],
+      };
+
+  static const Map<String, String> _assetLabels = {
+    'tag': 'رقم الأصل',
+    'name': 'الوصف',
+    'category': 'التصنيف',
+    'manufacturer': 'المصنع',
+    'model': 'الموديل',
+    'serial_no': 'الرقم التسلسلي',
+    'purchase_date': 'تاريخ الشراء',
+    'cost': 'التكلفة',
+    'supplier': 'المورد',
+    'invoice_no': 'رقم الفاتورة',
+    'warranty_until': 'نهاية الضمان',
+    'life_months': 'العمر بالأشهر',
+    'salvage': 'الخردة',
+    'condition': 'الحالة',
+    'location': 'الموقع',
+    'department': 'الإدارة',
+    'emp_no': 'الرقم الوظيفي للمستلم',
+    'note': 'ملاحظات',
+  };
+
+  String _label(String f) => (_assets ? _assetLabels[f] : null) ?? _labels[f] ?? f;
 
   static const Map<String, String> _labels = {
     'emp_no': 'الرقم الوظيفي',
@@ -834,6 +954,7 @@ class _ImportPageState extends State<_ImportPage> {
     final map = mapImportColumns(rows, _spec);
     if (map.headerRow < 0) return const [];
     final out = readImportRows(rows, map, required: _required, numeric: _numeric);
+    if (_assets) return [for (final r in out) _checkAsset(s, r)];
     if (widget.kind != 'items') return out;
     return [
       for (final r in out)
@@ -846,13 +967,60 @@ class _ImportPageState extends State<_ImportPage> {
     ];
   }
 
+  /// صف أصل: التصنيف تصنيف أصول، والتواريخ والحالة صالحة، والرقم الوظيفي موجود.
+  ImportRow _checkAsset(StoresData s, ImportRow r) {
+    if (!r.ok) return r;
+    String v(String k) => (r.values[k] ?? '').trim();
+    String? issue;
+    final cat = v('category');
+    final c = s.categories.where((x) => x.code == cat.toUpperCase() || normalizeArabic(x.name) == normalizeArabic(cat)).firstOrNull;
+    if (c == null) {
+      issue = 'التصنيف غير موجود';
+    } else if (!c.isAsset) {
+      issue = 'التصنيف استهلاكي لا أصول';
+    } else if (v('tag').isNotEmpty && !RegExp(r'^[A-Za-z0-9._/-]{1,30}$').hasMatch(v('tag'))) {
+      issue = 'رقم الأصل بحروف لاتينية وأرقام';
+    } else if (v('purchase_date').isNotEmpty && parseImportDate(v('purchase_date')) == null) {
+      issue = 'تاريخ الشراء غير صالح';
+    } else if (v('warranty_until').isNotEmpty && parseImportDate(v('warranty_until')) == null) {
+      issue = 'تاريخ الضمان غير صالح';
+    } else if (v('condition').isNotEmpty && parseAssetCondition(v('condition')) == null) {
+      issue = 'الحالة غير معروفة';
+    } else if (v('emp_no').isNotEmpty && !s.employees.any((e) => e.active && e.empNo.toLowerCase() == v('emp_no').toLowerCase())) {
+      issue = 'الرقم الوظيفي غير موجود';
+    }
+    return issue == null ? r : ImportRow(r.number, r.values, issue);
+  }
+
+  Map<String, dynamic> _assetRow(ImportRow r) {
+    String v(String k) => (r.values[k] ?? '').trim();
+    double? n(String k) => v(k).isEmpty ? null : parseImportNumber(v(k));
+    String day(String k) {
+      final d = parseImportDate(v(k));
+      return d == null ? '' : isoDay(d);
+    }
+
+    return {
+      for (final k in const ['tag', 'name', 'category', 'manufacturer', 'model', 'serial_no', 'supplier', 'invoice_no', 'location', 'department', 'emp_no', 'note'])
+        if (v(k).isNotEmpty) k: v(k),
+      if (v('purchase_date').isNotEmpty) 'purchase_date': day('purchase_date'),
+      if (v('warranty_until').isNotEmpty) 'warranty_until': day('warranty_until'),
+      if (n('cost') != null) 'cost': n('cost'),
+      if (n('life_months') != null) 'life_months': n('life_months')!.round(),
+      if (n('salvage') != null) 'salvage': n('salvage'),
+      if (v('condition').isNotEmpty) 'condition': parseAssetCondition(v('condition')),
+    };
+  }
+
   Future<void> _save(List<ImportRow> rows) async {
     final ok = [for (final r in rows) if (r.ok) r];
     if (ok.isEmpty) return;
     double? n(String? v) => v == null || v.isEmpty ? null : parseImportNumber(v);
     final payload = <Map<String, dynamic>>[
       for (final r in ok)
-        if (widget.kind == 'employees')
+        if (_assets)
+          _assetRow(r)
+        else if (widget.kind == 'employees')
           {
             'emp_no': r.values['emp_no'] ?? '',
             'full_name': r.values['full_name'] ?? '',
@@ -882,14 +1050,16 @@ class _ImportPageState extends State<_ImportPage> {
     final app = AppScope.read(context);
     final fn = widget.kind == 'employees' ? 'st_import_employees' : 'st_import_items';
     try {
-      var ins = 0, upd = 0;
+      var ins = 0, upd = 0, cus = 0;
       for (var i = 0; i < payload.length; i += 2000) {
-        final res = await app.stImport(fn, payload.sublist(i, i + 2000 > payload.length ? payload.length : i + 2000));
+        final part = payload.sublist(i, i + 2000 > payload.length ? payload.length : i + 2000);
+        final res = _assets ? await app.stImportAssets(part) : await app.stImport(fn, part);
         ins += (res['inserted'] as num?)?.toInt() ?? 0;
         upd += (res['updated'] as num?)?.toInt() ?? 0;
+        cus += (res['custody'] as num?)?.toInt() ?? 0;
       }
       if (!mounted) return;
-      showToast(context, 'استُورد ${payload.length} صفاً: أُضيف $ins وحُدّث $upd');
+      showToast(context, 'استُورد ${payload.length} صفاً: أُضيف $ins وحُدّث $upd${cus > 0 ? ' وسُجّلت $cus عهدة' : ''}');
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) setState(() => _error = friendlyError(e));
@@ -906,10 +1076,10 @@ class _ImportPageState extends State<_ImportPage> {
     final map = mapImportColumns(rowsRaw, _spec);
     final rows = _rows(s);
     final bad = rows.where((r) => !r.ok).length;
-    final missing = [for (final f in _required) if (!map.columns.containsKey(f)) _labels[f] ?? f];
+    final missing = [for (final f in _required) if (!map.columns.containsKey(f)) _label(f)];
     final cols = [for (final f in _spec.keys) if (map.columns.containsKey(f)) f];
     return Scaffold(
-      appBar: AppBar(title: Text(widget.kind == 'employees' ? 'استيراد الموظفين' : 'استيراد الأصناف')),
+      appBar: AppBar(title: Text(switch (widget.kind) { 'employees' => 'استيراد الموظفين', 'assets' => 'استيراد سجل الأصول', _ => 'استيراد الأصناف' })),
       body: PageBody(children: [
         if (widget.sheets.length > 1) ...[
           SizedBox(
@@ -927,20 +1097,23 @@ class _ImportPageState extends State<_ImportPage> {
           level: missing.isNotEmpty ? 'critical' : (bad > 0 ? 'warning' : 'ok'),
           text: missing.isNotEmpty
               ? 'لم تُعرف أعمدة: ${missing.join('، ')}. اجعل صف العناوين في أعلى الورقة بهذه الأسماء.'
-              : 'قُرئ ${rows.length} صفاً${bad > 0 ? '، منها $bad لا تُحفظ لملاحظة فيها' : ''}. الأعمدة: ${cols.map((c) => _labels[c] ?? c).join('، ')}.',
+              : 'قُرئ ${rows.length} صفاً${bad > 0 ? '، منها $bad لا تُحفظ لملاحظة فيها' : ''}. الأعمدة: ${cols.map(_label).join('، ')}.',
         ),
         const SizedBox(height: 8),
         Text(
-          widget.kind == 'employees'
-              ? 'يُحدَّث الموظف الموجود بالرقم الوظيفي نفسه ويُضاف الجديد، والإدارة غير الموجودة تُنشأ باسمها.'
-              : 'يُحدَّث الصنف الموجود بالرمز نفسه ويُضاف الجديد (برمز تلقائي إن تُرك)، والوحدة غير الموجودة تُنشأ، والتصنيف يجب أن يوجد.',
+          switch (widget.kind) {
+            'employees' => 'يُحدَّث الموظف الموجود بالرقم الوظيفي نفسه ويُضاف الجديد، والإدارة غير الموجودة تُنشأ باسمها.',
+            'assets' => 'يُحدَّث الأصل الموجود برقمه ويُضاف الجديد (برقم تلقائي إن تُرك)، والعمر والخردة من سياسة التصنيف إن تُركا. '
+                'من له رقم وظيفي تُسجَّل عهدته باسمه. الموقع برمزه أو باسمه، والملف كله يُحفظ أو لا يُحفظ منه شيء.',
+            _ => 'يُحدَّث الصنف الموجود بالرمز نفسه ويُضاف الجديد (برمز تلقائي إن تُرك)، والوحدة غير الموجودة تُنشأ، والتصنيف يجب أن يوجد.',
+          },
           style: TextStyle(color: sem.muted, fontSize: 12.5),
         ),
         const SizedBox(height: 12),
         SectionCard(
           title: 'المراجعة',
           child: PmTable(
-            columns: ['الصف', for (final c in cols) _labels[c] ?? c, 'ملاحظة'],
+            columns: ['الصف', for (final c in cols) _label(c), 'ملاحظة'],
             rows: [
               for (final r in rows.take(300)) ['${r.number}', for (final c in cols) r.values[c] ?? '', r.issue ?? ''],
             ],

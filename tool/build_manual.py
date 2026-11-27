@@ -109,6 +109,26 @@ ref_rows = ['| الصيغة | النمط | إعادة التسلسل | أول ر
 for s in ref_schemes:
     ref_rows.append(f"| **{s['name']}**{'' if s.get('active', True) else ' (موقوفة)'} | {s['pattern']} | {RESET.get(s.get('reset'), s.get('reset'))} | {ref_example(s)} |")
 
+def dep_policies_text(policies):
+    """سياسات الإهلاك نصاً كما في depPoliciesText (lib/assets.dart)."""
+    if not policies:
+        return 'لم تُحدَّد بعد'
+
+    def pct(v):
+        v = float(v or 0)
+        return str(int(v)) if v == int(v) else ('%.2f' % v).rstrip('0')
+
+    out = []
+    for p in policies:
+        if p.get('dep_method') == 'none':
+            out.append('«%s» بلا إهلاك' % p.get('name', ''))
+        else:
+            life = p.get('life_months')
+            out.append('«%s» %s شهراً%s' % (p.get('name', ''), life if life is not None else '-',
+                                           (' وخردة %s%%' % pct(p.get('salvage_pct'))) if float(p.get('salvage_pct') or 0) > 0 else ''))
+    return '، '.join(out)
+
+
 def rate_text(r):
     v = float(r if isinstance(r, (int, float)) else 0) * 100
     return f'{round(v)}%' if v == round(v) else f'{v:.1f}%'
@@ -146,6 +166,7 @@ values = {
     # إعدادات قسم المخازن (الترحيل 38): التنبيه قبل انتهاء الصلاحية، وفصل المهام
     'STR_EXPIRY_DAYS': str(int((live.get('stores_settings') or {}).get('expiry_days', 60))),
     'STR_SEPARATION': 'مفعّل' if (live.get('stores_settings') or {}).get('separation', True) else 'معطّل',
+    'STR_DEP_POLICIES': dep_policies_text(live.get('stores_dep_policies') or []),
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML

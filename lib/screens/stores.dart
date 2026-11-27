@@ -10,6 +10,7 @@ import '../stores.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'pm_common.dart' show PmTable;
+import 'stores_assets.dart' show MyCustodySection;
 import 'stores_docs.dart';
 import 'stores_setup.dart' show startStoresImport;
 
@@ -1165,12 +1166,15 @@ class StoresMinePage extends StatelessWidget {
     final me = app.myEmployee;
     final docs = me == null ? const <StDoc>[] : [for (final d in s.docsOfEmployee(me.id)) if (d.isPosted) d];
     final pending = docs.where((d) => d.kind == 'issue' && !d.isReversal && d.confirmedAt == null).length;
+    final custody = app.myCustody;
+    final custodyOpen = custody.where((c) => c.isOpen).length;
+    final custodyPending = custody.where((c) => (c.isOpen && c.needsReceipt) || c.needsReturnConfirm).length;
     return PageBody(
       onRefresh: app.loadAll,
       children: [
         PageHeader(
           title: 'ما صُرف لي',
-          subtitle: 'ما صُرف لك من المخازن وما أرجعته، وتأكيد استلامك لكل مستند صرف.',
+          subtitle: 'ما في عهدتك من أصول، وما صُرف لك من المخازن وما أرجعته، وتأكيد استلامك وإرجاعك.',
           icon: Icons.person_pin_outlined,
         ),
         if (me == null)
@@ -1185,15 +1189,24 @@ class StoresMinePage extends StatelessWidget {
             icon: Icons.badge_outlined,
             subtitle: [me.empNo, me.jobTitle, s.departmentPath(me.departmentId)].where((x) => x.isNotEmpty).join(' · '),
             child: Wrap(spacing: 10, runSpacing: 10, children: [
+              if (custody.isNotEmpty) ToneBadge('$custodyOpen في عهدتي', color: sem.na),
               ToneBadge('${docs.length} مستند', color: sem.na),
-              if (pending > 0) ToneBadge('$pending بانتظار تأكيد استلامك', color: sem.wip, icon: Icons.touch_app_outlined),
+              if (pending + custodyPending > 0)
+                ToneBadge('${pending + custodyPending} بانتظار تأكيدك', color: sem.wip, icon: Icons.touch_app_outlined),
             ]),
           ),
           const SizedBox(height: 14),
-          if (docs.isEmpty)
+          const MyCustodySection(),
+          if (docs.isEmpty && custody.isEmpty)
             const EmptyState(title: 'لم يُصرف لك شيء بعد', icon: Icons.inventory_2_outlined)
-          else
+          else if (docs.isNotEmpty) ...[
+            if (custody.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text('ما صُرف لي (${docs.length})', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              ),
             for (final d in docs) ...[_MineDoc(doc: d), const SizedBox(height: 10)],
+          ],
         ],
       ],
     );

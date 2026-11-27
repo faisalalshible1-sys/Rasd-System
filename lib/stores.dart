@@ -89,6 +89,7 @@ const Map<String, String> storesScopeLabels = {
   'stores:admin': 'مدير النظام في المخازن',
   'stores:manager': 'مدير المخازن',
   'stores:audit': 'مراجع المخازن (اطلاع فقط)',
+  'stores:assets': 'مسؤول الأصول والعهد',
 };
 
 String storesKeeperScope(String warehouseId) => 'stores:keeper:$warehouseId';
@@ -244,6 +245,8 @@ class StCategory {
   final String kind;
   final bool active;
   final int sort;
+
+  bool get isAsset => kind == 'asset';
 }
 
 class StUnit {
