@@ -213,3 +213,12 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 psql -h "$H" -p "$PORT" -U postgres -d dctest -qc "insert into public.pm_milestones (project_id, title, planned_date) select id, 'باقٍ', current_date from public.projects limit 1" >/dev/null
 if $P -d dctest -1 -f "$DIR/rollbacks/20261206000045_milestones_kpi_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 45 مع وجود معالم"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'pm_milestones'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع ومعالم مسجَّلة، والمنظومة كما هي"
+# ميزانية المكتب (الترحيل 46)
+$P -d dctest -f "$DIR/migrations/20261207000046_budget.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261207000046_budget.sql"
+$P -d dctest -f "$DIR/migrations/20261207000046_budget.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261207000046_budget.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261207000046_budget_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 46 ولا بنود"
+$P -d dctest -1 -f "$DIR/migrations/20261207000046_budget.sql" >/dev/null && echo "PASS: إعادة الترحيل 46 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/128_budget_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+psql -h "$H" -p "$PORT" -U postgres -d dctest -qc "insert into public.budget_lines (fiscal_year, category, name, allocated) values (2026, 'ب', 'باقٍ', 1)" >/dev/null
+if $P -d dctest -1 -f "$DIR/rollbacks/20261207000046_budget_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 46 مع وجود بنود"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'budget_lines'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وبنود مسجَّلة، والمنظومة كما هي"
