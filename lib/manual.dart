@@ -95,7 +95,7 @@ List<ManualChapter> manualChaptersFor(bool Function(String section) sees) => [
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/26';
+const String manualUpdated = '2026/11/27';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -249,6 +249,8 @@ const Map<int, String> manualTabAnchors = {
   204: '34_stores',
   205: '34_stores',
   206: '34_stores',
+  207: '34_stores',
+  210: '34_stores',
   208: '23_admin',
   209: '23_admin',
 };

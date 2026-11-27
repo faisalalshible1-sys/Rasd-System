@@ -51,6 +51,9 @@ List<GrantScope> grantCatalog(List<FormDef> forms, {List<(String, String)> wareh
       const GrantScope('stores:manager', 'مدير المخازن', 'المخازن والأصول',
           note: 'بطاقات الأصناف، واعتماد المستندات وعكسها، واستثناء الاحتياطي الحرج، وحركات كل المخازن'),
       const GrantScope('stores:audit', 'مراجع المخازن', 'المخازن والأصول', note: 'اطلاع على كل القسم وتقاريره دون تعديل'),
+      // الأصول والعهد (الترحيل 39)
+      const GrantScope('stores:assets', 'مسؤول الأصول والعهد', 'المخازن والأصول',
+          note: 'سجل الأصول، وتسليم العهد واستلامها، والنقل وتغيير الوضع، وطلب الاستبعاد (يعتمده مدير المخازن)'),
       for (final w in warehouses)
         GrantScope('stores:keeper:${w.$1}', 'أمين مخزن: ${w.$2}', 'المخازن والأصول',
             note: 'إعداد مستندات المخزن وتقديمها، وترحيلها بعد اعتمادها'),

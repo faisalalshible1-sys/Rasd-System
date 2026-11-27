@@ -21,8 +21,10 @@ import 'package:dc_app/print/sources.dart';
 import 'package:dc_app/print/table_editor.dart';
 import 'package:dc_app/rasd.dart';
 import 'package:dc_app/schedule.dart';
+import 'package:dc_app/assets.dart';
 import 'package:dc_app/stores.dart';
 import 'package:dc_app/screens/stores.dart';
+import 'package:dc_app/screens/stores_assets.dart';
 import 'package:dc_app/screens/stores_docs.dart';
 import 'package:dc_app/screens/stores_setup.dart';
 import 'package:dc_app/services/boq_files.dart';
@@ -2079,6 +2081,69 @@ void main() {
     await _shot(tester, 'u4_people_light', app, _scaffold(const StoresPeoplePage()), size: const Size(1440, 1900));
     await _shot(tester, 'u5_people_mobile', app, _scaffold(const StoresPeoplePage()), size: const Size(400, 3000));
     await _shot(tester, 'u6_mine_mobile', app, _scaffold(const StoresMinePage()), size: const Size(400, 1600));
+    // الأصول والعهد والإهلاك (الترحيل 39)
+    app.v23Ready = true;
+    app.storeAssets = AssetsData(
+      policies: const [StAssetPolicy(categoryId: 'cofe', lifeMonths: 60), StAssetPolicy(categoryId: 'cfur', lifeMonths: 120, salvagePct: 10)],
+      assets: [
+        StAsset(
+            id: 'as1', tag: 'OFE-A-0001', name: 'حاسوب محمول', categoryId: 'cofe', manufacturer: 'Dell', model: 'Latitude 5440',
+            serialNo: 'SN-LAP-001', purchaseDate: day(-320), inServiceDate: day(-315), cost: 3600, lifeMonths: 36, supplier: 'مورد الحواسيب',
+            invoiceNo: 'INV-2026-114', warrantyUntil: day(400), status: 'custody', condition: 'good', locationId: 'r4', departmentId: 'dit',
+            employeeId: 'e1'),
+        StAsset(
+            id: 'as2', tag: 'OFE-A-0002', name: 'شاشة 24 بوصة', categoryId: 'cofe', manufacturer: 'Dell', model: 'P2423',
+            purchaseDate: day(-290), cost: 520, lifeMonths: 60, salvage: 52, status: 'custody', employeeId: 'e2', departmentId: 'dad', locationId: 'f1'),
+        StAsset(
+            id: 'as3', tag: 'OFE-A-0003', name: 'طابعة ليزر ملونة', categoryId: 'cofe', manufacturer: 'HP', model: 'M479', serialNo: 'PR-77',
+            purchaseDate: day(-700), cost: 1500, lifeMonths: 60, status: 'maintenance', condition: 'fair', locationId: 'r4', departmentId: 'dg'),
+        StAsset(
+            id: 'as4', tag: 'FUR-OLD-17', name: 'مكتب خشبي مع أدراج', categoryId: 'cfur', purchaseDate: DateTime(2024, 3, 1), cost: 1200,
+            salvage: 120, lifeMonths: 120, status: 'in_use', locationId: 'r4', departmentId: 'dg'),
+        StAsset(
+            id: 'as5', tag: 'FUR-A-0001', name: 'كرسي دوار', categoryId: 'cfur', purchaseDate: day(-40), cost: 300, lifeMonths: 120, salvage: 30,
+            condition: 'new', warehouseId: 'wm', locationId: 'r4'),
+        StAsset(
+            id: 'as6', tag: 'FUR-A-0002', name: 'خزانة ملفات معدنية', categoryId: 'cfur', purchaseDate: DateTime(2019, 5, 1), cost: 800,
+            lifeMonths: 120, salvage: 80, status: 'disposal', condition: 'poor', locationId: 'f0', departmentId: 'dsv', disposalKind: 'scrap',
+            disposalReason: 'صدأ وتلف الأقفال', disposalRequestedAt: day(-1), disposalRequestedBy: 'u-1'),
+        StAsset(
+            id: 'as7', tag: 'OFE-A-0004', name: 'جهاز عرض قديم', categoryId: 'cofe', purchaseDate: DateTime(2018, 1, 1), cost: 2000, lifeMonths: 60,
+            status: 'disposed', condition: 'damaged', disposalKind: 'scrap', disposalReason: 'تلف اللوحة الأم', disposalDate: day(-60),
+            disposedAt: day(-60)),
+      ],
+      custody: [
+        StCustody(
+            id: 'cu1', custodyNo: 'CU-2026-0001', assetId: 'as1', employeeId: 'e1', departmentId: 'dit', locationId: 'r4', handedOn: day(-300),
+            conditionOut: 'new', accessoriesOut: 'شاحن وحقيبة', confirmedAt: day(-299)),
+        StCustody(
+            id: 'cu2', custodyNo: 'CU-2026-0002', assetId: 'as2', employeeId: 'e2', departmentId: 'dad', handedOn: day(-20), accessoriesOut: 'كابل HDMI'),
+        StCustody(
+            id: 'cu0', custodyNo: 'CU-2025-0007', assetId: 'as3', employeeId: 'e3', departmentId: 'dsv', handedOn: DateTime(2025, 1, 10),
+            returnedOn: day(-30), conditionIn: 'fair', confirmedAt: DateTime(2025, 1, 11), returnConfirmedAt: day(-29)),
+      ],
+    );
+    app.myCustody = [
+      MyCustody(
+          id: 'cu2', custodyNo: 'CU-2026-0002', tag: 'OFE-A-0002', name: 'شاشة 24 بوصة', category: 'الأجهزة المكتبية', manufacturer: 'Dell',
+          model: 'P2423', handedOn: day(-20), accessoriesOut: 'كابل HDMI'),
+    ];
+    final events = [
+      StAssetEvent(id: 1, assetId: 'as1', kind: 'create', at: day(-320), byUser: 'u-1', data: const {'cost': 3600}),
+      StAssetEvent(id: 2, assetId: 'as1', kind: 'custody_out', at: day(-300), byUser: 'u-1', data: const {'employee': 'سالم علي المبروك', 'custody_no': 'CU-2026-0001'}),
+      StAssetEvent(id: 3, assetId: 'as1', kind: 'transfer', at: day(-100), byUser: 'u-1', data: const {'to': {'location_id': 'r4', 'department_id': 'dit'}},
+          note: 'انتقل مكتب الموظف'),
+    ];
+    await _shot(tester, 'v0_assets_light', app, _scaffold(const StoresAssetsPage()), size: const Size(1440, 1500));
+    await _shot(tester, 'v1_assets_dark_mobile', app, _scaffold(const StoresAssetsPage()), size: const Size(400, 2800), dark: true);
+    await _shot(tester, 'v2_asset_page_light', app, StoreAssetPage(assetId: 'as1', initialEvents: events), size: const Size(1200, 2300));
+    await _shot(tester, 'v3_asset_disposal_mobile', app, const StoreAssetPage(assetId: 'as6', initialEvents: []), size: const Size(400, 2300));
+    await _shot(tester, 'v4_asset_editor_light', app, _OpenAction(run: (ctx) => showAssetEditor(ctx)), size: const Size(1200, 1600));
+    await _shot(tester, 'v5_custody_light', app, _scaffold(const StoresCustodyPage()), size: const Size(1440, 1200));
+    await _shot(tester, 'v6_mine_custody_mobile', app, _scaffold(const StoresMinePage()), size: const Size(400, 2000));
+    await _shot(tester, 'v7_setup_policies_light', app, _scaffold(const StoresSetupPage()), size: const Size(1440, 3000));
+    app.openSection('stores');
+    await _shot(tester, 'v8_stores_nav_light', app, const HomeShell(), size: const Size(1440, 1300));
     app.manualAnchor = '34_stores';
     await _shot(tester, 'u7_manual_stores_light', app, _scaffold(const ManualPage()), size: const Size(1440, 9000));
   });

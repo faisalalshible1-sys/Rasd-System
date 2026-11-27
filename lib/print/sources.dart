@@ -13,6 +13,7 @@ import '../prices.dart';
 import '../rasd.dart' show sectionDefaultNames;
 import '../registers.dart';
 import '../schedule.dart';
+import '../assets.dart';
 import '../stores.dart';
 import '../units.dart';
 import 'model.dart';
@@ -1331,6 +1332,105 @@ List<ExportSource> _all(AppState app) => [
         summary: (a, l) => [('الموظفون', '${l.length}'), ('بحساب', '${l.where((e) => e.profileId != null).length}')],
       ),
 
+      // ============================================================ الأصول والعهد (الترحيل 39)
+      _src<StAsset>(
+        id: 'stores:assets',
+        section: 'stores',
+        title: 'سجل الأصول',
+        icon: Icons.chair_alt_rounded,
+        ready: (a) => a.storesAssetsSees,
+        items: (a) => a.storeAssets.active,
+        columns: const [
+          _C('tag', 'رقم الأصل', flex: 0.9),
+          _C('name', 'الوصف', flex: 1.8),
+          _C('category', 'التصنيف', flex: 1),
+          _C('maker', 'المصنع والموديل', flex: 1.2, on: false),
+          _C('serial', 'الرقم التسلسلي', flex: 1, on: false),
+          _C('status', 'الوضع', flex: 0.8),
+          _C('condition', 'الحالة', flex: 0.6, on: false),
+          _C('place', 'المكان', flex: 1.4),
+          _C('holder', 'في عهدة', flex: 1.2),
+          _C('purchase', 'تاريخ الشراء', type: ColType.date, flex: 0.8, on: false),
+          _C('cost', 'التكلفة', type: ColType.money, flex: 0.9),
+          _C('accumulated', 'الإهلاك المتراكم', type: ColType.money, flex: 0.9, on: false),
+          _C('book', 'القيمة الدفترية', type: ColType.money, flex: 0.9),
+          _C('warranty', 'نهاية الضمان', type: ColType.date, flex: 0.8, on: false),
+          _C('supplier', 'المورد', flex: 1, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final today = DateTime.now();
+          return [
+            x.tag,
+            x.name,
+            s.category(x.categoryId)?.name ?? '',
+            [x.manufacturer, x.model].where((v) => v.isNotEmpty).join(' '),
+            x.serialNo,
+            x.statusLabel,
+            x.conditionLabel,
+            x.warehouseId != null ? 'مخزن ${s.warehouseName(x.warehouseId)}' : s.locationPath(x.locationId),
+            s.employee(x.employeeId)?.fullName ?? '',
+            x.purchaseDate,
+            x.cost,
+            x.accumulated(today),
+            x.bookValue(today),
+            x.warrantyUntil,
+            x.supplier,
+          ];
+        },
+        summary: (a, l) {
+          final t = a.storeAssets.totals(DateTime.now(), of: l);
+          return [
+            ('الأصول', '${l.length}'),
+            ('في العهدة', '${l.where((x) => x.inCustody).length}'),
+            ('التكلفة', fmtMoney(t.cost)),
+            ('القيمة الدفترية', fmtMoney(t.book)),
+          ];
+        },
+      ),
+      _src<StCustody>(
+        id: 'stores:custody',
+        section: 'stores',
+        title: 'محاضر العهد',
+        icon: Icons.assignment_ind_rounded,
+        ready: (a) => a.storesAssetsSees,
+        items: (a) => a.storeAssets.custody,
+        columns: const [
+          _C('no', 'المحضر', flex: 0.9),
+          _C('employee', 'الموظف', flex: 1.5),
+          _C('emp_no', 'الرقم الوظيفي', flex: 0.8, on: false),
+          _C('department', 'الإدارة', flex: 1.2),
+          _C('tag', 'رقم الأصل', flex: 0.9),
+          _C('asset', 'الأصل', flex: 1.6),
+          _C('handed', 'التسليم', type: ColType.date, flex: 0.8),
+          _C('cond_out', 'الحالة عند التسليم', flex: 0.7, on: false),
+          _C('accessories', 'الملحقات', flex: 1.1, on: false),
+          _C('confirmed', 'تأكيد الموظف', flex: 0.7),
+          _C('returned', 'الإرجاع', type: ColType.date, flex: 0.8),
+          _C('cond_in', 'الحالة عند الإرجاع', flex: 0.7, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final e = s.employee(x.employeeId);
+          final asset = a.storeAssets.asset(x.assetId);
+          return [
+            x.custodyNo,
+            e?.fullName ?? '',
+            e?.empNo ?? '',
+            s.departmentPath(x.departmentId),
+            asset?.tag ?? '',
+            asset?.name ?? '',
+            x.handedOn,
+            assetConditionLabels[x.conditionOut] ?? '',
+            x.accessoriesOut,
+            x.confirmedAt == null ? 'لم يؤكد' : 'أكّد',
+            x.returnedOn,
+            assetConditionLabels[x.conditionIn] ?? '',
+          ];
+        },
+        summary: (a, l) => [('المحاضر', '${l.length}'), ('القائمة', '${l.where((x) => x.isOpen).length}')],
+      ),
+
       // ============================================================ الوسائط والملفات
       _src<DocFile>(
         id: 'media:files',
@@ -1516,5 +1616,7 @@ String? exportSourceForTab(int tab) => switch (tab) {
       202 => 'stores:docs',
       203 => 'stores:balances',
       205 => 'stores:employees',
+      207 => 'stores:assets',
+      210 => 'stores:custody',
       _ => null,
     };

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../app_state.dart';
+import '../assets.dart' show depPoliciesText;
 import '../rasd.dart';
 import '../config.dart';
 import '../manual.dart';
@@ -64,6 +65,10 @@ Map<String, String> manualValues(AppState app) {
     'ST_NA': FormStatus.na.label,
     'STR_EXPIRY_DAYS': '${app.stores.settings.expiryDays}',
     'STR_SEPARATION': app.stores.settings.separation ? 'مفعّل' : 'معطّل',
+    'STR_DEP_POLICIES': depPoliciesText([
+      for (final c in app.stores.categories)
+        if (app.storeAssets.policyOf(c.id) != null) (c.name, app.storeAssets.policyOf(c.id)!),
+    ]),
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

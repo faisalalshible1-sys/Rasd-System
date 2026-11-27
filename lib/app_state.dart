@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' show launchUrl;
 
+import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'docs.dart';
@@ -162,6 +163,16 @@ class AppState extends ChangeNotifier {
 
   /// آخر بطاقة صنف محمّلة (مصدر تصديرها).
   List<StMove> storeMoves = [];
+
+  // الترحيل 39: الأصول والعُهد والإهلاك
+  bool v23Ready = false;
+  AssetsData storeAssets = AssetsData.empty();
+
+  /// عهد الموظف المرتبط بالحساب (صفحة «ما صُرف لي»).
+  List<MyCustody> myCustody = [];
+
+  /// سجل حياة آخر أصل فُتح (مصدر تصديره).
+  List<StAssetEvent> assetEvents = [];
 
   /// الترحيل 34: نطاق المستخدم (أقسامه ووحداته ونماذجه المسندة). null قبل الترحيل: تظهر الأقسام كما كانت.
   UserScope? scope;
@@ -914,7 +925,7 @@ class AppState extends ChangeNotifier {
     final s = work.single;
     var t = _lastTab[s] ?? 0;
     if (t == 72 && !v15Ready) t = 70;
-    if (s == 'stores' && role == AppRole.employee) t = storesMineTab;
+    if (s == 'stores') t = storesTabFor(t);
     _section = s;
     _tab = sectionForTab(t) == s ? t : -1;
     showHub = false;
@@ -1544,6 +1555,7 @@ class AppState extends ChangeNotifier {
     if (!isDirector && !seesSection('stores')) {
       stores = StoresData.empty();
       v22Ready = false;
+      await _loadV23();
       return;
     }
     try {
@@ -1587,6 +1599,41 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       stores = StoresData.empty();
       v22Ready = false;
+    }
+    await _loadV23();
+  }
+
+  /// الأصول والعهد (الترحيل 39): سجلها لمن يراها، وعهد الموظف المرتبط بالحساب من st_my_custody.
+  Future<void> _loadV23() async {
+    if (!v22Ready) {
+      storeAssets = AssetsData.empty();
+      myCustody = [];
+      v23Ready = false;
+      return;
+    }
+    try {
+      final sees = storesAssetsSeesRaw;
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        storesStaff ? _allRows('st_asset_policies', ['category_id']) : Future.value(const <Map<String, dynamic>>[]),
+        sees ? _allRows('st_assets', ['id']) : Future.value(const <Map<String, dynamic>>[]),
+        sees ? _allRows('st_custody', ['id']) : Future.value(const <Map<String, dynamic>>[]),
+      ]);
+      storeAssets = AssetsData(
+        policies: r[0].map(StAssetPolicy.fromMap).toList(),
+        assets: r[1].map(StAsset.fromMap).toList()..sort((a, b) => a.tag.toLowerCase().compareTo(b.tag.toLowerCase())),
+        custody: r[2].map(StCustody.fromMap).toList(),
+      );
+      if (myEmployee != null) {
+        final mine = await client.rpc('st_my_custody');
+        myCustody = mine is List ? [for (final x in mine) if (x is Map) MyCustody.fromMap(Map<String, dynamic>.from(x))] : [];
+      } else {
+        myCustody = [];
+      }
+      v23Ready = true;
+    } catch (_) {
+      storeAssets = AssetsData.empty();
+      myCustody = [];
+      v23Ready = false;
     }
   }
 
@@ -1632,6 +1679,82 @@ class AppState extends ChangeNotifier {
 
   /// سجل الموظف المرتبط بحساب المستخدم (للخدمة الذاتية).
   StEmployee? get myEmployee => stores.employeeOfProfile(me?.id);
+
+  /// يرى مخزون القسم: من يرى القسم كله، وأمناء المخازن.
+  bool get storesInventory => storesSeesAll || storesMyWarehouses.isNotEmpty;
+
+  /// يرى الأصول والعهد (قبل التحقق من الترحيل 39): من يرى القسم كله، ومسؤول الأصول.
+  bool get storesAssetsSeesRaw => v22Ready && (storesSeesAll || grantsOf(me?.id ?? '').contains('stores:assets'));
+
+  /// يرى الأصول والعهد.
+  bool get storesAssetsSees => v23Ready && storesAssetsSeesRaw;
+
+  /// يسجّل الأصول ويسلّم العهد ويستلمها وينقل ويطلب الاستبعاد: المدير ومدير المخازن ومسؤول الأصول.
+  bool get canStoresAssets =>
+      v23Ready && !frozenForMe && (isDirector || hasGrant('stores:manager') || hasGrant('stores:assets'));
+
+  /// يعتمد طلب الاستبعاد هذا (مع فصل المهام: لا يعتمد من طلبه).
+  bool canDecideDisposal(StAsset a) =>
+      v23Ready && canStoresApprove && a.isDisposal && !(stores.settings.separation && a.disposalRequestedBy == me?.id);
+
+  /// الصفحة الملائمة في المخازن: الموظف صفحته، ومن لا يرى المخزون يبدأ بالأصول.
+  int storesTabFor(int t) {
+    if (role == AppRole.employee || (v22Ready && !storesStaff)) return storesMineTab;
+    if (v22Ready && !storesInventory && const {200, 201, 202, 203}.contains(t)) {
+      return storesAssetsSeesRaw ? storesAssetsTab : 205;
+    }
+    return t;
+  }
+
+  /// صفحة الأصول (Tabs.storesAssets).
+  static const int storesAssetsTab = 207;
+
+  /// صفحة العهد (Tabs.storesCustody).
+  static const int storesCustodyTab = 210;
+
+  Future<void> _reloadAssets() async {
+    await _loadV23();
+    _notify();
+  }
+
+  Future<String> _stAssetRpc(String fn, Map<String, dynamic> params) async {
+    final res = await client.rpc(fn, params: params);
+    await _reloadAssets();
+    return res?.toString() ?? '';
+  }
+
+  Future<String> stSaveAsset(String? id, Map<String, dynamic> data) => _stAssetRpc('st_save_asset', {'p_id': id, 'p_data': data});
+  Future<void> stDeleteAsset(String id) => _stAssetRpc('st_delete_asset', {'p_id': id});
+  Future<void> stAssetTransfer(String id, Map<String, dynamic> data) => _stAssetRpc('st_asset_transfer', {'p_id': id, 'p_data': data});
+  Future<void> stAssetStatus(String id, String status, {String? condition, String note = ''}) =>
+      _stAssetRpc('st_asset_status', {'p_id': id, 'p_status': status, 'p_condition': condition, 'p_note': note.trim()});
+  Future<String> stCustodyOut(String assetId, Map<String, dynamic> data) =>
+      _stAssetRpc('st_custody_out', {'p_asset': assetId, 'p_data': data});
+  Future<void> stCustodyIn(String custodyId, Map<String, dynamic> data) => _stAssetRpc('st_custody_in', {'p_id': custodyId, 'p_data': data});
+
+  /// تأكيد الموظف: receipt استلام العهدة، return إرجاعها.
+  Future<void> stConfirmCustody(String custodyId, String kind) =>
+      _stAssetRpc('st_confirm_custody', {'p_id': custodyId, 'p_kind': kind});
+  Future<void> stAssetDisposeRequest(String id, Map<String, dynamic> data) =>
+      _stAssetRpc('st_asset_dispose_request', {'p_id': id, 'p_data': data});
+  Future<void> stAssetDisposeDecide(String id, bool approve, {String note = ''}) =>
+      _stAssetRpc('st_asset_dispose_decide', {'p_id': id, 'p_approve': approve, 'p_note': note.trim()});
+  Future<void> stSaveAssetPolicy(String categoryId, Map<String, dynamic> data) =>
+      _stAssetRpc('st_save_asset_policy', {'p_category': categoryId, 'p_data': data});
+
+  /// استيراد سجل الأصول: يعيد عدد المضاف والمحدَّث والعهد.
+  Future<Map<String, dynamic>> stImportAssets(List<Map<String, dynamic>> rows) async {
+    final res = await client.rpc('st_import_assets', params: {'p_rows': rows});
+    await _reloadAssets();
+    return res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
+  }
+
+  /// سجل حياة أصل بترتيبه.
+  Future<List<StAssetEvent>> stAssetEventsOf(String assetId) async {
+    final r = await client.from('st_asset_events').select().eq('asset_id', assetId).order('id', ascending: true).limit(2000);
+    assetEvents = r.map(StAssetEvent.fromMap).toList();
+    return assetEvents;
+  }
 
   Future<String> _stSave(String fn, String? id, Map<String, dynamic> data) async {
     final res = await client.rpc(fn, params: {'p_id': id, 'p_data': data});
@@ -2303,6 +2426,11 @@ class AppState extends ChangeNotifier {
       for (final t in const ['st_docs', 'st_stock', 'st_items', 'st_employees', 'st_warehouses', 'st_settings']) {
         ch22.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => _scheduleStoresReload());
       }
+      if (v23Ready) {
+        for (final t in const ['st_assets', 'st_custody', 'st_asset_policies']) {
+          ch22.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => _scheduleStoresReload());
+        }
+      }
       ch22.subscribe();
       _channel22 = ch22;
     }
@@ -2400,6 +2528,10 @@ class AppState extends ChangeNotifier {
     v22Ready = false;
     stores = StoresData.empty();
     storeMoves = [];
+    v23Ready = false;
+    storeAssets = AssetsData.empty();
+    myCustody = [];
+    assetEvents = [];
     _storesDebounce?.cancel();
     final old22 = _channel22;
     if (old22 != null) client.removeChannel(old22);
@@ -2604,8 +2736,8 @@ class AppState extends ChangeNotifier {
     var t = _lastTab[s] ?? 0;
     // لوحة الإشراف (الترحيل 30) واجهة القسم؛ قبل الترحيل تبقى التقارير اليومية
     if (t == 72 && !v15Ready) t = 70;
-    // الموظف (الترحيل 38): صفحته «ما صُرف لي» وحدها في المخازن
-    if (s == 'stores' && role == AppRole.employee) t = storesMineTab;
+    // الموظف (الترحيل 38): صفحته «ما صُرف لي» وحدها في المخازن، ومسؤول الأصول (الترحيل 39) يبدأ بالأصول
+    if (s == 'stores') t = storesTabFor(t);
     _section = s;
     // صفحة نقلها المدير إلى قسم آخر: يعرض القسم أول صفحاته ويثبّتها الهيكل
     _tab = sectionForTab(t) == s ? t : -1;
