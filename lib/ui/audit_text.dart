@@ -402,6 +402,20 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'حدّد موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} على الخريطة (${text(d['lat'])}, ${text(d['lng'])})';
     case 'geo.clear':
       return 'أزال موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} من الخريطة';
+    case 'milestone.save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
+    case 'milestone.status':
+      return 'غيّر حالة معلم «${text(d['title'])}» في ${e.projectLabel} إلى ${const {'pending': 'معلّق', 'done': 'منجز', 'cancelled': 'ملغى'}[text(d['status'])] ?? text(d['status'])}${text(d['actual']).isEmpty ? '' : ' (الفعلي ${text(d['actual']).replaceAll('-', '/')})'}';
+    case 'milestone.delete':
+      return 'حذف معلم «${text(d['title'])}» من ${e.projectLabel}';
+    case 'kpi.def_save':
+      return '${d['created'] == true ? 'عرّف' : 'عدّل'} مؤشر الأداء «${text(d['name'])}» (المستهدف ${text(d['target'])})';
+    case 'kpi.def_delete':
+      return 'حذف مؤشر الأداء «${text(d['name'])}» بقيمه';
+    case 'kpi.value_set':
+      return 'سجّل قيمة ${text(d['value'])} لمؤشر «${text(d['name'])}» عن ${text(d['period'])}';
+    case 'kpi.value_delete':
+      return 'حذف قيمة مؤشر «${text(d['name'])}» عن ${text(d['period'])}';
     case 'risk.sync_sections':
       return 'حدّث مخاطر الأقسام تلقائياً: فُتح ${text(d['opened'])} وحُدّث ${text(d['updated'])} وأُغلق ${text(d['closed'])}';
     case 'swot.auto':

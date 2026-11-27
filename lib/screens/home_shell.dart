@@ -46,6 +46,7 @@ import 'chat.dart';
 import 'ref_numbers.dart';
 import 'security_center.dart';
 import 'risks.dart';
+import 'milestones.dart';
 import 'site_map.dart';
 import 'schedule.dart';
 import 'plans.dart';
@@ -80,6 +81,8 @@ class Tabs {
   static const riskRegister = 21;
   static const riskMatrix = 22;
   static const siteMap = 23;
+  static const milestones = 24;
+  static const kpi = 25;
   static const pmDashboard = 40;
   static const pmProjects = 41;
   static const pmProgress = 42;
@@ -386,6 +389,8 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
         _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
         const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
         if (app.v28Ready) const _Dest(Tabs.siteMap, 'خريطة المواقع', Icons.map_outlined, Icons.map_rounded),
+        if (app.v29Ready) _Dest(Tabs.milestones, 'معالم المشاريع', Icons.flag_outlined, Icons.flag_rounded, badge: app.lateMilestones),
+        if (app.v29Ready) const _Dest(Tabs.kpi, 'مؤشرات الأداء', Icons.speed_outlined, Icons.speed_rounded),
         ..._adminDests(app, 20),
       ];
     }
@@ -403,6 +408,8 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
       const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
       if (app.v28Ready) const _Dest(Tabs.siteMap, 'خريطة المواقع', Icons.map_outlined, Icons.map_rounded),
+      if (app.v29Ready) _Dest(Tabs.milestones, 'معالم المشاريع', Icons.flag_outlined, Icons.flag_rounded, badge: app.lateMilestones),
+      if (app.v29Ready) const _Dest(Tabs.kpi, 'مؤشرات الأداء', Icons.speed_outlined, Icons.speed_rounded),
       _Dest(Tabs.pmIssues, 'سجل المشاكل', Icons.report_problem_outlined, Icons.report_problem_rounded, badge: pm.overdueIssues),
       _Dest(Tabs.pmDelays, 'التأخيرات وأسبابها', Icons.hourglass_bottom_outlined, Icons.hourglass_bottom_rounded,
           badge: pm.pendingEot),
@@ -736,6 +743,8 @@ Widget _page(int id) => switch (id) {
       Tabs.riskRegister => const RiskRegisterPage(),
       Tabs.riskMatrix => const RiskMatrixPage(),
       Tabs.siteMap => const SiteMapPage(),
+      Tabs.milestones => const MilestonesPage(),
+      Tabs.kpi => const KpiPage(),
       Tabs.pmDashboard => const PmDashboardPage(),
       Tabs.pmProjects => const PmProjectsPage(),
       Tabs.pmProgress => const PmProgressPage(),

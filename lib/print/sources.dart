@@ -15,6 +15,7 @@ import '../registers.dart';
 import '../schedule.dart';
 import '../assets.dart';
 import '../maintenance.dart';
+import '../milestones.dart';
 import '../procurement.dart';
 import '../stocktaking.dart';
 import '../stores.dart';
@@ -635,6 +636,42 @@ List<ExportSource> _all(AppState app) => [
           ('الإجراءات', '${l.length}'),
           ('مفتوحة', '${l.where((r) => r.isOpen).length}'),
           ('متأخرة', '${l.where((r) => r.isLate(DateTime.now())).length}'),
+        ],
+      ),
+      _src<PmMilestone>(
+        id: 'risks:milestones',
+        section: 'risks',
+        title: 'معالم المشاريع',
+        icon: Icons.flag_rounded,
+        ready: (a) => a.v29Ready,
+        items: (a) => a.milestones,
+        project: (m) => m.projectId,
+        date: (m) => m.planned,
+        dateLabel: 'التاريخ المخطط',
+        columns: const [
+          _C('project', 'المشروع', flex: 2),
+          _C('title', 'المعلم', type: ColType.long, flex: 1.8),
+          _C('planned', 'المخطط', type: ColType.date, flex: 0.9),
+          _C('forecast', 'المتوقع', type: ColType.date, flex: 0.9),
+          _C('actual', 'الفعلي', type: ColType.date, flex: 0.9),
+          _C('status', 'الحالة', flex: 0.8),
+          _C('late', 'أيام التأخر', type: ColType.number, flex: 0.7),
+          _C('note', 'ملاحظة', type: ColType.long, on: false),
+        ],
+        row: (a, m) => [
+          a.pm.track(m.projectId)?.displayName ?? a.projects.where((p) => p.id == m.projectId).firstOrNull?.name ?? '',
+          m.title,
+          m.planned,
+          m.forecast,
+          m.actual,
+          m.isDone ? 'منجز' : (m.isCancelled ? 'ملغى' : (m.isOverdue(DateTime.now()) ? 'متأخر' : 'قادم')),
+          m.lateDays(DateTime.now()),
+          m.note,
+        ],
+        summary: (a, l) => [
+          ('المعالم', '${l.length}'),
+          ('منجزة', '${l.where((m) => m.isDone).length}'),
+          ('متأخرة', '${l.where((m) => m.isOverdue(DateTime.now())).length}'),
         ],
       ),
       _src<ProjectTrack>(
