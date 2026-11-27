@@ -16,6 +16,7 @@ import '../schedule.dart';
 import '../assets.dart';
 import '../maintenance.dart';
 import '../procurement.dart';
+import '../stocktaking.dart';
 import '../stores.dart';
 import '../units.dart';
 import 'model.dart';
@@ -1435,6 +1436,77 @@ List<ExportSource> _all(AppState app) => [
         summary: (a, l) => [('المحاضر', '${l.length}'), ('القائمة', '${l.where((x) => x.isOpen).length}')],
       ),
 
+      // ============================================================ الجرد والتقارير (الترحيل 42)
+      _src<MovementRow>(
+        id: 'stores:movement',
+        section: 'stores',
+        title: 'حركة الأصناف والاستهلاك (آخر 90 يوماً)',
+        icon: Icons.swap_vert_rounded,
+        ready: (a) => a.v22Ready,
+        items: (a) {
+          final now = DateTime.now();
+          return a.stores.movement(now.subtract(const Duration(days: 89)), now);
+        },
+        columns: const [
+          _C('code', 'الرمز', flex: 0.8),
+          _C('item', 'الصنف', flex: 2),
+          _C('unit', 'الوحدة', flex: 0.6),
+          _C('received', 'وارد', type: ColType.number, flex: 0.7, sum: false),
+          _C('issued', 'صادر', type: ColType.number, flex: 0.7, sum: false),
+          _C('consumed', 'صافي الاستهلاك', type: ColType.number, flex: 0.8, sum: false),
+          _C('on_hand', 'الرصيد الآن', type: ColType.number, flex: 0.8, sum: false),
+        ],
+        row: (a, x) => [
+          x.item.code,
+          x.item.name,
+          a.stores.unitName(x.item.baseUnitId),
+          x.received,
+          x.issued,
+          x.consumed,
+          a.stores.onHand(x.item.id),
+        ],
+        summary: (a, l) => [('الأصناف', '${l.length}')],
+      ),
+      _src<StCount>(
+        id: 'stores:counts',
+        section: 'stores',
+        title: 'جلسات الجرد',
+        icon: Icons.fact_check_rounded,
+        ready: (a) => a.v26Ready,
+        items: (a) => a.stocktake.counts,
+        date: (x) => x.createdAt,
+        dateLabel: 'تاريخ البدء',
+        columns: const [
+          _C('no', 'الجلسة', flex: 0.9),
+          _C('warehouse', 'المخزن', flex: 1.2),
+          _C('category', 'التصنيف', flex: 1, on: false),
+          _C('status', 'الحالة', flex: 0.9),
+          _C('started', 'البدء', type: ColType.date, flex: 0.8),
+          _C('decided', 'القرار', type: ColType.date, flex: 0.8),
+          _C('lines', 'البنود', type: ColType.number, flex: 0.5),
+          _C('variance', 'بنود بفرق', type: ColType.number, flex: 0.6),
+          _C('doc', 'مستند التسوية', flex: 0.9),
+          _C('by', 'أنشأها', flex: 0.9, on: false),
+        ],
+        row: (a, x) {
+          final s = a.stores;
+          final sum = a.stocktake.summary(x, (id) => s.onHand(id, warehouseId: x.warehouseId));
+          return [
+            x.countNo,
+            s.warehouseName(x.warehouseId),
+            s.category(x.categoryId)?.name ?? '',
+            x.statusLabel,
+            x.createdAt,
+            x.decidedAt,
+            sum.total,
+            sum.withVariance,
+            s.doc(x.adjustDocId)?.docNo ?? '',
+            _who(a, x.createdBy),
+          ];
+        },
+        summary: (a, l) => [('الجلسات', '${l.length}'), ('المغلقة', '${l.where((x) => x.isClosed).length}')],
+      ),
+
       // ============================================================ الصيانة (الترحيل 40)
       _src<MtRequest>(
         id: 'maintenance:requests',
@@ -1771,5 +1843,7 @@ String? exportSourceForTab(int tab) => switch (tab) {
       205 => 'stores:employees',
       207 => 'stores:assets',
       210 => 'stores:custody',
+      211 => 'stores:counts',
+      212 => 'stores:movement',
       _ => null,
     };

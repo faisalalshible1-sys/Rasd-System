@@ -27,6 +27,7 @@ import 'chat.dart';
 import 'print/model.dart';
 import 'rasd.dart';
 import 'scope.dart';
+import 'stocktaking.dart';
 import 'stores.dart';
 import 'units.dart';
 import 'ui/appearance.dart';
@@ -181,6 +182,8 @@ class AppState extends ChangeNotifier {
   // الترحيل 41: قسم المشتريات
   bool v25Ready = false;
   ProcurementData proc = ProcurementData.empty();
+  bool v26Ready = false;
+  StocktakingData stocktake = StocktakingData.empty();
 
   /// سجل حياة آخر أصل فُتح (مصدر تصديره).
   List<StAssetEvent> assetEvents = [];
@@ -375,6 +378,8 @@ class AppState extends ChangeNotifier {
   Timer? _maintDebounce;
   RealtimeChannel? _channel25;
   Timer? _procDebounce;
+  RealtimeChannel? _channel26;
+  Timer? _countDebounce;
   Timer? _storesDebounce;
   Timer? _debounce;
   Timer? _updateTimer;
@@ -877,6 +882,7 @@ class AppState extends ChangeNotifier {
       await _loadV22();
       await _loadV24();
       await _loadV25();
+      await _loadV26();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1722,7 +1728,7 @@ class AppState extends ChangeNotifier {
   /// الصفحة الملائمة في المخازن: الموظف صفحته، ومن لا يرى المخزون يبدأ بالأصول.
   int storesTabFor(int t) {
     if (role == AppRole.employee || (v22Ready && !storesStaff)) return storesMineTab;
-    if (v22Ready && !storesInventory && const {200, 201, 202, 203}.contains(t)) {
+    if (v22Ready && !storesInventory && const {200, 201, 202, 203, 211, 212}.contains(t)) {
       return storesAssetsSeesRaw ? storesAssetsTab : 205;
     }
     return t;
@@ -1943,6 +1949,97 @@ class AppState extends ChangeNotifier {
   Future<List<MtEvent>> mtEventsOf(String requestId) async {
     final r = await client.from('mt_request_events').select().eq('request_id', requestId).order('id', ascending: true).limit(500);
     return r.map(MtEvent.fromMap).toList();
+  }
+
+  // ---------------------------------------------------------------
+  // الجرد الدوري (الإصدار 1.11.0، الترحيل 42)
+  // ---------------------------------------------------------------
+
+  /// جلسات الجرد وبنودها لمن يرى مخزناً: أهل القسم كله وأمناء المخازن (والخادم يصفّي بسياسة القراءة).
+  Future<void> _loadV26() async {
+    if (!v22Ready || !storesInventory) {
+      stocktake = StocktakingData.empty();
+      v26Ready = false;
+      return;
+    }
+    try {
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        _allRows('st_counts', ['created_at', 'id']),
+        _allRows('st_count_lines', ['count_id', 'id']),
+      ]);
+      stocktake = StocktakingData(
+        counts: r[0].map(StCount.fromMap).toList()..sort((a, b) => (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000))),
+        lines: r[1].map(StCountLine.fromMap).toList(),
+      );
+      v26Ready = true;
+    } catch (_) {
+      stocktake = StocktakingData.empty();
+      v26Ready = false;
+    }
+  }
+
+  Future<void> _reloadCounts() async {
+    await _loadV26();
+    _notify();
+  }
+
+  void _scheduleCountReload() {
+    _countDebounce?.cancel();
+    _countDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV26();
+      _notify();
+    });
+  }
+
+  /// يبدأ جلسة جرد أو يعدّلها: المخزن القائم عليه، ويُعرَّف بحركته (أمينه أو مدير المخازن أو المدير).
+  bool canStocktake(String warehouseId) => v26Ready && canStoresMove(warehouseId);
+
+  /// قرار الجلسة (اعتماد أو إعادة): مدير المخازن والمدير.
+  bool get canStocktakeDecide => v26Ready && canStoresApprove;
+
+  /// يعتمد هذه الجلسة المقدَّمة (مع فصل المهام: لا يعتمد من أنشأها أو قدّمها).
+  bool canApproveCount(StCount c) =>
+      canStocktakeDecide && c.isSubmitted && !(stores.settings.separation && (c.createdBy == me?.id || c.submittedBy == me?.id));
+
+  static const int stocktakeTab = 211;
+  static const int storeReportsTab = 212;
+
+  Future<String> stCountStart({required String warehouseId, String? categoryId, bool blind = true, String note = ''}) async {
+    final res = await client.rpc('st_count_start', params: {
+      'p_data': {'warehouse_id': warehouseId, if (categoryId != null) 'category_id': categoryId, 'blind': blind, 'note': note.trim()},
+    });
+    await _reloadCounts();
+    return '$res';
+  }
+
+  /// يحفظ ما عُدّ: بنود {item_id, counted_qty|null, expiry_date?, batch_no?, note?} (بالوحدة الأساسية).
+  Future<void> stCountSave(String id, List<Map<String, dynamic>> lines) async {
+    await client.rpc('st_count_save', params: {'p_id': id, 'p_lines': lines});
+    await _reloadCounts();
+  }
+
+  Future<void> stCountSubmit(String id) async {
+    await client.rpc('st_count_submit', params: {'p_id': id});
+    await _reloadCounts();
+  }
+
+  Future<void> stCountReturn(String id, String note) async {
+    await client.rpc('st_count_return', params: {'p_id': id, 'p_note': note.trim()});
+    await _reloadCounts();
+  }
+
+  Future<void> stCountCancel(String id, {String note = ''}) async {
+    await client.rpc('st_count_cancel', params: {'p_id': id, 'p_note': note.trim()});
+    await _reloadCounts();
+  }
+
+  /// يعتمد الجلسة ويعيد رقم مستند التسوية المتولّد (أو null إن لم يكن فرق). تتغير المستندات فتُعاد أرصدة المخازن.
+  Future<String?> stCountApprove(String id, {String note = ''}) async {
+    final res = await client.rpc('st_count_approve', params: {'p_id': id, 'p_note': note.trim()});
+    await _reloadStores();
+    await _reloadCounts();
+    return res == null ? null : '$res';
   }
 
   // ---------------------------------------------------------------
@@ -2795,6 +2892,17 @@ class AppState extends ChangeNotifier {
       ch25.subscribe();
       _channel25 = ch25;
     }
+
+    // قناة الجرد (الترحيل 42)
+    final old26 = _channel26;
+    if (old26 != null) client.removeChannel(old26);
+    _channel26 = null;
+    if (v26Ready) {
+      final ch26 = client.channel('dc-v26');
+      ch26.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'st_counts', callback: (_) => _scheduleCountReload());
+      ch26.subscribe();
+      _channel26 = ch26;
+    }
   }
 
   void _scheduleStoresReload() {
@@ -2910,6 +3018,12 @@ class AppState extends ChangeNotifier {
     final old25 = _channel25;
     if (old25 != null) client.removeChannel(old25);
     _channel25 = null;
+    v26Ready = false;
+    stocktake = StocktakingData.empty();
+    _countDebounce?.cancel();
+    final old26 = _channel26;
+    if (old26 != null) client.removeChannel(old26);
+    _channel26 = null;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -3023,6 +3137,9 @@ class AppState extends ChangeNotifier {
     _procDebounce?.cancel();
     final old25 = _channel25;
     if (old25 != null) client.removeChannel(old25);
+    _countDebounce?.cancel();
+    final old26 = _channel26;
+    if (old26 != null) client.removeChannel(old26);
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();

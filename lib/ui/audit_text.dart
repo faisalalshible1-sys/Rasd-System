@@ -224,6 +224,20 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'stores.assets_import':
     case 'stores.asset_policy':
       return _storesAsset(e.action, d, e.projectLabel);
+    case 'stores.count_start':
+      return 'بدأ جلسة الجرد ${e.projectLabel} (${text(d['items'])} بنداً)';
+    case 'stores.count_save':
+      return 'حفظ عدّ ${text(d['lines'])} بنداً في الجلسة ${e.projectLabel}';
+    case 'stores.count_submit':
+      return 'قدّم جلسة الجرد ${e.projectLabel} للقرار';
+    case 'stores.count_return':
+      return 'أعاد جلسة الجرد ${e.projectLabel} للعدّ — ${text(d['note'])}';
+    case 'stores.count_cancel':
+      return 'ألغى جلسة الجرد ${e.projectLabel}${text(d['note']).isEmpty ? '' : ' — ${text(d['note'])}'}';
+    case 'stores.count_approve':
+      final note = text(d['note']);
+      return 'اعتمد جلسة الجرد ${e.projectLabel}: زيادة ${fmtQty(d['gains'] as num? ?? 0)} ونقص ${fmtQty(d['losses'] as num? ?? 0)}'
+          '${d['doc'] == null ? ' (بلا فرق، أُغلقت دون تسوية)' : ' وتولّدت تسوية معتمدة'}${note.isEmpty ? '' : ' — $note'}';
     case 'maintenance.report':
     case 'maintenance.assign':
     case 'maintenance.start':

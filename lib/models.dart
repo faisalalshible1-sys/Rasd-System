@@ -1480,6 +1480,12 @@ const Map<String, String> auditActionLabels = {
   'stores.asset_dispose': 'قرّر في استبعاد أصل',
   'stores.assets_import': 'استورد سجل الأصول',
   'stores.asset_policy': 'عدّل سياسة إهلاك',
+  'stores.count_start': 'بدأ جلسة جرد',
+  'stores.count_save': 'حفظ عدّ جلسة جرد',
+  'stores.count_submit': 'قدّم جلسة جرد للقرار',
+  'stores.count_return': 'أعاد جلسة جرد للعدّ',
+  'stores.count_approve': 'اعتمد جلسة جرد',
+  'stores.count_cancel': 'ألغى جلسة جرد',
   // قسم الصيانة (الترحيل 40)
   'maintenance.report': 'رفع بلاغ صيانة',
   'maintenance.assign': 'أسند بلاغ صيانة',

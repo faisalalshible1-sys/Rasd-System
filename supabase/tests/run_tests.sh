@@ -177,3 +177,12 @@ $P -d dctest -1 -f "$DIR/migrations/20261202000041_procurement.sql" >/dev/null &
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/123_procurement_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261202000041_procurement_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 41 مع وجود طلبات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'pr_requests'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم طلبات، والمنظومة كما هي"
+# الجرد الدوري بالتسوية: جلسات الجرد والعدّ والتقديم وقرار مدير المخازن وتوليد التسوية المعتمدة (الترحيل 42)
+$P -d dctest -f "$DIR/migrations/20261203000042_stocktaking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261203000042_stocktaking.sql"
+$P -d dctest -f "$DIR/migrations/20261203000042_stocktaking.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261203000042_stocktaking.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261203000042_stocktaking_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 42 ولا جلسات جرد، والمخازن كما هي"
+$P -d dctest -tAc "select count(*) from pg_class where relname in ('st_counts', 'st_count_lines') and relkind = 'r'" | grep -qx 0 && echo "PASS: ولا جداول للجرد بعد التراجع"
+$P -d dctest -1 -f "$DIR/migrations/20261203000042_stocktaking.sql" >/dev/null && echo "PASS: إعادة الترحيل 42 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/124_stocktaking_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261203000042_stocktaking_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 42 مع وجود جلسات جرد"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_counts'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم جلسات جرد، والمنظومة كما هي"
