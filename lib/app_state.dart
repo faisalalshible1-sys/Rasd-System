@@ -2060,7 +2060,7 @@ class AppState extends ChangeNotifier {
   bool get canSeeFinanceSection => v31Ready && (canManageProjects || _myFinancePerms.isNotEmpty);
 
   /// يحرّر النسب والخصومات: المدير، أو من مُنح صلاحية التحرير.
-  bool get canEditFinance => v31Ready && !frozenForMe && (isDirector || _myFinancePerms.contains('edit'));
+  bool get canEditFinSettings => v31Ready && !frozenForMe && (isDirector || _myFinancePerms.contains('edit'));
 
   /// يعتمد (للمراحل اللاحقة): المدير، أو من مُنح صلاحية الاعتماد.
   bool get canApproveFinance => v31Ready && !frozenForMe && (isDirector || _myFinancePerms.contains('approve'));

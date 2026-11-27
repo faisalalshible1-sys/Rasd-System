@@ -103,7 +103,7 @@ class AccountsRatesPage extends StatelessWidget {
           : '${_pct(cur.percent)} على ${financeBasisNames[cur.basis] ?? cur.basis} · ${financeScopeNames[cur.scope] ?? cur.scope}',
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         ToneBadge(cur == null ? 'غير سارية' : 'سارية', color: cur == null ? sem.muted : sem.ok),
-        if (app.canEditFinance) ...[
+        if (app.canEditFinSettings) ...[
           const SizedBox(width: 8),
           FilledButton.icon(onPressed: () => _edit(context, app, code), icon: const Icon(Icons.add_rounded), label: const Text('إصدار جديد')),
         ],
@@ -184,14 +184,14 @@ class AccountsDeductionsPage extends StatelessWidget {
           subtitle: 'دليل الخصومات: اسمها ونوعها وقيمتها وأساس احتسابها والمجال الذي تُطبَّق عليه.',
           icon: Icons.remove_circle_outline_rounded,
           actions: [
-            if (app.canEditFinance)
+            if (app.canEditFinSettings)
               FilledButton.icon(onPressed: () => _edit(context, app), icon: const Icon(Icons.add_rounded), label: const Text('خصم')),
           ],
         ),
         if (list.isEmpty)
           EmptyState(
             title: 'لا خصومات معرّفة',
-            message: app.canEditFinance ? 'أضف خصماً ليظهر في الدليل.' : 'يعرّف المدير أو من مُنح صلاحية التحرير الخصومات.',
+            message: app.canEditFinSettings ? 'أضف خصماً ليظهر في الدليل.' : 'يعرّف المدير أو من مُنح صلاحية التحرير الخصومات.',
             icon: Icons.remove_circle_outline_rounded,
           )
         else
@@ -205,7 +205,7 @@ class AccountsDeductionsPage extends StatelessWidget {
                     '${d.isPercent ? ' من ${financeBasisNames[d.basis] ?? d.basis}' : ''} · ${financeAppliesNames[d.appliesTo] ?? d.appliesTo}',
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   ToneBadge(d.active ? 'مفعّل' : 'موقوف', color: d.active ? sem.ok : sem.muted),
-                  if (app.canEditFinance) ...[
+                  if (app.canEditFinSettings) ...[
                     IconButton(tooltip: 'تعديل', onPressed: () => _edit(context, app, d: d), icon: const Icon(Icons.edit_outlined)),
                     IconButton(
                       tooltip: 'حذف',
@@ -252,7 +252,7 @@ class AccountsPermsPage extends StatelessWidget {
             child: SectionCard(
               title: p.displayName,
               icon: Icons.person_outline_rounded,
-              subtitle: p.role.label,
+              subtitle: p.role?.label ?? '',
               child: Wrap(spacing: 8, runSpacing: 4, children: [
                 for (final e in financePermNames.entries)
                   FilterChip(
