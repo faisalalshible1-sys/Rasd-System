@@ -409,7 +409,8 @@ class _CategoriesCard extends StatelessWidget {
         for (final c in s.categories)
           ActionChip(
             avatar: Icon(c.kind == 'asset' ? Icons.chair_outlined : Icons.inventory_2_outlined, size: 16),
-            label: Text('${c.name} · ${c.code} (${s.items.where((i) => i.categoryId == c.id).length})',
+            label: Text(
+                '${c.name} · ${c.code} (${c.isAsset ? app.storeAssets.assets.where((a) => a.categoryId == c.id && !a.isDisposed).length : s.items.where((i) => i.categoryId == c.id).length})',
                 style: TextStyle(color: c.active ? null : sem.muted)),
             onPressed: edit ? () => _edit(context, c) : null,
           ),

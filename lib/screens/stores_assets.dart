@@ -168,7 +168,7 @@ class _StoresAssetsPageState extends State<StoresAssetsPage> {
           InfoBanner(
             level: 'warning',
             icon: Icons.delete_sweep_outlined,
-            text: '${arCount(pending.length, one: 'طلب', two: 'طلبان', few: 'طلبات', many: 'طلباً')} استبعاد بانتظار اعتمادك: '
+            text: 'بانتظار اعتمادك ${arCount(pending.length, one: 'طلب استبعاد', two: 'طلبا استبعاد', few: 'طلبات استبعاد', many: 'طلب استبعاد')}: '
                 '${pending.take(4).map((a) => a.tag).join('، ')}${pending.length > 4 ? '…' : ''}',
           ),
         ],
@@ -179,7 +179,7 @@ class _StoresAssetsPageState extends State<StoresAssetsPage> {
             child: TextField(
               controller: _q,
               onChanged: (_) => setState(() {}),
-              decoration: fieldDeco('بحث بالرقم أو الوصف أو التسلسلي أو المستلم', prefixIcon: const Icon(Icons.search_rounded)),
+              decoration: fieldDeco('بحث بالرقم أو الوصف أو المستلم', prefixIcon: const Icon(Icons.search_rounded)),
             ),
           ),
           SizedBox(
@@ -1350,7 +1350,7 @@ class _StoresCustodyPageState extends State<StoresCustodyPage> {
             child: TextField(
               controller: _q,
               onChanged: (_) => setState(() {}),
-              decoration: fieldDeco('بحث بالموظف أو الأصل أو رقم المحضر', prefixIcon: const Icon(Icons.search_rounded)),
+              decoration: fieldDeco('بحث بالموظف أو الأصل أو المحضر', prefixIcon: const Icon(Icons.search_rounded)),
             ),
           ),
           SizedBox(
