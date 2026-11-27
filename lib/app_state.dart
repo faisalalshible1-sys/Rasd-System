@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart' show launchUrl;
 import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
+import 'budget.dart';
 import 'maintenance.dart';
 import 'milestones.dart';
 import 'procurement.dart';
@@ -202,6 +203,13 @@ class AppState extends ChangeNotifier {
   List<KpiValue> kpiValues = [];
   RealtimeChannel? _channel29;
   Timer? _kpiDebounce;
+
+  /// ميزانية المكتب والالتزامات (الإصدار 2.0.0، الترحيل 46): للمدير وموظفي مكتبه.
+  bool v30Ready = false;
+  List<BudgetLine> budgetLines = [];
+  List<BudgetCommitment> budgetCommitments = [];
+  RealtimeChannel? _channel30;
+  Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
   bool _sectionRisksRefreshed = false;
   RealtimeChannel? _channel27;
@@ -909,6 +917,7 @@ class AppState extends ChangeNotifier {
       await _loadV27();
       await _loadV28();
       await _loadV29();
+      await _loadV30();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1975,6 +1984,101 @@ class AppState extends ChangeNotifier {
   Future<List<MtEvent>> mtEventsOf(String requestId) async {
     final r = await client.from('mt_request_events').select().eq('request_id', requestId).order('id', ascending: true).limit(500);
     return r.map(MtEvent.fromMap).toList();
+  }
+
+  // ---------------------------------------------------------------
+  // ميزانية المكتب والالتزامات (الإصدار 2.0.0، الترحيل 46)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV30() async {
+    try {
+      final lines = await _allRows('budget_lines', ['fiscal_year', 'category', 'name', 'id']);
+      final cs = await _allRows('budget_commitments', ['committed_on', 'id']);
+      budgetLines = lines.map(BudgetLine.fromMap).toList();
+      budgetCommitments = cs.map(BudgetCommitment.fromMap).toList();
+      v30Ready = true;
+    } catch (_) {
+      budgetLines = [];
+      budgetCommitments = [];
+      v30Ready = false;
+    }
+  }
+
+  void _scheduleBudgetReload() {
+    _budgetDebounce?.cancel();
+    _budgetDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV30();
+      _notify();
+    });
+  }
+
+  /// يرى الميزانية: المدير وموظفو مكتبه (والخادم يفرض ذلك).
+  bool get canSeeBudget => v30Ready && canManageProjects;
+
+  /// يعرّف البنود ويحذف الالتزامات: المدير وحده.
+  bool get canDefineBudget => v30Ready && isDirector && !frozenForMe;
+
+  /// يسجّل الالتزامات: المدير وموظفو مكتبه.
+  bool get canCommitBudget => v30Ready && canManageProjects && !frozenForMe;
+
+  /// الميزانيات المعرّفة، سنواتها من الأحدث.
+  List<int> get budgetYears => ({for (final l in budgetLines) l.year}.toList()..sort((a, b) => b.compareTo(a)));
+
+  Future<void> saveBudgetLine({String? id, required int year, required String category, required String name, required double allocated, String note = ''}) async {
+    await client.rpc('budget_line_save', params: {
+      'p_id': id,
+      'p_year': year,
+      'p_category': category,
+      'p_name': name,
+      'p_allocated': allocated,
+      'p_note': note,
+    });
+    await _loadV30();
+    _notify();
+  }
+
+  Future<void> deleteBudgetLine(String id) async {
+    await client.rpc('budget_line_delete', params: {'p_id': id});
+    await _loadV30();
+    _notify();
+  }
+
+  Future<void> saveBudgetCommitment({
+    String? id,
+    required String lineId,
+    String? projectId,
+    required String description,
+    required double amount,
+    double paid = 0,
+    required DateTime date,
+    String note = '',
+  }) async {
+    final d = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await client.rpc('budget_commit_save', params: {
+      'p_id': id,
+      'p_line': lineId,
+      'p_project': projectId,
+      'p_desc': description,
+      'p_amount': amount,
+      'p_paid': paid,
+      'p_on': d,
+      'p_note': note,
+    });
+    await _loadV30();
+    _notify();
+  }
+
+  Future<void> setBudgetCommitmentStatus(String id, String status) async {
+    await client.rpc('budget_commit_status', params: {'p_id': id, 'p_status': status});
+    await _loadV30();
+    _notify();
+  }
+
+  Future<void> deleteBudgetCommitment(String id) async {
+    await client.rpc('budget_commit_delete', params: {'p_id': id});
+    await _loadV30();
+    _notify();
   }
 
   // ---------------------------------------------------------------
@@ -3199,6 +3303,19 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة الميزانية (الترحيل 46)
+    final old30 = _channel30;
+    if (old30 != null) client.removeChannel(old30);
+    _channel30 = null;
+    if (v30Ready) {
+      final ch30 = client.channel('dc-v30');
+      for (final tb in const ['budget_lines', 'budget_commitments']) {
+        ch30.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _scheduleBudgetReload());
+      }
+      ch30.subscribe();
+      _channel30 = ch30;
+    }
+
     // قناة المعالم والمؤشرات (الترحيل 45)
     final old29 = _channel29;
     if (old29 != null) client.removeChannel(old29);
@@ -3354,6 +3471,13 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v30Ready = false;
+    budgetLines = [];
+    budgetCommitments = [];
+    _budgetDebounce?.cancel();
+    final old30r = _channel30;
+    if (old30r != null) client.removeChannel(old30r);
+    _channel30 = null;
     v29Ready = false;
     milestones = [];
     kpiDefs = [];
@@ -3491,6 +3615,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _budgetDebounce?.cancel();
+    final old30d = _channel30;
+    if (old30d != null) client.removeChannel(old30d);
     _kpiDebounce?.cancel();
     final old29d = _channel29;
     if (old29d != null) client.removeChannel(old29d);

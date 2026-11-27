@@ -402,6 +402,16 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'حدّد موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} على الخريطة (${text(d['lat'])}, ${text(d['lng'])})';
     case 'geo.clear':
       return 'أزال موقع ${text(d['kind']) == 'project' ? 'المشروع' : 'البلاغ'} ${text(d['label'])} من الخريطة';
+    case 'budget.line_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} بند الميزانية «${text(d['name'])}» (${text(d['category'])}، ${text(d['year'])}) بمخصص ${_m(d['allocated'])}';
+    case 'budget.line_delete':
+      return 'حذف بند الميزانية «${text(d['name'])}» (${text(d['year'])})';
+    case 'budget.commit_save':
+      return '${d['created'] == true ? 'سجّل' : 'عدّل'} التزاماً «${text(d['description'])}» على بند «${text(d['line'])}» بمبلغ ${_m(d['amount'])} (المدفوع ${_m(d['paid'])})';
+    case 'budget.commit_status':
+      return '${text(d['status']) == 'released' ? 'أفرج عن' : 'أعاد تفعيل'} التزام «${text(d['description'])}» على بند «${text(d['line'])}»';
+    case 'budget.commit_delete':
+      return 'حذف التزام «${text(d['description'])}» (${_m(d['amount'])}) من بند «${text(d['line'])}»';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':
