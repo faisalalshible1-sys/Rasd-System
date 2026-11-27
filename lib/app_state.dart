@@ -183,6 +183,13 @@ class AppState extends ChangeNotifier {
   bool v25Ready = false;
   ProcurementData proc = ProcurementData.empty();
   bool v26Ready = false;
+
+  /// إجراءات الاستجابة للمخاطر ومخاطر الأقسام الآلية (الإصدار 1.12.0، الترحيل 43).
+  bool v27Ready = false;
+  List<RiskAction> riskActions = [];
+  bool _sectionRisksRefreshed = false;
+  RealtimeChannel? _channel27;
+  Timer? _riskActDebounce;
   StocktakingData stocktake = StocktakingData.empty();
 
   /// سجل حياة آخر أصل فُتح (مصدر تصديره).
@@ -883,6 +890,7 @@ class AppState extends ChangeNotifier {
       await _loadV24();
       await _loadV25();
       await _loadV26();
+      await _loadV27();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1952,6 +1960,69 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------
+  // إجراءات الاستجابة ومخاطر الأقسام (الإصدار 1.12.0، الترحيل 43)
+  // ---------------------------------------------------------------
+
+  /// إجراءات الاستجابة لما يراه المستخدم من مخاطر؛ ويُحدَّث سجل مخاطر الأقسام مرة في الساعة على الأكثر (الخادم يضبط الوتيرة).
+  Future<void> _loadV27() async {
+    if (!v6Ready) {
+      riskActions = [];
+      v27Ready = false;
+      return;
+    }
+    try {
+      if (!_sectionRisksRefreshed && role != null) {
+        _sectionRisksRefreshed = true;
+        try {
+          final n = await client.rpc('risk_refresh_sections');
+          if (n is num && n > 0) await _loadV6();
+        } catch (_) {}
+      }
+      final rows = await _allRows('risk_actions', ['created_at', 'id']);
+      riskActions = rows.map(RiskAction.fromMap).toList();
+      v27Ready = true;
+    } catch (_) {
+      riskActions = [];
+      v27Ready = false;
+    }
+  }
+
+  void _scheduleRiskActionReload() {
+    _riskActDebounce?.cancel();
+    _riskActDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV27();
+      _notify();
+    });
+  }
+
+  List<RiskAction> actionsOf(String riskId) => [for (final a in riskActions) if (a.riskId == riskId) a];
+
+  /// إجراءات مفتوحة فات موعدها (لشارة المخاطر).
+  int get lateRiskActions {
+    final now = DateTime.now();
+    return riskActions.where((a) => a.isLate(now)).length;
+  }
+
+  Future<void> saveRiskAction(String? id, String riskId, Map<String, dynamic> data) async {
+    await client.rpc('risk_action_save', params: {'p_id': id, 'p_risk': riskId, 'p_data': data});
+    await _loadV27();
+    _notify();
+  }
+
+  Future<void> setRiskActionStatus(String id, String status, {String note = ''}) async {
+    await client.rpc('risk_action_status', params: {'p_id': id, 'p_status': status, 'p_note': note});
+    await _loadV27();
+    _notify();
+  }
+
+  Future<void> deleteRiskAction(String id) async {
+    await client.rpc('risk_action_delete', params: {'p_id': id});
+    await _loadV27();
+    _notify();
+  }
+
+  // ---------------------------------------------------------------
   // الجرد الدوري (الإصدار 1.11.0، الترحيل 42)
   // ---------------------------------------------------------------
 
@@ -2903,6 +2974,17 @@ class AppState extends ChangeNotifier {
       ch26.subscribe();
       _channel26 = ch26;
     }
+
+    // قناة إجراءات الاستجابة (الترحيل 43)
+    final old27 = _channel27;
+    if (old27 != null) client.removeChannel(old27);
+    _channel27 = null;
+    if (v27Ready) {
+      final ch27 = client.channel('dc-v27');
+      ch27.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'risk_actions', callback: (_) => _scheduleRiskActionReload());
+      ch27.subscribe();
+      _channel27 = ch27;
+    }
   }
 
   void _scheduleStoresReload() {
@@ -3024,6 +3106,13 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v27Ready = false;
+    riskActions = [];
+    _sectionRisksRefreshed = false;
+    _riskActDebounce?.cancel();
+    final old27 = _channel27;
+    if (old27 != null) client.removeChannel(old27);
+    _channel27 = null;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -3140,6 +3229,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _riskActDebounce?.cancel();
+    final old27 = _channel27;
+    if (old27 != null) client.removeChannel(old27);
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();

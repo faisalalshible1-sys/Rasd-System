@@ -381,7 +381,7 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
     if (!app.v7Ready) {
       return [
         const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
-        _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
+        _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
         const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
         ..._adminDests(app, 20),
       ];
@@ -397,7 +397,7 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       if (app.v14Ready && !app.v15Ready)
         _Dest(Tabs.pmSchedule, 'الجداول الزمنية', Icons.date_range_outlined, Icons.date_range_rounded, badge: app.schedule.lateProjects),
       const _Dest(Tabs.riskDashboard, 'لوحة المخاطر', Icons.speed_outlined, Icons.speed_rounded),
-      _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue),
+      _Dest(Tabs.riskRegister, 'سجل المخاطر', Icons.list_alt_outlined, Icons.list_alt_rounded, badge: overdue + app.lateRiskActions),
       const _Dest(Tabs.riskMatrix, 'مصفوفة المخاطر', Icons.grid_on_outlined, Icons.grid_on_rounded),
       _Dest(Tabs.pmIssues, 'سجل المشاكل', Icons.report_problem_outlined, Icons.report_problem_rounded, badge: pm.overdueIssues),
       _Dest(Tabs.pmDelays, 'التأخيرات وأسبابها', Icons.hourglass_bottom_outlined, Icons.hourglass_bottom_rounded,

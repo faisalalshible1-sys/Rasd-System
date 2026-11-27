@@ -270,6 +270,12 @@ class Risk {
   final bool autoActive;
   bool get isAuto => autoKey != null;
 
+  /// القسم الذي ولّد الخطر آلياً (الترحيل 43): من بادئة المفتاح؛ وللبقية (برنامج زمني أو يدوي) لا قسم.
+  String? get section => riskSectionOfKey(autoKey);
+
+  /// خطر المكتب: غير مرتبط بمشروع (يدوي للمكتب أو مولَّد من قسم).
+  bool get isOffice => projectId == null;
+
   factory Risk.fromMap(Map<String, dynamic> m) => Risk(
         id: m['id'].toString(),
         code: _str(m['code']),
@@ -964,4 +970,65 @@ class SwotAnalysis {
     }
     return out;
   }
+}
+
+
+/// قسم الخطر المولَّد آلياً من بادئة مفتاحه: st_item ← المخازن، pr_order ← المشتريات، mt_req ← الصيانة.
+String? riskSectionOfKey(String? key) {
+  if (key == null) return null;
+  return switch (key.split(':').first) {
+    'st_item' => 'stores',
+    'pr_order' => 'procurement',
+    'mt_req' => 'maintenance',
+    _ => null,
+  };
+}
+
+const riskSectionLabels = {'stores': 'المخازن', 'procurement': 'المشتريات', 'maintenance': 'الصيانة'};
+
+const riskActionStatusLabels = {'open': 'مفتوح', 'done': 'منجَز', 'cancelled': 'ملغى'};
+
+/// إجراء استجابة لخطر (الترحيل 43): عنوان ومسؤول وموعد وحالة.
+class RiskAction {
+  const RiskAction({
+    required this.id,
+    required this.riskId,
+    required this.title,
+    this.owner = '',
+    this.dueDate,
+    this.status = 'open',
+    this.doneOn,
+    this.note = '',
+    this.createdAt,
+  });
+
+  final String id;
+  final String riskId;
+  final String title;
+  final String owner;
+  final DateTime? dueDate;
+  final String status;
+  final DateTime? doneOn;
+  final String note;
+  final DateTime? createdAt;
+
+  bool get isOpen => status == 'open';
+
+  /// متأخر: مفتوح وفات موعده قبل اليوم المعطى.
+  bool isLate(DateTime today) {
+    final d = dueDate;
+    return isOpen && d != null && d.isBefore(DateTime(today.year, today.month, today.day));
+  }
+
+  factory RiskAction.fromMap(Map<String, dynamic> m) => RiskAction(
+        id: _str(m['id']),
+        riskId: _str(m['risk_id']),
+        title: _str(m['title']),
+        owner: _str(m['owner']),
+        dueDate: _day(m['due_date']),
+        status: _str(m['status']).isEmpty ? 'open' : _str(m['status']),
+        doneOn: _day(m['done_on']),
+        note: _str(m['note']),
+        createdAt: DateTime.tryParse(_str(m['created_at'])),
+      );
 }
