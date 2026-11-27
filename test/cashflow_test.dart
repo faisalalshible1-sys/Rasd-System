@@ -45,8 +45,10 @@ void main() {
     final f = cashForecast([_x('أ', 5000, 'approved', approved: due)], today);
     expect(f.overdue, 0);
     expect(f.months[0].$2, 5000);
+    final last = cashForecast([_x('ب', 7000, 'approved', approved: DateTime(2027, 3, 10))], today);
+    expect(last.months[5].$2, 7000); // الموعد 2027/04/09 = الشهر السادس (أبريل)
     final far = cashForecast([_x('ب', 7000, 'approved', approved: DateTime(2027, 4, 28))], today);
-    expect(far.months[5].$2, 7000); // الموعد 2027/05/28 = الشهر السادس
+    expect(far.later, 7000); // الموعد 2027/05/28 خارج الأفق
     expect(cashDueOf(_x('ج', 1, 'paid', paid: 1, approved: today)), isNull);
   });
 }
