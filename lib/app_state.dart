@@ -20,6 +20,7 @@ import 'milestones.dart';
 import 'procurement.dart';
 import 'finance_rates.dart';
 import 'payroll.dart';
+import 'accounting.dart';
 import 'guarantees.dart';
 import 'docs.dart';
 import 'geo.dart';
@@ -237,6 +238,15 @@ class AppState extends ChangeNotifier {
   List<FinTransfer> finTransfers = [];
   RealtimeChannel? _channel33;
   Timer? _guaranteeDebounce;
+
+  // المحاسبة (الترحيل 50)
+  bool v34Ready = false;
+  List<GlAccount> glAccounts = [];
+  List<JournalEntry> journals = [];
+  List<JournalLine> journalLines = [];
+  Map<String, String> glMap = {};
+  RealtimeChannel? _channel34;
+  Timer? _accountingDebounce;
   Timer? _financeDebounce;
   Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
@@ -950,6 +960,7 @@ class AppState extends ChangeNotifier {
       await _loadV31();
       await _loadV32();
       await _loadV33();
+      await _loadV34();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -2176,6 +2187,60 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------
+  // المحاسبة: الدليل والقيود (الإصدار 3.3.0، الترحيل 50)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV34() async {
+    try {
+      final ac = await _allRows('fin_gl_accounts', ['code', 'id']);
+      final js = await _allRows('fin_journals', ['entry_date', 'created_at', 'id']);
+      final ls = await _allRows('fin_journal_lines', ['journal_id', 'line_no']);
+      final mp = await _allRows('fin_gl_map', ['key']);
+      glAccounts = ac.map(GlAccount.fromMap).toList();
+      journals = js.map(JournalEntry.fromMap).toList();
+      journalLines = ls.map(JournalLine.fromMap).toList();
+      glMap = {for (final m in mp) '${m['key']}': '${m['account_id']}'};
+      v34Ready = true;
+    } catch (_) {
+      glAccounts = [];
+      journals = [];
+      journalLines = [];
+      glMap = {};
+      v34Ready = false;
+    }
+  }
+
+  void _scheduleAccountingReload() {
+    _accountingDebounce?.cancel();
+    _accountingDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV34();
+      _notify();
+    });
+  }
+
+  GlAccount? glById(String? id) => id == null ? null : glAccounts.where((a) => a.id == id).firstOrNull;
+
+  Future<void> saveGlAccount({String? id, required String code, required String name, required String type, String? parentId, required bool postable, bool active = true}) =>
+      _finRpc<Object?>('fin_gl_account_save', {'p_id': id, 'p_code': code, 'p_name': name, 'p_type': type, 'p_parent': parentId, 'p_postable': postable, 'p_active': active});
+
+  Future<void> deleteGlAccount(String id) => _finRpc<Object?>('fin_gl_account_delete', {'p_id': id});
+
+  Future<void> linkFinAccount(String accountId, String? glId) => _finRpc<Object?>('fin_account_link', {'p_account': accountId, 'p_gl': glId});
+
+  Future<void> setGlMap(String key, String glId) => _finRpc<Object?>('fin_gl_map_set', {'p_key': key, 'p_gl': glId});
+
+  /// lines: [{account, debit, credit, memo}]
+  Future<void> saveJournal({String? id, required DateTime date, required String memo, required List<Map<String, Object?>> lines}) =>
+      _finRpc<Object?>('fin_journal_save', {'p_id': id, 'p_date': _isoDay(date), 'p_memo': memo, 'p_lines': lines});
+
+  Future<void> deleteJournal(String id) => _finRpc<Object?>('fin_journal_delete', {'p_id': id});
+
+  Future<void> postJournal(String id) => _finRpc<Object?>('fin_journal_post', {'p_id': id});
+
+  Future<void> reverseJournal(String id, String reason) => _finRpc<Object?>('fin_journal_reverse', {'p_id': id, 'p_reason': reason});
+
   void _scheduleGuaranteeReload() {
     _guaranteeDebounce?.cancel();
     _guaranteeDebounce = Timer(const Duration(milliseconds: 450), () async {
@@ -2299,6 +2364,7 @@ class AppState extends ChangeNotifier {
     final r = await client.rpc(fn, params: params);
     await _loadV32();
     await _loadV33();
+    await _loadV34();
     _notify();
     return r as T;
   }
@@ -3695,6 +3761,19 @@ class AppState extends ChangeNotifier {
       _channel33 = ch33;
     }
 
+    // قناة المحاسبة (الترحيل 50)
+    final old34 = _channel34;
+    if (old34 != null) client.removeChannel(old34);
+    _channel34 = null;
+    if (v34Ready) {
+      final ch34 = client.channel('dc-v34');
+      for (final tb in const ['fin_gl_accounts', 'fin_journals', 'fin_journal_lines', 'fin_gl_map']) {
+        ch34.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _scheduleAccountingReload());
+      }
+      ch34.subscribe();
+      _channel34 = ch34;
+    }
+
     // قناة المرتبات (الترحيل 48)
     final old32 = _channel32;
     if (old32 != null) client.removeChannel(old32);
@@ -3897,6 +3976,15 @@ class AppState extends ChangeNotifier {
     final old33r = _channel33;
     if (old33r != null) client.removeChannel(old33r);
     _channel33 = null;
+    v34Ready = false;
+    glAccounts = [];
+    journals = [];
+    journalLines = [];
+    glMap = {};
+    _accountingDebounce?.cancel();
+    final old34r = _channel34;
+    if (old34r != null) client.removeChannel(old34r);
+    _channel34 = null;
     v32Ready = false;
     finEmployees = [];
     finAllowances = [];
@@ -4067,6 +4155,9 @@ class AppState extends ChangeNotifier {
     _guaranteeDebounce?.cancel();
     final old33d = _channel33;
     if (old33d != null) client.removeChannel(old33d);
+    _accountingDebounce?.cancel();
+    final old34d = _channel34;
+    if (old34d != null) client.removeChannel(old34d);
     _payrollDebounce?.cancel();
     final old32d = _channel32;
     if (old32d != null) client.removeChannel(old32d);

@@ -120,8 +120,10 @@ GuaranteeTotals guaranteeTotals(Iterable<FinGuarantee> list, DateTime today) {
 }
 
 class FinAccount {
-  const FinAccount({required this.id, required this.name, required this.kind, required this.opening, required this.active});
+  const FinAccount({required this.id, required this.name, required this.kind, required this.opening, required this.active, this.glAccountId});
   final String id;
+  /// حساب الأصل المربوط في دليل الحسابات (الترحيل 50)؛ فارغ حتى يُربط.
+  final String? glAccountId;
   final String name;
   final String kind;
   final double opening;
@@ -133,6 +135,7 @@ class FinAccount {
         kind: '${m['kind'] ?? 'bank'}',
         opening: _n(m['opening']),
         active: m['active'] != false,
+        glAccountId: m['gl_account_id'] == null ? null : '${m['gl_account_id']}',
       );
 }
 

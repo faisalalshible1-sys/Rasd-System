@@ -63,6 +63,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('40_accounts', 40, 'المالية والمرتبات: النسب والخصومات والصلاحيات'),
   ManualChapter('41_payroll', 41, 'المرتبات: الموظفون والحضور والكشف الشهري'),
   ManualChapter('42_guarantees', 42, 'الضمانات والتأمينات والحسابات والتحويلات'),
+  ManualChapter('43_accounting', 43, 'المحاسبة: دليل الحسابات والقيود والأستاذ وميزان المراجعة'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -100,6 +101,7 @@ const Map<String, List<String>> manualChapterSections = {
   '40_accounts': ['accounts'],
   '41_payroll': ['accounts'],
   '42_guarantees': ['accounts'],
+  '43_accounting': ['accounts'],
 };
 
 /// فصول الدليل لمستخدم: العامة، وفصول الأقسام التي يراها.
@@ -111,7 +113,7 @@ List<ManualChapter> manualChaptersFor(bool Function(String section) sees) => [
 const String manualChangelogAsset = 'assets/manual/changelog.md';
 
 /// تاريخ آخر تحديث لمحتوى الدليل (يُحدَّث مع كل تعديل على الفصول).
-const String manualUpdated = '2026/11/27';
+const String manualUpdated = '2026/11/28';
 
 ManualChapter? manualChapter(String id) {
   for (final c in manualChapters) {
@@ -303,6 +305,9 @@ const Map<int, String> manualTabAnchors = {
   266: '41_payroll',
   270: '42_guarantees',
   271: '42_guarantees',
+  272: '43_accounting',
+  273: '43_accounting',
+  274: '43_accounting',
   268: '23_admin',
   269: '23_admin',
 };
