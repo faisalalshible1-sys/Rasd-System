@@ -172,7 +172,7 @@ class KpiResult {
   final String key;
   final String title;
 
-  /// القسم الذي يعود إليه المؤشر: milestones أو projects أو maintenance أو procurement أو stores.
+  /// القسم الذي يعود إليه المؤشر: milestones أو projects أو maintenance أو procurement أو stores أو finance.
   final String section;
   final double? value;
   final String unit;

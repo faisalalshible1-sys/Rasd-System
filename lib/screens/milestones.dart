@@ -267,6 +267,7 @@ const _kpiSections = <(String, String, IconData)>[
   ('maintenance', 'الصيانة', Icons.build_circle_outlined),
   ('procurement', 'المشتريات', Icons.shopping_cart_outlined),
   ('stores', 'المخازن', Icons.inventory_2_outlined),
+  ('finance', 'المالية', Icons.account_balance_wallet_outlined),
 ];
 
 Future<void> showKpiDefEditor(BuildContext context, {KpiDef? def}) async {

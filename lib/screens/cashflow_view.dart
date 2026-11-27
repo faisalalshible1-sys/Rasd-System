@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../cashflow.dart';
+import '../finance_kpi.dart';
+import '../print/export_dialog.dart';
 import '../models.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -57,6 +59,46 @@ class CashflowView extends StatelessWidget {
           if (f.total <= 0) Text('لا مستخلصات معتمدة غير مدفوعة.', style: TextStyle(color: sem.muted)),
         ]),
       ),
+      const SizedBox(height: 12),
+      _monthly(app, sem),
     ]);
+  }
+
+  /// حركة آخر 12 شهراً: المعتمد والمحال والمدفوع (التقرير المالي الشهري).
+  Widget _monthly(AppState app, Sem sem) {
+    final rows = monthlyFinance(extracts, app.paymentsOf, DateTime.now());
+    final active = rows.where((r) => r.approvedCount > 0 || r.referredNet > 0 || r.paid > 0).toList();
+    return SectionCard(
+      title: 'حركة آخر 12 شهراً',
+      icon: Icons.calendar_month_outlined,
+      subtitle: 'المعتمد بتاريخ اعتماده، والمحال بتاريخ إحالته، والمدفوع بتاريخ كل دفعة. الفرق = المعتمد − المدفوع (موجب: ازداد المستحق).',
+      trailing: ExportButton(sourceId: 'cycle:monthly', items: List<Object>.from(rows)),
+      child: active.isEmpty
+          ? Text('لا حركة مالية في آخر 12 شهراً.', style: TextStyle(color: sem.muted))
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columns: const [
+                  DataColumn(label: Text('الشهر')),
+                  DataColumn(label: Text('عدد المعتمد'), numeric: true),
+                  DataColumn(label: Text('صافي المعتمد'), numeric: true),
+                  DataColumn(label: Text('صافي المحال'), numeric: true),
+                  DataColumn(label: Text('المدفوع'), numeric: true),
+                  DataColumn(label: Text('الفرق'), numeric: true),
+                ],
+                rows: [
+                  for (final r in active)
+                    DataRow(cells: [
+                      DataCell(Text('${_monthNames[r.month.month - 1]} ${r.month.year}')),
+                      DataCell(Text('${r.approvedCount}')),
+                      DataCell(Text(fmtMoney(r.approvedNet))),
+                      DataCell(Text(fmtMoney(r.referredNet))),
+                      DataCell(Text(fmtMoney(r.paid))),
+                      DataCell(Text(fmtMoney(r.gap), style: TextStyle(color: r.gap > 0 ? sem.wip : null))),
+                    ]),
+                ],
+              ),
+            ),
+    );
   }
 }
