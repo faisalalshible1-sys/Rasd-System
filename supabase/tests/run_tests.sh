@@ -150,3 +150,12 @@ $P -d dctest -1 -f "$DIR/migrations/20261129000038_stores_foundation.sql" >/dev/
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/120_stores_foundation_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261129000038_stores_foundation_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 38 مع وجود بيانات في القسم"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_docs'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم بيانات، والمنظومة كما هي"
+# الأصول والعُهد والإهلاك: نطاق مسؤول الأصول، وسياسات الإهلاك، وسجل الأصول، والتسليم والإرجاع وتأكيد الموظف، والاستبعاد، والاستيراد (الترحيل 39)
+$P -d dctest -f "$DIR/migrations/20261130000039_stores_assets.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261130000039_stores_assets.sql"
+$P -d dctest -f "$DIR/migrations/20261130000039_stores_assets.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261130000039_stores_assets.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261130000039_stores_assets_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 39 ولا أصول، ودوال الترحيل 38 كما كانت"
+$P -d dctest -tAc "select count(*) from pg_class where relname in ('st_assets', 'st_custody', 'st_asset_events', 'st_asset_policies') and relkind = 'r'" | grep -qx 0 && echo "PASS: ولا جداول للأصول بعد التراجع، وبيانات المخزون باقية"
+$P -d dctest -1 -f "$DIR/migrations/20261130000039_stores_assets.sql" >/dev/null && echo "PASS: إعادة الترحيل 39 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/121_stores_assets_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261130000039_stores_assets_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 39 مع وجود أصول وعهد"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_assets'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي السجل أصول وعهد، والمنظومة كما هي"
