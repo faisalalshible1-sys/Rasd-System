@@ -10,7 +10,7 @@ const Set<String> sharedSections = {'chat', 'manual', 'print'};
 
 /// أقسام العمل بترتيبها في الشاشة الرئيسية.
 const List<String> workSectionOrder = [
-  'cycle', 'risks', 'swot', 'docs', 'supervision', 'heritage', 'planning_qa', 'safety', 'acceptance', 'stores', 'maintenance', //
+  'cycle', 'risks', 'swot', 'docs', 'supervision', 'heritage', 'planning_qa', 'safety', 'acceptance', 'stores', 'maintenance', 'procurement', //
 ];
 
 class UserScope {

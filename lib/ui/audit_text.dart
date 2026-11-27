@@ -5,6 +5,7 @@ import '../models.dart';
 import '../rasd.dart' show grantLabel, sectionDefaultNames;
 import '../registers.dart';
 import '../maintenance.dart';
+import '../procurement.dart';
 import '../stores.dart' show fmtQty;
 import '../units.dart';
 
@@ -239,6 +240,21 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'maintenance.settings':
     case 'maintenance.technician':
       return _maintenance(e.action, d, e.projectLabel);
+    case 'procurement.request':
+    case 'procurement.submit':
+    case 'procurement.review':
+    case 'procurement.reject':
+    case 'procurement.decide':
+    case 'procurement.cancel':
+    case 'procurement.supplier':
+    case 'procurement.quote':
+    case 'procurement.quote_delete':
+    case 'procurement.order':
+    case 'procurement.order_cancel':
+    case 'procurement.receive':
+    case 'procurement.settings':
+    case 'procurement.comment':
+      return _procurement(e.action, d, e.projectLabel);
     case 'finance.guarantee_initial':
       return d['na'] == true
           ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
@@ -929,4 +945,49 @@ String _n(Object? v) {
   final d = v is num ? v.toDouble() : double.tryParse('${v ?? ''}');
   if (d == null) return '—';
   return d == d.roundToDouble() ? d.toInt().toString() : d.toString();
+}
+
+/// وصف إجراءات المشتريات (الترحيل 41) في سجل التدقيق.
+String _procurement(String action, Map<String, dynamic> d, String label) {
+  String t(Object? v) => v == null ? '' : '$v'.trim();
+  String money(Object? v) => v is num ? fmtMoney(v.toDouble()) : t(v);
+  final no = t(d['req_no']).isEmpty ? label : t(d['req_no']);
+  final title = t(d['title']);
+  final req = title.isEmpty ? 'الطلب $no' : 'الطلب $no «$title»';
+  String why(Object? v) => t(v).isEmpty ? '' : ' — ${t(v)}';
+  switch (action) {
+    case 'procurement.request':
+      return '${d['op'] == 'create' ? 'أنشأ' : 'عدّل'} $req (${t(d['lines'])} بند، أولوية ${prPriorityLabels[t(d['priority'])] ?? t(d['priority'])})';
+    case 'procurement.submit':
+      return 'قدّم $req';
+    case 'procurement.review':
+      final done = t(d['status']) == 'fulfilled';
+      return 'راجع توفر $req: ${done ? 'لُبّي كله من المخزون' : 'المطلوب شراؤه ${fmtQty(d['to_buy'] is num ? d['to_buy'] as num : 0)}'}${why(d['note'])}';
+    case 'procurement.reject':
+      return 'رفض $req (كان «${prStatusLabels[t(d['from'])] ?? t(d['from'])}»)${why(d['note'])}';
+    case 'procurement.decide':
+      return '${d['approve'] == true ? 'اعتمد' : 'لم يعتمد'} $req${why(d['note'])}';
+    case 'procurement.cancel':
+      return 'ألغى $req (كان «${prStatusLabels[t(d['from'])] ?? t(d['from'])}»)${why(d['note'])}';
+    case 'procurement.comment':
+      return 'علّق على $req${why(d['note'])}';
+    case 'procurement.supplier':
+      return '${d['op'] == 'create' ? 'أضاف' : 'عدّل'} المورّد ${t(d['name'])}';
+    case 'procurement.quote':
+      return 'سجّل عرض ${t(d['supplier'])} على $req بإجمالي ${money(d['total'])}';
+    case 'procurement.quote_delete':
+      return 'حذف عرض سعر إجماليه ${money(d['total'])} من $req';
+    case 'procurement.order':
+      final w = t(d['waiver']);
+      return 'أصدر أمر الشراء ${t(d['po_no'])} للمورّد ${t(d['supplier'])} بإجمالي ${money(d['total'])} (${t(d['quotes'])} عروض)'
+          '${w.isEmpty ? '' : ' باستثناء الحد الأدنى للعروض: $w'}';
+    case 'procurement.order_cancel':
+      return 'ألغى أمر الشراء ${t(d['po_no'])}${why(d['note'])}';
+    case 'procurement.receive':
+      final assets = d['assets'] is num ? (d['assets'] as num).toInt() : 0;
+      final inv = t(d['invoice_no']);
+      return 'استلم دفعة من أمر الشراء ${t(d['po_no'])}${assets > 0 ? ' (أُنشئ $assets أصلاً)' : ''}${inv.isEmpty ? '' : ' بفاتورة $inv'}';
+    default:
+      return 'عدّل إعداد المشتريات ${t(d['key'])}: ${t(d['from'])} ← ${t(d['to'])}';
+  }
 }

@@ -89,6 +89,10 @@ if code == 200 and isinstance(st, list):
 code, mt = sb("GET", "/rest/v1/mt_settings?select=key,value&order=key.asc")
 if code == 200 and isinstance(mt, list):
     cfg["maintenance_settings"] = {x["key"]: x["value"] for x in mt}
+# حدود قسم المشتريات (الترحيل 41) لقيمها الحية في نسخة PDF من الدليل
+code, pr = sb("GET", "/rest/v1/pr_settings?select=key,value&order=key.asc")
+if code == 200 and isinstance(pr, list):
+    cfg["procurement_settings"] = {x["key"]: x["value"] for x in pr}
 # سياسات الإهلاك لكل تصنيف أصول (الترحيل 39) لقيمتها الحية في نسخة PDF من الدليل
 code, dp = sb("GET", "/rest/v1/st_asset_policies?select=dep_method,life_months,salvage_pct,st_categories(code,name,sort)")
 if code == 200 and isinstance(dp, list):

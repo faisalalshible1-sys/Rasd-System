@@ -59,6 +59,9 @@ const List<(String, String, String, IconData)> appSections = [
   ('maintenance', 'الصيانة',
       'بلاغات الصيانة من رفعها إلى تأكيد صاحبها، والفرز والإسناد للفنيين، والصيانة الدورية الوقائية، والتنبيهات بالمتأخر والمتكرر والضمان.',
       Icons.build_circle_rounded),
+  ('procurement', 'المشتريات',
+      'طلبات الاحتياج من رفعها إلى الاستلام: مراجعة المتاح من المخزون، واعتماد المدير، ومقارنة عروض الموردين، وأوامر الشراء، والاستلام على دفعات إلى المخازن والأصول.',
+      Icons.shopping_cart_checkout_rounded),
 ];
 
 /// اسم مختصر للقسم في المبدّل الجانبي.
@@ -78,6 +81,7 @@ const Map<String, String> sectionShortNames = {
   'manual': 'الدليل',
   'stores': 'المخازن',
   'maintenance': 'الصيانة',
+  'procurement': 'المشتريات',
 };
 
 /// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والشؤون الفنية والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
@@ -89,6 +93,7 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
       'chat' => app.v12Ready,
       'stores' => app.v22Ready || app.isDirector,
       'maintenance' => app.v24Ready || app.isDirector,
+      'procurement' => app.v25Ready || app.isDirector,
       'security' => app.v13Ready && app.canAudit,
       _ => app.v6Ready,
     };
@@ -172,6 +177,7 @@ Color defaultSectionColor(BuildContext context, String key) {
     'security' => dark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C),
     'stores' => dark ? const Color(0xFFE0B26B) : const Color(0xFF8D5B12),
     'maintenance' => dark ? const Color(0xFFFFB46B) : const Color(0xFFB4530A),
+    'procurement' => dark ? const Color(0xFF8FD3A5) : const Color(0xFF1F7A4A),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -766,6 +772,22 @@ List<(String, String, Color?)> hubStats(BuildContext context, AppState app, Stri
         ('${mt.open.length}', 'بلاغاً مفتوحاً', null),
         ('$late', 'متأخر', late > 0 ? sem.danger : null),
         ('${mt.unassigned.length}', 'بانتظار الإسناد', mt.unassigned.isNotEmpty ? sem.wip : null),
+      ];
+    case 'procurement':
+      if (!app.v25Ready) return const [];
+      final pr = app.proc;
+      if (!app.prStaff) {
+        final mine = pr.requestedBy(app.me?.id);
+        return [
+          ('${mine.where((r) => r.isOpen).length}', 'طلباً جارياً لي', null),
+          ('${mine.where((r) => r.status == 'ordered' || r.status == 'partial').length}', 'قيد التوريد', null),
+        ];
+      }
+      final late = pr.alerts(DateTime.now()).length;
+      return [
+        ('${pr.open.length}', 'طلباً جارياً', null),
+        ('${pr.awaitingReview.length + pr.awaitingDecision.length + pr.awaitingOrder.length}', 'ينتظر إجراءً', pr.awaitingReview.isNotEmpty || pr.awaitingDecision.isNotEmpty ? sem.wip : null),
+        ('$late', 'تنبيه', late > 0 ? sem.danger : null),
       ];
     case 'manual':
       return [
