@@ -29,6 +29,17 @@ Future<Map<String, String>> loadManualTexts() async {
   return _texts;
 }
 
+/// نسبة مالية سارية اليوم (الترحيل 47) نصاً؛ قبل تحميلها تُقرأ قيمتها الابتدائية، ومعطّلة: [offText] إن وُجد.
+String _finRate(AppState app, String code, double fallback, {String? offText}) {
+  if (!app.v31Ready) return _pctText(fallback);
+  final r = app.currentRate(code);
+  if (r == null) return offText ?? 'غير سارية';
+  return _pctText(r.percent);
+}
+
+/// نسبة مئوية بمنازلها الفعلية حتى أربع منازل (3.75% لا 3.8%).
+String _pctText(double p) => '${p.toStringAsFixed(4).replaceFirst(RegExp(r'\.?0+$'), '')}%';
+
 /// القيم الحية التي تُستبدل في نص الدليل.
 Map<String, String> manualValues(AppState app) {
   final count = app.formDefs.length;
@@ -60,6 +71,9 @@ Map<String, String> manualValues(AppState app) {
     'GI_RATE': rateText(guaranteeInitialRate),
     'GF_RATE': rateText(guaranteeFinalRate),
     'RET_RATE': rateText(app.settings.retentionRate),
+    'INCOME_TAX_RATE': _finRate(app, 'income_tax', 3),
+    'INSURANCE_RATE': _finRate(app, 'insurance', 5),
+    'EXTRA_RULE_RATE': _finRate(app, 'extra_rule', 3.75, offText: 'معطّلة'),
     'ST_DONE': FormStatus.done.label,
     'ST_WIP': FormStatus.wip.label,
     'ST_TODO': FormStatus.todo.label,

@@ -62,6 +62,7 @@ import 'stores_setup.dart';
 import 'stores_stocktake.dart';
 import 'maintenance.dart';
 import 'procurement.dart';
+import 'accounts.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -223,6 +224,12 @@ class Tabs {
   static const procSuppliers = 243;
   static const procMine = 244;
   static const procSetup = 245;
+
+  // المالية والمرتبات (260–279)
+  static const acctDashboard = 260;
+  static const acctRates = 261;
+  static const acctDeductions = 262;
+  static const acctPerms = 263;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -339,7 +346,7 @@ List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> m
 List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final sec = section ?? app.section;
   final base = _baseDestinations(app, sec);
-  if (sec == 'cycle' || sec == 'stores' || sec == 'maintenance' || sec == 'procurement' || !app.v2Ready) return base;
+  if (sec == 'cycle' || sec == 'stores' || sec == 'maintenance' || sec == 'procurement' || sec == 'accounts' || !app.v2Ready) return base;
   final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
       badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
   final i = base.indexWhere((d) => d.admin);
@@ -593,6 +600,15 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       ..._adminDests(app, 240),
     ];
   }
+  if (sec == 'accounts') {
+    return [
+      const _Dest(Tabs.acctDashboard, 'مالية العقود', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
+      const _Dest(Tabs.acctRates, 'النسب والضرائب', Icons.percent_outlined, Icons.percent_rounded),
+      const _Dest(Tabs.acctDeductions, 'الخصومات', Icons.remove_circle_outline_rounded, Icons.remove_circle_rounded),
+      if (app.isDirector) const _Dest(Tabs.acctPerms, 'الصلاحيات المالية', Icons.admin_panel_settings_outlined, Icons.admin_panel_settings_rounded),
+      ..._adminDests(app, 260),
+    ];
+  }
   if (sec == 'print') {
     return [
       const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
@@ -692,6 +708,10 @@ Widget _page(int id) => switch (id) {
       Tabs.procSuppliers => const ProcSuppliersPage(),
       Tabs.procMine => const ProcMinePage(),
       Tabs.procSetup => const ProcSetupPage(),
+      Tabs.acctDashboard => const FinancePage(key: ValueKey('acct-finance')),
+      Tabs.acctRates => const AccountsRatesPage(),
+      Tabs.acctDeductions => const AccountsDeductionsPage(),
+      Tabs.acctPerms => const AccountsPermsPage(),
       Tabs.printRefs => const RefNumbersPage(),
       Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
       Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),

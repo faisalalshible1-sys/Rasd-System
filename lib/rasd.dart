@@ -129,6 +129,7 @@ const Map<String, String> refSectionNames = {
   'stores': 'المخازن والأصول',
   'maintenance': 'الصيانة',
   'procurement': 'المشتريات',
+  'accounts': 'المالية والمرتبات',
 };
 
 class RefScheme {
@@ -388,6 +389,7 @@ const Map<String, String> sectionDefaultNames = {
   'stores': 'المخازن والأصول',
   'maintenance': 'الصيانة',
   'procurement': 'المشتريات',
+  'accounts': 'المالية والمرتبات',
 };
 
 /// أنماط عرض شاشة الدخول: بطاقات بمؤشراتها، ومدمجة، وأيقونات.
