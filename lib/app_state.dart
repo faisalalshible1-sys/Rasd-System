@@ -19,6 +19,7 @@ import 'maintenance.dart';
 import 'milestones.dart';
 import 'procurement.dart';
 import 'finance_rates.dart';
+import 'payroll.dart';
 import 'docs.dart';
 import 'geo.dart';
 import 'models.dart';
@@ -216,6 +217,19 @@ class AppState extends ChangeNotifier {
   List<FinanceDeduction> financeDeductions = [];
   List<FinanceGrant> financeGrants = [];
   RealtimeChannel? _channel31;
+  bool v32Ready = false;
+  List<FinEmployee> finEmployees = [];
+  List<FinAllowance> finAllowances = [];
+  List<FinEmpDeduction> finEmpDeductions = [];
+  List<FinAttendanceDay> finAttendance = [];
+  List<FinAttendanceMonth> finAttendanceMonths = [];
+  List<FinBonus> finBonuses = [];
+  List<FinLoan> finLoans = [];
+  List<FinPayroll> finPayrolls = [];
+  List<FinPayrollLine> finPayrollLines = [];
+  PayrollConfig payrollConfig = const PayrollConfig();
+  RealtimeChannel? _channel32;
+  Timer? _payrollDebounce;
   Timer? _financeDebounce;
   Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
@@ -927,6 +941,7 @@ class AppState extends ChangeNotifier {
       await _loadV29();
       await _loadV30();
       await _loadV31();
+      await _loadV32();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -2131,6 +2146,161 @@ class AppState extends ChangeNotifier {
     await _loadV31();
     _notify();
   }
+
+  // ---------------------------------------------------------------
+  // المرتبات والموظفون والحضور (الإصدار 3.1.0، الترحيل 48)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV32() async {
+    try {
+      final emps = await _allRows('fin_employees', ['full_name', 'id']);
+      final als = await _allRows('fin_allowances', ['employee_id', 'id']);
+      final eds = await _allRows('fin_emp_deductions', ['employee_id', 'deduction_id']);
+      final att = await _allRows('fin_attendance', ['day', 'employee_id']);
+      final am = await _allRows('fin_attendance_month', ['period', 'employee_id']);
+      final bs = await _allRows('fin_bonuses', ['period', 'id']);
+      final ls = await _allRows('fin_loans', ['start_period', 'id']);
+      final cf = await _allRows('fin_config', ['key']);
+      final ps = await _allRows('fin_payrolls', ['period']);
+      final pl = await _allRows('fin_payroll_lines', ['payroll_id', 'employee_name']);
+      finEmployees = emps.map(FinEmployee.fromMap).toList();
+      finAllowances = als.map(FinAllowance.fromMap).toList();
+      finEmpDeductions = eds.map(FinEmpDeduction.fromMap).toList();
+      finAttendance = att.map(FinAttendanceDay.fromMap).toList();
+      finAttendanceMonths = am.map(FinAttendanceMonth.fromMap).toList();
+      finBonuses = bs.map(FinBonus.fromMap).toList();
+      finLoans = ls.map(FinLoan.fromMap).toList();
+      payrollConfig = PayrollConfig.fromRows(cf);
+      finPayrolls = ps.map(FinPayroll.fromMap).toList();
+      finPayrollLines = pl.map(FinPayrollLine.fromMap).toList();
+      v32Ready = true;
+    } catch (_) {
+      finEmployees = [];
+      finAllowances = [];
+      finEmpDeductions = [];
+      finAttendance = [];
+      finAttendanceMonths = [];
+      finBonuses = [];
+      finLoans = [];
+      finPayrolls = [];
+      finPayrollLines = [];
+      payrollConfig = const PayrollConfig();
+      v32Ready = false;
+    }
+  }
+
+  void _schedulePayrollReload() {
+    _payrollDebounce?.cancel();
+    _payrollDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV32();
+      _notify();
+    });
+  }
+
+  /// كشف شهر إن وُجد.
+  FinPayroll? payrollOf(DateTime period) {
+    for (final p in finPayrolls) {
+      if (p.period.year == period.year && p.period.month == period.month) return p;
+    }
+    return null;
+  }
+
+  List<FinPayrollLine> payrollLinesOf(FinPayroll p) => finPayrollLines.where((l) => l.payrollId == p.id).toList();
+
+  /// يعتمد الكشف أو يقفله أو يعيد فتحه: المدير أو من مُنح صلاحية الاعتماد.
+  bool get canApprovePayroll => canApproveFinance;
+
+  Future<T> _finRpc<T>(String fn, Map<String, dynamic> params) async {
+    final r = await client.rpc(fn, params: params);
+    await _loadV32();
+    _notify();
+    return r as T;
+  }
+
+  static String _isoDay(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> saveFinEmployee({
+    String? id,
+    required String name,
+    required String title,
+    required double basic,
+    required DateTime hire,
+    required bool active,
+    String? profileId,
+    bool insured = true,
+    bool taxable = false,
+    bool extra = false,
+    String note = '',
+  }) =>
+      _finRpc<Object?>('fin_employee_save', {
+        'p_id': id,
+        'p_name': name,
+        'p_title': title,
+        'p_basic': basic,
+        'p_hire': _isoDay(hire),
+        'p_status': active ? 'active' : 'inactive',
+        'p_profile': profileId,
+        'p_insured': insured,
+        'p_taxable': taxable,
+        'p_extra': extra,
+        'p_note': note,
+      });
+
+  Future<void> deleteFinEmployee(String id) => _finRpc<Object?>('fin_employee_delete', {'p_id': id});
+
+  Future<void> saveFinAllowance({String? id, required String employeeId, required String name, required double amount, bool active = true}) =>
+      _finRpc<Object?>('fin_allowance_save', {'p_id': id, 'p_emp': employeeId, 'p_name': name, 'p_amount': amount, 'p_active': active});
+
+  Future<void> deleteFinAllowance(String id) => _finRpc<Object?>('fin_allowance_delete', {'p_id': id});
+
+  Future<void> setFinEmpDeduction(String employeeId, String deductionId, bool on, {double? override}) =>
+      _finRpc<Object?>('fin_emp_deduction_set', {'p_emp': employeeId, 'p_ded': deductionId, 'p_on': on, 'p_override': override});
+
+  Future<void> setFinAttendance(String employeeId, DateTime day, String status, double overtime) =>
+      _finRpc<Object?>('fin_attendance_set', {'p_emp': employeeId, 'p_day': _isoDay(day), 'p_status': status, 'p_ot': overtime});
+
+  Future<void> clearFinAttendance(String employeeId, DateTime day) =>
+      _finRpc<Object?>('fin_attendance_clear', {'p_emp': employeeId, 'p_day': _isoDay(day)});
+
+  Future<void> setFinAttendanceMonth(String employeeId, DateTime period, double absent, double leave, double overtime, {String note = ''}) =>
+      _finRpc<Object?>('fin_attendance_month_set', {
+        'p_emp': employeeId,
+        'p_period': _isoDay(period),
+        'p_absent': absent,
+        'p_leave': leave,
+        'p_ot': overtime,
+        'p_note': note,
+      });
+
+  Future<void> clearFinAttendanceMonth(String employeeId, DateTime period) =>
+      _finRpc<Object?>('fin_attendance_month_clear', {'p_emp': employeeId, 'p_period': _isoDay(period)});
+
+  Future<void> saveFinBonus({String? id, required String employeeId, required DateTime period, required String name, required double amount, String note = ''}) =>
+      _finRpc<Object?>('fin_bonus_save', {'p_id': id, 'p_emp': employeeId, 'p_period': _isoDay(period), 'p_name': name, 'p_amount': amount, 'p_note': note});
+
+  Future<void> deleteFinBonus(String id) => _finRpc<Object?>('fin_bonus_delete', {'p_id': id});
+
+  Future<void> saveFinLoan({String? id, required String employeeId, required double total, required int count, required DateTime start, bool active = true, String note = ''}) =>
+      _finRpc<Object?>('fin_loan_save', {
+        'p_id': id,
+        'p_emp': employeeId,
+        'p_total': total,
+        'p_count': count,
+        'p_start': _isoDay(start),
+        'p_status': active ? 'active' : 'closed',
+        'p_note': note,
+      });
+
+  Future<void> deleteFinLoan(String id) => _finRpc<Object?>('fin_loan_delete', {'p_id': id});
+
+  Future<void> setPayrollConfig(String key, double value) => _finRpc<Object?>('fin_config_set', {'p_key': key, 'p_value': value});
+
+  Future<void> generatePayroll(DateTime period) => _finRpc<Object?>('fin_payroll_generate', {'p_period': _isoDay(period)});
+  Future<void> approvePayroll(DateTime period) => _finRpc<Object?>('fin_payroll_approve', {'p_period': _isoDay(period)});
+  Future<void> lockPayroll(DateTime period) => _finRpc<Object?>('fin_payroll_lock', {'p_period': _isoDay(period)});
+  Future<void> reopenPayroll(DateTime period, String reason) => _finRpc<Object?>('fin_payroll_reopen', {'p_period': _isoDay(period), 'p_reason': reason});
+  Future<void> deletePayroll(DateTime period) => _finRpc<Object?>('fin_payroll_delete', {'p_period': _isoDay(period)});
 
   /// يرى الميزانية: المدير وموظفو مكتبه (والخادم يفرض ذلك).
   bool get canSeeBudget => v30Ready && canManageProjects;
@@ -3427,6 +3597,19 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة المرتبات (الترحيل 48)
+    final old32 = _channel32;
+    if (old32 != null) client.removeChannel(old32);
+    _channel32 = null;
+    if (v32Ready) {
+      final ch32 = client.channel('dc-v32');
+      for (final tb in const ['fin_employees', 'fin_allowances', 'fin_emp_deductions', 'fin_attendance', 'fin_attendance_month', 'fin_bonuses', 'fin_loans', 'fin_config', 'fin_payrolls', 'fin_payroll_lines']) {
+        ch32.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _schedulePayrollReload());
+      }
+      ch32.subscribe();
+      _channel32 = ch32;
+    }
+
     // قناة المالية والمرتبات (الترحيل 47)
     final old31 = _channel31;
     if (old31 != null) client.removeChannel(old31);
@@ -3608,6 +3791,20 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v32Ready = false;
+    finEmployees = [];
+    finAllowances = [];
+    finEmpDeductions = [];
+    finAttendance = [];
+    finAttendanceMonths = [];
+    finBonuses = [];
+    finLoans = [];
+    finPayrolls = [];
+    finPayrollLines = [];
+    _payrollDebounce?.cancel();
+    final old32r = _channel32;
+    if (old32r != null) client.removeChannel(old32r);
+    _channel32 = null;
     v31Ready = false;
     financeRates = [];
     financeDeductions = [];
@@ -3761,6 +3958,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _payrollDebounce?.cancel();
+    final old32d = _channel32;
+    if (old32d != null) client.removeChannel(old32d);
     _financeDebounce?.cancel();
     final old31d = _channel31;
     if (old31d != null) client.removeChannel(old31d);

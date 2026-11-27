@@ -69,7 +69,7 @@ void main() {
       'PM_ALERT_DAYS', 'ST_DONE', 'ST_WIP', 'ST_TODO', 'ST_NA', 'GI_RATE', 'GF_RATE', 'RET_RATE', 'STR_EXPIRY_DAYS', 'STR_SEPARATION', 'STR_DEP_POLICIES', //
       'MT_SLA_URGENT', 'MT_SLA_HIGH', 'MT_SLA_NORMAL', 'MT_SLA_LOW', 'MT_ASSIGN_HOURS', 'MT_HOLD_DAYS', 'MT_CONFIRM_DAYS', 'MT_SOON_HOURS', //
       'MT_REPEAT_COUNT', 'MT_REPEAT_DAYS', 'MT_PLAN_LEAD_DAYS', //
-      'PR_MIN_QUOTES', 'PR_REVIEW_DAYS', 'PR_APPROVE_DAYS', 'PR_GRACE_DAYS', 'INCOME_TAX_RATE', 'INSURANCE_RATE', 'EXTRA_RULE_RATE',
+      'PR_MIN_QUOTES', 'PR_REVIEW_DAYS', 'PR_APPROVE_DAYS', 'PR_GRACE_DAYS', 'INCOME_TAX_RATE', 'INSURANCE_RATE', 'EXTRA_RULE_RATE', 'PAY_DAYS', 'PAY_HOURS', 'PAY_OT_FACTOR',
     };
     final maxChapter = manualChapters.map((c) => c.number).reduce((a, b) => a > b ? a : b);
     for (final c in [...manualChapters.map((c) => c.asset), manualChangelogAsset]) {

@@ -97,6 +97,10 @@ if code == 200 and isinstance(pr, list):
 code, fr = sb("GET", "/rest/v1/finance_rates?select=code,percent,active,effective_from,effective_to&order=code.asc,effective_from.asc")
 if code == 200 and isinstance(fr, list):
     cfg["finance_rates"] = fr
+# إعدادات احتساب المرتبات (الترحيل 48) لقيمها الحية في الدليل؛ إن غابت تبقى القيم الابتدائية
+code, pc = sb("GET", "/rest/v1/fin_config?select=key,value")
+if code == 200 and isinstance(pc, list):
+    cfg["payroll_config"] = {x["key"]: x["value"] for x in pc}
 # سياسات الإهلاك لكل تصنيف أصول (الترحيل 39) لقيمتها الحية في نسخة PDF من الدليل
 code, dp = sb("GET", "/rest/v1/st_asset_policies?select=dep_method,life_months,salvage_pct,st_categories(code,name,sort)")
 if code == 200 and isinstance(dp, list):

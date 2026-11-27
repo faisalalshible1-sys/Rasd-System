@@ -162,6 +162,16 @@ def pr_num(k):
 _FR = live.get('finance_rates') or []
 
 
+_PC = live.get('payroll_config') or {}
+
+
+def pay_cfg(key, default):
+    # إعدادات احتساب المرتبات (الترحيل 48) بمنازلها الفعلية دون أصفار زائدة
+    v = _PC.get(key)
+    v = float(v) if isinstance(v, (int, float)) else float(default)
+    return f'{v:.4f}'.rstrip('0').rstrip('.')
+
+
 def pct_text(p):
     # نسبة مئوية بمنازلها الفعلية حتى أربع منازل (3.75% لا 3.8%)، كما في manual.dart
     s = f'{float(p):.4f}'.rstrip('0').rstrip('.')
@@ -210,6 +220,9 @@ values = {
     'INCOME_TAX_RATE': fin_rate('income_tax', 3),
     'INSURANCE_RATE': fin_rate('insurance', 5),
     'EXTRA_RULE_RATE': fin_rate('extra_rule', 3.75, 'معطّلة'),
+    'PAY_DAYS': pay_cfg('days_in_month', 30),
+    'PAY_HOURS': pay_cfg('weekly_hours', 42),
+    'PAY_OT_FACTOR': pay_cfg('overtime_factor', 1.5),
     'ST_DONE': status_labels.get('done', 'تم'),
     'ST_WIP': status_labels.get('wip', 'قيد التنفيذ'),
     'ST_TODO': status_labels.get('todo', 'لم يتم'),

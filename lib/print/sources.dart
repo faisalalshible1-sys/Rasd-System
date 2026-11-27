@@ -10,6 +10,7 @@ import '../docs.dart';
 import '../contractor_account.dart';
 import '../finance_kpi.dart';
 import '../models.dart';
+import '../payroll.dart';
 import '../pm.dart';
 import '../prices.dart';
 import '../rasd.dart' show sectionDefaultNames;
@@ -87,6 +88,7 @@ const Map<String, String> exportSectionNames = {
   'stores': 'المخازن والأصول',
   'maintenance': 'الصيانة',
   'procurement': 'المشتريات',
+  'accounts': 'المالية والمرتبات',
 };
 
 DateTime _d0(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -403,6 +405,36 @@ List<ExportSource> _all(AppState app) => [
         summary: (a, l) => [
           ('المعتمد', fmtNumber(l.fold<double>(0, (s, m) => s + m.approvedNet))),
           ('المدفوع', fmtNumber(l.fold<double>(0, (s, m) => s + m.paid))),
+        ],
+      ),
+      _src<FinPayrollLine>(
+        id: 'finance:payroll',
+        section: 'accounts',
+        title: 'كشف المرتبات الشهري',
+        icon: Icons.payments_outlined,
+        ready: (a) => a.v32Ready,
+        items: (a) {
+          final ps = [...a.finPayrolls]..sort((x, y) => y.period.compareTo(x.period));
+          return ps.isEmpty ? <FinPayrollLine>[] : a.payrollLinesOf(ps.first);
+        },
+        columns: const [
+          _C('name', 'الموظف', flex: 2),
+          _C('basic', 'الأساسي', type: ColType.money),
+          _C('allow', 'البدلات', type: ColType.money),
+          _C('ot', 'الإضافي', type: ColType.money),
+          _C('bonus', 'المكافآت', type: ColType.money),
+          _C('gross', 'الإجمالي', type: ColType.money),
+          _C('absence', 'الغياب', type: ColType.money),
+          _C('ins', 'التأمينات', type: ColType.money),
+          _C('tax', 'الضريبة', type: ColType.money),
+          _C('other', 'خصومات أخرى', type: ColType.money),
+          _C('loan', 'السلفة', type: ColType.money),
+          _C('net', 'الصافي', type: ColType.money),
+        ],
+        row: (a, l) => [l.name, l.basic, l.allowances, l.overtimeAmount, l.bonuses, l.gross, l.absence, l.insurance, l.tax + l.extraRule, l.other, l.loan, l.net],
+        summary: (a, l) => [
+          ('الإجمالي', fmtNumber(l.fold<double>(0, (s, x) => s + x.gross))),
+          ('الصافي', fmtNumber(l.fold<double>(0, (s, x) => s + x.net))),
         ],
       ),
       _src<ContractorAccount>(

@@ -61,6 +61,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('38_milestones', 38, 'معالم المشاريع'),
   ManualChapter('39_kpi', 39, 'مؤشرات الأداء'),
   ManualChapter('40_accounts', 40, 'المالية والمرتبات: النسب والخصومات والصلاحيات'),
+  ManualChapter('41_payroll', 41, 'المرتبات: الموظفون والحضور والكشف الشهري'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -96,6 +97,7 @@ const Map<String, List<String>> manualChapterSections = {
   '35_maintenance': ['maintenance'],
   '36_procurement': ['procurement'],
   '40_accounts': ['accounts'],
+  '41_payroll': ['accounts'],
 };
 
 /// فصول الدليل لمستخدم: العامة، وفصول الأقسام التي يراها.
@@ -294,6 +296,9 @@ const Map<int, String> manualTabAnchors = {
   261: '40_accounts',
   262: '40_accounts',
   263: '40_accounts',
+  264: '41_payroll',
+  265: '41_payroll',
+  266: '41_payroll',
   268: '23_admin',
   269: '23_admin',
 };
