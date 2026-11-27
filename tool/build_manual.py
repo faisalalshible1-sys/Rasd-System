@@ -158,6 +158,29 @@ def pr_num(k):
     return int(v) if isinstance(v, (int, float)) else _PR_NUM[k]
 
 
+# النسب المالية السارية اليوم (الترحيل 47)؛ تُقرأ من config/live-settings.json وتعود لقيمها الابتدائية إن غابت
+_FR = live.get('finance_rates') or []
+
+
+def pct_text(p):
+    # نسبة مئوية بمنازلها الفعلية حتى أربع منازل (3.75% لا 3.8%)، كما في manual.dart
+    s = f'{float(p):.4f}'.rstrip('0').rstrip('.')
+    return f'{s}%'
+
+
+def fin_rate(code, fallback, off_text=None):
+    today = datetime.date.today().isoformat()
+    for r in _FR:
+        if r.get('code') != code:
+            continue
+        end = r.get('effective_to')
+        if str(r.get('effective_from', '')) <= today and (not end or today <= str(end)):
+            if not r.get('active', True):
+                return off_text or 'غير سارية'
+            return pct_text(r.get('percent', 0))
+    return pct_text(fallback) if not _FR else (off_text or 'غير سارية')
+
+
 count = len(forms)
 req = count - 1
 pm_cfg = settings.get('pm.config') if isinstance(settings.get('pm.config'), dict) else {}
@@ -184,6 +207,9 @@ values = {
     'GI_RATE': rate_text(settings.get('finance.guarantee_initial_rate', 0.02)),
     'GF_RATE': rate_text(settings.get('finance.guarantee_final_rate', 0.05)),
     'RET_RATE': rate_text(settings.get('finance.retention_rate', 0.1)),
+    'INCOME_TAX_RATE': fin_rate('income_tax', 3),
+    'INSURANCE_RATE': fin_rate('insurance', 5),
+    'EXTRA_RULE_RATE': fin_rate('extra_rule', 3.75, 'معطّلة'),
     'ST_DONE': status_labels.get('done', 'تم'),
     'ST_WIP': status_labels.get('wip', 'قيد التنفيذ'),
     'ST_TODO': status_labels.get('todo', 'لم يتم'),

@@ -412,6 +412,14 @@ String auditDescription(AppState app, AuditEntry e) {
       return '${text(d['status']) == 'released' ? 'أفرج عن' : 'أعاد تفعيل'} التزام «${text(d['description'])}» على بند «${text(d['line'])}»';
     case 'budget.commit_delete':
       return 'حذف التزام «${text(d['description'])}» (${_m(d['amount'])}) من بند «${text(d['line'])}»';
+    case 'finance.rate_save':
+      return 'أضاف إصداراً جديداً لنسبة «${const {'income_tax': 'ضريبة الدخل', 'insurance': 'التأمينات', 'extra_rule': 'القاعدة الإضافية'}[text(d['code'])] ?? text(d['code'])}» ${text(d['percent'])}% (${d['active'] == false ? 'معطّلة' : 'مفعّلة'}) ساري من ${text(d['from']).replaceAll('-', '/')} — السبب: ${text(d['reason'])}';
+    case 'finance.deduction_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} الخصم «${text(d['name'])}» (${text(d['kind']) == 'percent' ? '${text(d['value'])}%' : _m(d['value'])}، ${d['active'] == false ? 'موقوف' : 'مفعّل'})';
+    case 'finance.deduction_delete':
+      return 'حذف الخصم «${text(d['name'])}» من الدليل';
+    case 'finance.perm_set':
+      return '${d['on'] == true ? 'منح' : 'سحب'} صلاحية «${const {'view': 'الاطّلاع', 'edit': 'التحرير', 'approve': 'الاعتماد'}[text(d['perm'])] ?? text(d['perm'])}» المالية ${d['on'] == true ? 'إلى' : 'من'} ${text(d['name'])}';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':

@@ -62,6 +62,9 @@ const List<(String, String, String, IconData)> appSections = [
   ('procurement', 'المشتريات',
       'طلبات الاحتياج من رفعها إلى الاستلام: مراجعة المتاح من المخزون، واعتماد المدير، ومقارنة عروض الموردين، وأوامر الشراء، والاستلام على دفعات إلى المخازن والأصول.',
       Icons.shopping_cart_checkout_rounded),
+  ('accounts', 'المالية والمرتبات',
+      'قسم مالي مستقل: النسب والضرائب والتأمينات بتواريخ سريانها وسجل تغييراتها، ودليل الخصومات، والصلاحيات المالية، ومعه مالية العقود نفسها بالبيانات ذاتها.',
+      Icons.account_balance_rounded),
 ];
 
 /// اسم مختصر للقسم في المبدّل الجانبي.
@@ -82,6 +85,7 @@ const Map<String, String> sectionShortNames = {
   'stores': 'المخازن',
   'maintenance': 'الصيانة',
   'procurement': 'المشتريات',
+  'accounts': 'المالية',
 };
 
 /// هل القسم متاح؟ (المخاطر وSWOT تحتاج الترحيل 15، والشؤون الفنية والإشراف الترحيل 20، وأقسام الوحدات الترحيل 21)
@@ -94,6 +98,7 @@ bool sectionEnabled(AppState app, String key) => switch (key) {
       'stores' => app.v22Ready || app.isDirector,
       'maintenance' => app.v24Ready || app.isDirector,
       'procurement' => app.v25Ready || app.isDirector,
+      'accounts' => app.v31Ready,
       'security' => app.v13Ready && app.canAudit,
       _ => app.v6Ready,
     };
@@ -178,6 +183,7 @@ Color defaultSectionColor(BuildContext context, String key) {
     'stores' => dark ? const Color(0xFFE0B26B) : const Color(0xFF8D5B12),
     'maintenance' => dark ? const Color(0xFFFFB46B) : const Color(0xFFB4530A),
     'procurement' => dark ? const Color(0xFF8FD3A5) : const Color(0xFF1F7A4A),
+    'accounts' => dark ? const Color(0xFFB39DDB) : const Color(0xFF5E35B1),
     _ => Theme.of(context).colorScheme.primary,
   };
 }
@@ -788,6 +794,14 @@ List<(String, String, Color?)> hubStats(BuildContext context, AppState app, Stri
         ('${pr.open.length}', 'طلباً جارياً', null),
         ('${pr.awaitingReview.length + pr.awaitingDecision.length + pr.awaitingOrder.length}', 'ينتظر إجراءً', pr.awaitingReview.isNotEmpty || pr.awaitingDecision.isNotEmpty ? sem.wip : null),
         ('$late', 'تنبيه', late > 0 ? sem.danger : null),
+      ];
+    case 'accounts':
+      if (!app.v31Ready) return const [];
+      final act = app.financeRates.where((r) => r.to == null && r.active).length;
+      return [
+        ('$act', 'نسبة سارية', null),
+        ('${app.financeDeductions.where((d) => d.active).length}', 'خصماً مفعّلاً', null),
+        ('${app.financeGrants.length}', 'صلاحية ممنوحة', null),
       ];
     case 'manual':
       return [

@@ -93,6 +93,10 @@ if code == 200 and isinstance(mt, list):
 code, pr = sb("GET", "/rest/v1/pr_settings?select=key,value&order=key.asc")
 if code == 200 and isinstance(pr, list):
     cfg["procurement_settings"] = {x["key"]: x["value"] for x in pr}
+# النسب المالية (الترحيل 47) لقيمها الحية في نسخة PDF من الدليل؛ إن لم يُسمح بقراءتها تبقى القيم الابتدائية
+code, fr = sb("GET", "/rest/v1/finance_rates?select=code,percent,active,effective_from,effective_to&order=code.asc,effective_from.asc")
+if code == 200 and isinstance(fr, list):
+    cfg["finance_rates"] = fr
 # سياسات الإهلاك لكل تصنيف أصول (الترحيل 39) لقيمتها الحية في نسخة PDF من الدليل
 code, dp = sb("GET", "/rest/v1/st_asset_policies?select=dep_method,life_months,salvage_pct,st_categories(code,name,sort)")
 if code == 200 and isinstance(dp, list):

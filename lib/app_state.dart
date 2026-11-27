@@ -18,6 +18,7 @@ import 'finance_kpi.dart';
 import 'maintenance.dart';
 import 'milestones.dart';
 import 'procurement.dart';
+import 'finance_rates.dart';
 import 'docs.dart';
 import 'geo.dart';
 import 'models.dart';
@@ -210,6 +211,12 @@ class AppState extends ChangeNotifier {
   List<BudgetLine> budgetLines = [];
   List<BudgetCommitment> budgetCommitments = [];
   RealtimeChannel? _channel30;
+  bool v31Ready = false;
+  List<FinanceRate> financeRates = [];
+  List<FinanceDeduction> financeDeductions = [];
+  List<FinanceGrant> financeGrants = [];
+  RealtimeChannel? _channel31;
+  Timer? _financeDebounce;
   Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
   bool _sectionRisksRefreshed = false;
@@ -919,6 +926,7 @@ class AppState extends ChangeNotifier {
       await _loadV28();
       await _loadV29();
       await _loadV30();
+      await _loadV31();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1002,6 +1010,7 @@ class AppState extends ChangeNotifier {
   /// هل يرى المستخدم هذا القسم؟ الأمن السيبراني للمدير وCISO، والمشتركة للجميع، والبقية بحسب النطاق.
   bool seesSection(String s) {
     if (s == 'security') return canAudit;
+    if (s == 'accounts') return canSeeFinanceSection;
     // حساب الموظف (الترحيل 38): صفحته في المخازن والدليل وحدهما
     if (role == AppRole.employee) return s == 'stores' || s == 'manual' || s == 'maintenance' || s == 'procurement';
     final sc = scope;
@@ -2012,6 +2021,115 @@ class AppState extends ChangeNotifier {
       await _loadV30();
       _notify();
     });
+  }
+
+  // ---------------------------------------------------------------
+  // المالية والمرتبات: النسب والخصومات والصلاحيات (الإصدار 3.0.0، الترحيل 47)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV31() async {
+    try {
+      final rs = await _allRows('finance_rates', ['code', 'effective_from']);
+      final ds = await _allRows('finance_deductions', ['name', 'id']);
+      final gs = await _allRows('finance_permissions', ['user_id', 'perm']);
+      financeRates = rs.map(FinanceRate.fromMap).toList();
+      financeDeductions = ds.map(FinanceDeduction.fromMap).toList();
+      financeGrants = gs.map(FinanceGrant.fromMap).toList();
+      v31Ready = true;
+    } catch (_) {
+      financeRates = [];
+      financeDeductions = [];
+      financeGrants = [];
+      v31Ready = false;
+    }
+  }
+
+  void _scheduleFinanceReload() {
+    _financeDebounce?.cancel();
+    _financeDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV31();
+      _notify();
+    });
+  }
+
+  /// صلاحيات المستخدم الحالي المالية الممنوحة له.
+  Set<String> get _myFinancePerms => {for (final g in financeGrants) if (g.userId == me?.id) g.perm};
+
+  /// يرى قسم المالية: المدير وموظفو مكتبه ومن مُنح صلاحية (والخادم يفرض ذلك).
+  bool get canSeeFinanceSection => v31Ready && (canManageProjects || _myFinancePerms.isNotEmpty);
+
+  /// يحرّر النسب والخصومات: المدير، أو من مُنح صلاحية التحرير.
+  bool get canEditFinSettings => v31Ready && !frozenForMe && (isDirector || _myFinancePerms.contains('edit'));
+
+  /// يعتمد (للمراحل اللاحقة): المدير، أو من مُنح صلاحية الاعتماد.
+  bool get canApproveFinance => v31Ready && !frozenForMe && (isDirector || _myFinancePerms.contains('approve'));
+
+  /// يمنح الصلاحيات المالية: المدير وحده.
+  bool get canGrantFinance => v31Ready && isDirector && !frozenForMe;
+
+  /// سجل إصدارات نسبة بترتيب سريانها من الأحدث.
+  List<FinanceRate> ratesOf(String code) => financeRates.where((r) => r.code == code).toList()..sort((a, b) => b.from.compareTo(a.from));
+
+  /// النسبة السارية اليوم (أو في يوم معيّن) إن كانت مفعّلة.
+  FinanceRate? currentRate(String code, [DateTime? day]) => rateAt(financeRates, code, day ?? DateTime.now());
+
+  Future<void> saveFinanceRate({
+    required String code,
+    required double percent,
+    required String basis,
+    required String scope,
+    required DateTime from,
+    required String reason,
+    bool active = true,
+  }) async {
+    await client.rpc('finance_rate_save', params: {
+      'p_code': code,
+      'p_percent': percent,
+      'p_basis': basis,
+      'p_scope': scope,
+      'p_from': '${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}',
+      'p_reason': reason,
+      'p_active': active,
+    });
+    await _loadV31();
+    _notify();
+  }
+
+  Future<void> saveFinanceDeduction({
+    String? id,
+    required String name,
+    required String kind,
+    required double value,
+    required String basis,
+    required String appliesTo,
+    bool active = true,
+    String note = '',
+  }) async {
+    await client.rpc('finance_deduction_save', params: {
+      'p_id': id,
+      'p_name': name,
+      'p_kind': kind,
+      'p_value': value,
+      'p_basis': basis,
+      'p_applies': appliesTo,
+      'p_active': active,
+      'p_note': note,
+    });
+    await _loadV31();
+    _notify();
+  }
+
+  Future<void> deleteFinanceDeduction(String id) async {
+    await client.rpc('finance_deduction_delete', params: {'p_id': id});
+    await _loadV31();
+    _notify();
+  }
+
+  Future<void> setFinancePerm(String userId, String perm, bool on) async {
+    await client.rpc('finance_perm_set', params: {'p_user': userId, 'p_perm': perm, 'p_on': on});
+    await _loadV31();
+    _notify();
   }
 
   /// يرى الميزانية: المدير وموظفو مكتبه (والخادم يفرض ذلك).
@@ -3309,6 +3427,19 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة المالية والمرتبات (الترحيل 47)
+    final old31 = _channel31;
+    if (old31 != null) client.removeChannel(old31);
+    _channel31 = null;
+    if (v31Ready) {
+      final ch31 = client.channel('dc-v31');
+      for (final tb in const ['finance_rates', 'finance_deductions', 'finance_permissions']) {
+        ch31.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _scheduleFinanceReload());
+      }
+      ch31.subscribe();
+      _channel31 = ch31;
+    }
+
     // قناة الميزانية (الترحيل 46)
     final old30 = _channel30;
     if (old30 != null) client.removeChannel(old30);
@@ -3477,6 +3608,14 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v31Ready = false;
+    financeRates = [];
+    financeDeductions = [];
+    financeGrants = [];
+    _financeDebounce?.cancel();
+    final old31r = _channel31;
+    if (old31r != null) client.removeChannel(old31r);
+    _channel31 = null;
     v30Ready = false;
     budgetLines = [];
     budgetCommitments = [];
@@ -3532,7 +3671,8 @@ class AppState extends ChangeNotifier {
       ..['security'] = 150
       ..['stores'] = 200
       ..['maintenance'] = 220
-      ..['procurement'] = 240;
+      ..['procurement'] = 240
+      ..['accounts'] = 260;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -3621,6 +3761,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _financeDebounce?.cancel();
+    final old31d = _channel31;
+    if (old31d != null) client.removeChannel(old31d);
     _budgetDebounce?.cancel();
     final old30d = _channel30;
     if (old30d != null) client.removeChannel(old30d);
@@ -3706,6 +3849,7 @@ class AppState extends ChangeNotifier {
         >= 200 && < 220 => 'stores',
         >= 220 && < 240 => 'maintenance',
         >= 240 && < 260 => 'procurement',
+        >= 260 && < 280 => 'accounts',
         _ => 'cycle',
       };
   final Map<String, int> _lastTab = {
@@ -3725,6 +3869,7 @@ class AppState extends ChangeNotifier {
     'stores': 200,
     'maintenance': 220,
     'procurement': 240,
+    'accounts': 260,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
