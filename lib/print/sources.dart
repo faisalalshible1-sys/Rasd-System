@@ -554,6 +554,7 @@ List<ExportSource> _all(AppState app) => [
           _C('mitigation', 'إجراءات المعالجة', type: ColType.long, on: false),
           _C('next', 'المراجعة القادمة', type: ColType.date, flex: 0.9),
           _C('status', 'الحالة', flex: 0.8),
+          _C('origin', 'المصدر', flex: 0.9, on: false),
         ],
         row: (a, r) => [
           r.code,
@@ -569,6 +570,7 @@ List<ExportSource> _all(AppState app) => [
           r.mitigation,
           r.nextReview,
           r.statusLabel,
+          r.section != null ? 'تلقائي: ${riskSectionLabels[r.section]}' : (r.isAuto ? 'تلقائي: البرنامج الزمني' : (r.isOffice ? 'المكتب' : 'مشروع')),
         ],
         summary: (a, l) => [
           ('المخاطر', '${l.length}'),
@@ -598,6 +600,42 @@ List<ExportSource> _all(AppState app) => [
           final risk = a.risks.where((x) => x.id == r.riskId).firstOrNull;
           return [r.reviewedOn, risk == null ? '' : '${risk.code} · ${risk.description}', r.probability, r.impact, _pct(r.progress), r.reviewer, r.actionsDone];
         },
+      ),
+      _src<RiskAction>(
+        id: 'risks:actions',
+        section: 'risks',
+        title: 'إجراءات الاستجابة للمخاطر',
+        icon: Icons.checklist_rounded,
+        ready: (a) => a.v27Ready,
+        items: (a) => a.riskActions,
+        date: (r) => r.dueDate,
+        dateLabel: 'موعد التنفيذ',
+        columns: const [
+          _C('risk', 'الخطر', flex: 1.8),
+          _C('title', 'الإجراء', type: ColType.long, flex: 1.8),
+          _C('owner', 'المسؤول', flex: 1),
+          _C('due', 'الموعد', type: ColType.date, flex: 0.9),
+          _C('status', 'الحالة', flex: 0.7),
+          _C('done', 'تاريخ الإنجاز', type: ColType.date, flex: 0.9, on: false),
+          _C('note', 'ملاحظة', type: ColType.long, on: false),
+        ],
+        row: (a, r) {
+          final risk = a.risks.where((x) => x.id == r.riskId).firstOrNull;
+          return [
+            risk == null ? '' : '${risk.code} · ${risk.description}',
+            r.title,
+            r.owner,
+            r.dueDate,
+            riskActionStatusLabels[r.status] ?? r.status,
+            r.doneOn,
+            r.note,
+          ];
+        },
+        summary: (a, l) => [
+          ('الإجراءات', '${l.length}'),
+          ('مفتوحة', '${l.where((r) => r.isOpen).length}'),
+          ('متأخرة', '${l.where((r) => r.isLate(DateTime.now())).length}'),
+        ],
       ),
       _src<ProjectTrack>(
         id: 'risks:projects',

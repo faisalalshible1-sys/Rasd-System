@@ -392,6 +392,14 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'أعاد فتح البرنامج الزمني (الإصدار ${text(d['version'])}) للتعديل';
     case 'risk.auto':
       return 'ترجم تنفيذ البرنامج الزمني إلى سجل المخاطر بتاريخ ${text(d['ref_date']).replaceAll('-', '/')}: فُتح ${text(d['opened'])} وأُغلق ${text(d['closed'])}';
+    case 'risk.action_save':
+      return '${text(d['op']) == 'create' ? 'أضاف' : 'عدّل'} إجراء استجابة للخطر ${e.projectLabel}: ${text(d['title'])}${text(d['due']).isEmpty ? '' : ' (الموعد ${text(d['due']).replaceAll('-', '/')})'}';
+    case 'risk.action_status':
+      return 'غيّر حالة إجراء الخطر ${e.projectLabel} «${text(d['title'])}» من ${riskActionStatusLabels[text(d['from'])] ?? text(d['from'])} إلى ${riskActionStatusLabels[text(d['to'])] ?? text(d['to'])}${text(d['note']).isEmpty ? '' : ' — ${text(d['note'])}'}';
+    case 'risk.action_delete':
+      return 'حذف إجراء الاستجابة «${text(d['title'])}» للخطر ${e.projectLabel}';
+    case 'risk.sync_sections':
+      return 'حدّث مخاطر الأقسام تلقائياً: فُتح ${text(d['opened'])} وحُدّث ${text(d['updated'])} وأُغلق ${text(d['closed'])}';
     case 'swot.auto':
       return 'ترجم تنفيذ البرنامج الزمني إلى تحليل SWOT بتاريخ ${text(d['ref_date']).replaceAll('-', '/')}: أُضيف ${text(d['added'])} وأُزيل ${text(d['removed'])}';
     case 'export.store':

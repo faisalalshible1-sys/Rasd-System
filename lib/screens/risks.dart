@@ -285,6 +285,15 @@ class RiskDashboardPage extends StatelessWidget {
               action: TextButton(onPressed: () => app.setTab(21), child: const Text('فتح السجل')),
             ),
           ),
+        if (app.lateRiskActions > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InfoBanner(
+              text: '${app.lateRiskActions} ${app.lateRiskActions == 1 ? 'إجراء استجابة تجاوز' : 'إجراءات استجابة تجاوزت'} موعد تنفيذه ولم يُنجز.',
+              level: 'warning',
+              action: TextButton(onPressed: () => app.setTab(21), child: const Text('فتح السجل')),
+            ),
+          ),
         if (checks.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -549,6 +558,7 @@ class _RiskRegisterPageState extends State<RiskRegisterPage> {
   String _category = '';
   String _follow = '';
   String _dept = '';
+  String _origin = ''; // '' الكل، office خطر المكتب، project مشروع، ثم stores/procurement/maintenance
   String _sort = 'current';
 
   @override
@@ -571,6 +581,9 @@ class _RiskRegisterPageState extends State<RiskRegisterPage> {
       if (_level >= 0 && cfg.levelIndex(s.currentScore) != _level) return false;
       if (_category.isNotEmpty && r.category != _category) return false;
       if (_dept.isNotEmpty && r.department != _dept && r.owner != _dept) return false;
+      if (_origin == 'office' && !r.isOffice) return false;
+      if (_origin == 'project' && r.isOffice) return false;
+      if (riskSectionLabels.containsKey(_origin) && r.section != _origin) return false;
       if (_follow == 'check' && s.check == null) return false;
       if (_follow.isNotEmpty && _follow != 'check' && s.followUp != _follow) return false;
       if (q.isNotEmpty) {
@@ -646,6 +659,20 @@ class _RiskRegisterPageState extends State<RiskRegisterPage> {
               value: _category,
               items: [('', 'كل التصنيفات'), for (final c in cats) (c, c)],
               onChanged: (v) => setState(() => _category = v),
+            ),
+          ),
+          SizedBox(
+            width: 190,
+            child: SelectField(
+              label: 'المصدر',
+              value: _origin,
+              items: [
+                ('', 'كل المصادر'),
+                ('office', 'خطر المكتب'),
+                ('project', 'مشاريع'),
+                for (final e in riskSectionLabels.entries) (e.key, 'تلقائي: ${e.value}'),
+              ],
+              onChanged: (v) => setState(() => _origin = v),
             ),
           ),
           SizedBox(
@@ -822,6 +849,8 @@ void showRiskDetails(BuildContext context, Risk r) {
             const SizedBox(height: 12),
             Wrap(spacing: 6, runSpacing: 6, children: [
               ToneBadge(r.statusLabel, color: riskStatusColor(ctx, r.status)),
+              if (r.section != null) ToneBadge('تلقائي من ${riskSectionLabels[r.section]}', color: sem.wip, icon: Icons.bolt_rounded),
+              if (r.isOffice && r.section == null && r.autoKey == null) ToneBadge('خطر المكتب', color: sem.muted),
               if (r.response.isNotEmpty) ToneBadge('الاستجابة: ${r.responseLabel}', color: sem.wip),
               ToneBadge(followUpLabels[s.followUp]!, color: followUpColor(sem, s.followUp)),
               if (!r.isClosed) ToneBadge(trendLabels[s.trend]!, color: s.trend == 'up' ? sem.danger : (s.trend == 'down' ? sem.ok : sem.muted)),
@@ -929,6 +958,99 @@ void showRiskDetails(BuildContext context, Risk r) {
                   ]),
                 ),
             ],
+            if (app.v27Ready) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: Text('إجراءات الاستجابة (${app.actionsOf(r.id).length})',
+                      style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                ),
+                if (app.canEditRisks)
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      showRiskActionEditor(context, r);
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('إجراء'),
+                  ),
+              ]),
+              const SizedBox(height: 6),
+              if (app.actionsOf(r.id).isEmpty)
+                Text('لا إجراءات استجابة مسجَّلة لهذا الخطر.', style: TextStyle(color: sem.muted, fontSize: 12.5)),
+              for (final a in app.actionsOf(r.id))
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: sem.surface2, borderRadius: BorderRadius.circular(12)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(a.title,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, decoration: a.status == 'cancelled' ? TextDecoration.lineThrough : null)),
+                        Text(
+                            [
+                              riskActionStatusLabels[a.status] ?? a.status,
+                              if (a.owner.isNotEmpty) a.owner,
+                              if (a.dueDate != null) 'الموعد ${_day(a.dueDate!)}',
+                              if (a.doneOn != null) 'أُنجز ${_day(a.doneOn!)}',
+                            ].join(' · '),
+                            style: TextStyle(color: a.isLate(DateTime.now()) ? sem.danger : sem.muted, fontSize: 12.5)),
+                        if (a.note.isNotEmpty) Text(a.note, style: TextStyle(color: sem.muted, fontSize: 12.5)),
+                      ]),
+                    ),
+                    if (app.canEditRisks) ...[
+                      if (a.isOpen)
+                        IconButton(
+                          tooltip: 'تم الإنجاز',
+                          visualDensity: VisualDensity.compact,
+                          color: sem.ok,
+                          onPressed: () async {
+                            try {
+                              await app.setRiskActionStatus(a.id, 'done');
+                              if (ctx.mounted) Navigator.of(ctx).pop();
+                              if (context.mounted) showToast(context, 'أُنجز الإجراء');
+                            } catch (e) {
+                              if (context.mounted) showToast(context, friendlyError(e), error: true);
+                            }
+                          },
+                          icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                        ),
+                      IconButton(
+                        tooltip: 'تعديل الإجراء',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          showRiskActionEditor(context, r, action: a);
+                        },
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                      ),
+                      IconButton(
+                        tooltip: 'حذف الإجراء',
+                        visualDensity: VisualDensity.compact,
+                        color: sem.danger,
+                        onPressed: () async {
+                          final ok = await confirmDialog(ctx,
+                              title: 'حذف الإجراء',
+                              message: 'يُحذف الإجراء نهائياً ويبقى أثره في سجل التدقيق.',
+                              confirmLabel: 'حذف',
+                              danger: true);
+                          if (!ok || !ctx.mounted) return;
+                          Navigator.of(ctx).pop();
+                          try {
+                            await app.deleteRiskAction(a.id);
+                            if (context.mounted) showToast(context, 'حُذف الإجراء');
+                          } catch (e) {
+                            if (context.mounted) showToast(context, friendlyError(e), error: true);
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      ),
+                    ],
+                  ]),
+                ),
+            ],
             const SizedBox(height: 10),
             Row(children: [
               if (app.canEditRisks)
@@ -1031,6 +1153,29 @@ Future<void> showReviewEditor(BuildContext context, Risk r, {RiskReview? review}
     onSave: (d) => app.saveRiskReview(review?.id, r.id, d),
   );
   if (ok && context.mounted) showToast(context, review == null ? 'سُجّلت المراجعة' : 'حُفظت المراجعة');
+}
+
+/// إضافة إجراء استجابة لخطر أو تعديله (الترحيل 43). المسؤول والموعد اختياريان.
+Future<void> showRiskActionEditor(BuildContext context, Risk r, {RiskAction? action}) async {
+  final app = AppScope.of(context);
+  final ok = await showPmForm(
+    context,
+    title: action == null ? 'إجراء استجابة لـ ${r.code}' : 'تعديل إجراء ${r.code}',
+    note: 'الإجراء خطوة محددة تخفّض الخطر أو تعالجه. يُسجَّل إنجازه من تفاصيل الخطر، ويظهر المتأخر منها في لوحة المخاطر.',
+    sections: [
+      PmSection('الإجراء', [
+        const PmField('title', 'الإجراء', PmKind.multiline, required: true, max: 200, full: true),
+        PmField('owner', 'المسؤول عن التنفيذ', PmKind.select, options: pmPlain(app.riskConfig.owners)),
+        const PmField('due_date', 'موعد التنفيذ', PmKind.date),
+        const PmField('note', 'ملاحظة', PmKind.multiline, max: 300, full: true),
+      ]),
+    ],
+    values: action == null
+        ? {'owner': r.executor.isNotEmpty ? r.executor : r.owner}
+        : {'title': action.title, 'owner': action.owner, 'due_date': action.dueDate, 'note': action.note},
+    onSave: (d) => app.saveRiskAction(action?.id, r.id, d),
+  );
+  if (ok && context.mounted) showToast(context, action == null ? 'أُضيف الإجراء' : 'حُفظ الإجراء');
 }
 
 Future<void> _quickClose(BuildContext context, Risk r) async {

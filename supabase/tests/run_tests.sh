@@ -186,3 +186,12 @@ $P -d dctest -1 -f "$DIR/migrations/20261203000042_stocktaking.sql" >/dev/null &
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/124_stocktaking_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261203000042_stocktaking_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 42 مع وجود جلسات جرد"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_counts'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم جلسات جرد، والمنظومة كما هي"
+# خطط الاستجابة للمخاطر ومخاطر الأقسام الآلية (الترحيل 43)
+$P -d dctest -f "$DIR/migrations/20261204000043_risk_actions_sections.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261204000043_risk_actions_sections.sql"
+$P -d dctest -f "$DIR/migrations/20261204000043_risk_actions_sections.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261204000043_risk_actions_sections.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261204000043_risk_actions_sections_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 43 ولا إجراءات استجابة، والمخاطر كما هي"
+$P -d dctest -tAc "select count(*) from pg_class where relname in ('risk_actions', 'risk_auto_runs') and relkind = 'r'" | grep -qx 0 && echo "PASS: ولا جداول لإجراءات الاستجابة بعد التراجع"
+$P -d dctest -1 -f "$DIR/migrations/20261204000043_risk_actions_sections.sql" >/dev/null && echo "PASS: إعادة الترحيل 43 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/125_risk_actions_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261204000043_risk_actions_sections_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 43 مع وجود إجراءات استجابة"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'risk_actions'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وللمخاطر إجراءات، والمنظومة كما هي"
