@@ -763,6 +763,22 @@
       "name": "الاستلام النهائي وإقفال العقد"
     }
   ],
+  "stores_dep_policies": [
+    {
+      "dep_method": "straight",
+      "life_months": 60,
+      "name": "الأجهزة المكتبية",
+      "salvage_pct": 0.0,
+      "sort": 3
+    },
+    {
+      "dep_method": "straight",
+      "life_months": 120,
+      "name": "الأثاث",
+      "salvage_pct": 0.0,
+      "sort": 4
+    }
+  ],
   "stores_settings": {
     "expiry_days": 60,
     "separation": true
