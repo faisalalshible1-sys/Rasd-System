@@ -14,6 +14,7 @@ import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'maintenance.dart';
+import 'milestones.dart';
 import 'procurement.dart';
 import 'docs.dart';
 import 'geo.dart';
@@ -193,6 +194,14 @@ class AppState extends ChangeNotifier {
   List<GeoPoint> geoPoints = [];
   RealtimeChannel? _channel28;
   Timer? _geoDebounce;
+
+  /// معالم المشاريع والمؤشرات المخصصة (الإصدار 1.14.0، الترحيل 45).
+  bool v29Ready = false;
+  List<PmMilestone> milestones = [];
+  List<KpiDef> kpiDefs = [];
+  List<KpiValue> kpiValues = [];
+  RealtimeChannel? _channel29;
+  Timer? _kpiDebounce;
   List<RiskAction> riskActions = [];
   bool _sectionRisksRefreshed = false;
   RealtimeChannel? _channel27;
@@ -899,6 +908,7 @@ class AppState extends ChangeNotifier {
       await _loadV26();
       await _loadV27();
       await _loadV28();
+      await _loadV29();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -1965,6 +1975,156 @@ class AppState extends ChangeNotifier {
   Future<List<MtEvent>> mtEventsOf(String requestId) async {
     final r = await client.from('mt_request_events').select().eq('request_id', requestId).order('id', ascending: true).limit(500);
     return r.map(MtEvent.fromMap).toList();
+  }
+
+  // ---------------------------------------------------------------
+  // المعالم والمؤشرات (الإصدار 1.14.0، الترحيل 45)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV29() async {
+    try {
+      final ms = await _allRows('pm_milestones', ['planned_date', 'id']);
+      final defs = await _allRows('kpi_defs', ['name', 'id']);
+      final vals = await _allRows('kpi_values', ['period', 'id']);
+      milestones = ms.map(PmMilestone.fromMap).toList();
+      kpiDefs = defs.map(KpiDef.fromMap).toList();
+      kpiValues = vals.map(KpiValue.fromMap).toList();
+      v29Ready = true;
+    } catch (_) {
+      milestones = [];
+      kpiDefs = [];
+      kpiValues = [];
+      v29Ready = false;
+    }
+  }
+
+  void _scheduleKpiReload() {
+    _kpiDebounce?.cancel();
+    _kpiDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV29();
+      _notify();
+    });
+  }
+
+  List<PmMilestone> milestonesOf(String projectId) =>
+      [for (final m in milestones) if (m.projectId == projectId) m]..sort((a, b) => a.planned.compareTo(b.planned));
+
+  /// عدد المعالم المتأخرة (معلّقة وفات تاريخها المخطط) لشارة الصفحة.
+  int get lateMilestones {
+    final t = pmToday();
+    return milestones.where((m) => m.isOverdue(t)).length;
+  }
+
+  /// يحدّث المعالم: من يحدّث متابعة المشاريع.
+  bool get canEditMilestones => v29Ready && canEditPm;
+
+  /// يعرّف المؤشرات المخصصة: المدير وحده.
+  bool get canDefineKpi => v29Ready && isDirector && !frozenForMe;
+
+  /// يسجّل قيم المؤشرات: المدير وموظفو مكتبه.
+  bool get canRecordKpi => v29Ready && canManageProjects && !frozenForMe;
+
+  Future<void> saveMilestone({
+    String? id,
+    String? projectId,
+    required String title,
+    required DateTime planned,
+    DateTime? forecast,
+    String note = '',
+    int sort = 0,
+  }) async {
+    String d(DateTime x) => '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
+    await client.rpc('pm_milestone_save', params: {
+      'p_id': id,
+      'p_project': projectId,
+      'p_title': title,
+      'p_planned': d(planned),
+      'p_forecast': forecast == null ? null : d(forecast),
+      'p_note': note,
+      'p_sort': sort,
+    });
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> setMilestoneStatus(String id, String status, {DateTime? actual}) async {
+    String d(DateTime x) => '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
+    await client.rpc('pm_milestone_status', params: {'p_id': id, 'p_status': status, 'p_actual': actual == null ? null : d(actual)});
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> deleteMilestone(String id) async {
+    await client.rpc('pm_milestone_delete', params: {'p_id': id});
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> saveKpiDef({
+    String? id,
+    required String name,
+    String unit = '',
+    required double target,
+    bool higherBetter = true,
+    bool active = true,
+    String note = '',
+  }) async {
+    await client.rpc('kpi_def_save', params: {
+      'p_id': id,
+      'p_name': name,
+      'p_unit': unit,
+      'p_target': target,
+      'p_direction': higherBetter ? 'higher' : 'lower',
+      'p_active': active,
+      'p_note': note,
+    });
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> deleteKpiDef(String id) async {
+    await client.rpc('kpi_def_delete', params: {'p_id': id});
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> setKpiValue(String kpiId, String period, double value, {String note = ''}) async {
+    await client.rpc('kpi_value_set', params: {'p_kpi': kpiId, 'p_period': period, 'p_value': value, 'p_note': note});
+    await _loadV29();
+    _notify();
+  }
+
+  Future<void> deleteKpiValue(String kpiId, String period) async {
+    await client.rpc('kpi_value_delete', params: {'p_kpi': kpiId, 'p_period': period});
+    await _loadV29();
+    _notify();
+  }
+
+  /// المؤشرات الآلية لما يراه المستخدم من بيانات (المعالم والمشاريع والصيانة والمشتريات والمخازن).
+  List<KpiResult> get builtinKpis {
+    final now = DateTime.now();
+    final today = pmToday();
+    final running = pm.running;
+    final out = <KpiResult>[
+      kpiMilestones(milestones, today),
+      kpiProjectsOnTrack([for (final t in running) t.perf]),
+      kpiProjectsSpi([
+        for (final t in running)
+          if (t.spi != null) (spi: t.spi!, weight: t.contractValue ?? 0),
+      ], pmConfig.spiOk),
+      kpiProjectsDelay([for (final t in running) t.delayDays]),
+    ];
+    if (v24Ready) {
+      out.add(kpiMaintenanceSla(maint.requests, now));
+      out.add(kpiMaintenanceMttr(maint.requests, now));
+    }
+    if (v26Ready) out.add(kpiProcurementOnTime(proc.orders, today));
+    if (v22Ready) {
+      final active = stores.items.where((i) => i.active).length;
+      out.add(kpiStoresHealth(active, stores.lowStock().length));
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------
@@ -3039,6 +3199,19 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة المعالم والمؤشرات (الترحيل 45)
+    final old29 = _channel29;
+    if (old29 != null) client.removeChannel(old29);
+    _channel29 = null;
+    if (v29Ready) {
+      final ch29 = client.channel('dc-v29');
+      for (final tb in const ['pm_milestones', 'kpi_defs', 'kpi_values']) {
+        ch29.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _scheduleKpiReload());
+      }
+      ch29.subscribe();
+      _channel29 = ch29;
+    }
+
     // قناة مواقع الخريطة (الترحيل 44)
     final old28 = _channel28;
     if (old28 != null) client.removeChannel(old28);
@@ -3181,6 +3354,14 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v29Ready = false;
+    milestones = [];
+    kpiDefs = [];
+    kpiValues = [];
+    _kpiDebounce?.cancel();
+    final old29r = _channel29;
+    if (old29r != null) client.removeChannel(old29r);
+    _channel29 = null;
     v28Ready = false;
     geoPoints = [];
     _geoDebounce?.cancel();
@@ -3310,6 +3491,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _kpiDebounce?.cancel();
+    final old29d = _channel29;
+    if (old29d != null) client.removeChannel(old29d);
     _geoDebounce?.cancel();
     final old28d = _channel28;
     if (old28d != null) client.removeChannel(old28d);
