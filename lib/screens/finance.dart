@@ -13,6 +13,7 @@ import '../ui/widgets.dart';
 import 'budget_view.dart';
 import 'cashflow_view.dart';
 import 'contract_finance.dart';
+import 'contractors_account_view.dart';
 import 'dashboard.dart' show ScopeFilters;
 import 'project_detail.dart';
 
@@ -25,6 +26,7 @@ const List<(String, String, IconData)> financeViews = [
   ('variations', 'أوامر التغيير', Icons.swap_vert_rounded),
   ('guarantees', 'التأمينات والضمانات', Icons.verified_user_outlined),
   ('cash', 'المدفوع والمتبقي', Icons.account_balance_wallet_outlined),
+  ('contractors', 'حساب المقاولين', Icons.groups_2_outlined),
   ('cashflow', 'التدفق النقدي', Icons.timeline_rounded),
   ('budget', 'الميزانية والالتزامات', Icons.account_balance_outlined),
   ('log', 'سجل التعديلات', Icons.history_rounded),
@@ -259,6 +261,7 @@ class _FinancePageState extends State<FinancePage> {
               'variations' => _VariationsView(app: app, st: st),
               'guarantees' => _GuaranteesView(app: app, st: st),
               'cash' => _cash(context, app, st),
+              'contractors' => ContractorsAccountView(projects: list, extracts: st.extracts),
               'cashflow' => CashflowView(extracts: st.extracts),
               'budget' when app.canSeeBudget => const BudgetView(),
               'log' => const _FinanceLog(),
