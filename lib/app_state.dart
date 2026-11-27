@@ -20,6 +20,7 @@ import 'milestones.dart';
 import 'procurement.dart';
 import 'finance_rates.dart';
 import 'payroll.dart';
+import 'guarantees.dart';
 import 'docs.dart';
 import 'geo.dart';
 import 'models.dart';
@@ -230,6 +231,12 @@ class AppState extends ChangeNotifier {
   PayrollConfig payrollConfig = const PayrollConfig();
   RealtimeChannel? _channel32;
   Timer? _payrollDebounce;
+  bool v33Ready = false;
+  List<FinGuarantee> finGuarantees = [];
+  List<FinAccount> finAccounts = [];
+  List<FinTransfer> finTransfers = [];
+  RealtimeChannel? _channel33;
+  Timer? _guaranteeDebounce;
   Timer? _financeDebounce;
   Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
@@ -942,6 +949,7 @@ class AppState extends ChangeNotifier {
       await _loadV30();
       await _loadV31();
       await _loadV32();
+      await _loadV33();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -2148,6 +2156,82 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------
+  // الضمانات والحسابات والتحويلات (الإصدار 3.2.0، الترحيل 49)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV33() async {
+    try {
+      final gs = await _allRows('fin_guarantees', ['issued_on', 'id']);
+      final ac = await _allRows('fin_accounts', ['name', 'id']);
+      final ts = await _allRows('fin_transfers', ['on_date', 'id']);
+      finGuarantees = gs.map(FinGuarantee.fromMap).toList();
+      finAccounts = ac.map(FinAccount.fromMap).toList();
+      finTransfers = ts.map(FinTransfer.fromMap).toList();
+      v33Ready = true;
+    } catch (_) {
+      finGuarantees = [];
+      finAccounts = [];
+      finTransfers = [];
+      v33Ready = false;
+    }
+  }
+
+  void _scheduleGuaranteeReload() {
+    _guaranteeDebounce?.cancel();
+    _guaranteeDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV33();
+      _notify();
+    });
+  }
+
+  double balanceOf(FinAccount a) => accountBalance(a, finTransfers);
+
+  Future<void> saveFinGuarantee({
+    String? id,
+    required String kind,
+    String? projectId,
+    required String party,
+    required double amount,
+    required DateTime issued,
+    DateTime? expires,
+    String reference = '',
+    String note = '',
+  }) =>
+      _finRpc<Object?>('fin_guarantee_save', {
+        'p_id': id,
+        'p_kind': kind,
+        'p_project': projectId,
+        'p_party': party,
+        'p_amount': amount,
+        'p_issued': _isoDay(issued),
+        'p_expires': expires == null ? null : _isoDay(expires),
+        'p_ref': reference,
+        'p_note': note,
+      });
+
+  Future<void> deleteFinGuarantee(String id) => _finRpc<Object?>('fin_guarantee_delete', {'p_id': id});
+
+  Future<void> requestGuaranteeRelease(String id, String reason) =>
+      _finRpc<Object?>('fin_guarantee_release_request', {'p_id': id, 'p_reason': reason});
+
+  Future<void> decideGuaranteeRelease(String id, bool approve, {String note = ''}) =>
+      _finRpc<Object?>('fin_guarantee_release_decide', {'p_id': id, 'p_approve': approve, 'p_note': note});
+
+  Future<void> saveFinAccount({String? id, required String name, required String kind, required double opening, bool active = true}) =>
+      _finRpc<Object?>('fin_account_save', {'p_id': id, 'p_name': name, 'p_kind': kind, 'p_opening': opening, 'p_active': active});
+
+  Future<void> deleteFinAccount(String id) => _finRpc<Object?>('fin_account_delete', {'p_id': id});
+
+  Future<void> createFinTransfer(String from, String to, double amount, DateTime date, {String note = ''}) =>
+      _finRpc<Object?>('fin_transfer_create', {'p_from': from, 'p_to': to, 'p_amount': amount, 'p_date': _isoDay(date), 'p_note': note});
+
+  Future<void> decideFinTransfer(String id, bool approve, {String note = ''}) =>
+      _finRpc<Object?>('fin_transfer_decide', {'p_id': id, 'p_approve': approve, 'p_note': note});
+
+  Future<void> deleteFinTransfer(String id) => _finRpc<Object?>('fin_transfer_delete', {'p_id': id});
+
+  // ---------------------------------------------------------------
   // المرتبات والموظفون والحضور (الإصدار 3.1.0، الترحيل 48)
   // ---------------------------------------------------------------
 
@@ -2214,6 +2298,7 @@ class AppState extends ChangeNotifier {
   Future<T> _finRpc<T>(String fn, Map<String, dynamic> params) async {
     final r = await client.rpc(fn, params: params);
     await _loadV32();
+    await _loadV33();
     _notify();
     return r as T;
   }
@@ -3597,6 +3682,19 @@ class AppState extends ChangeNotifier {
       _channel26 = ch26;
     }
 
+    // قناة الضمانات والتحويلات (الترحيل 49)
+    final old33 = _channel33;
+    if (old33 != null) client.removeChannel(old33);
+    _channel33 = null;
+    if (v33Ready) {
+      final ch33 = client.channel('dc-v33');
+      for (final tb in const ['fin_guarantees', 'fin_accounts', 'fin_transfers']) {
+        ch33.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: tb, callback: (_) => _scheduleGuaranteeReload());
+      }
+      ch33.subscribe();
+      _channel33 = ch33;
+    }
+
     // قناة المرتبات (الترحيل 48)
     final old32 = _channel32;
     if (old32 != null) client.removeChannel(old32);
@@ -3791,6 +3889,14 @@ class AppState extends ChangeNotifier {
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
     _channel26 = null;
+    v33Ready = false;
+    finGuarantees = [];
+    finAccounts = [];
+    finTransfers = [];
+    _guaranteeDebounce?.cancel();
+    final old33r = _channel33;
+    if (old33r != null) client.removeChannel(old33r);
+    _channel33 = null;
     v32Ready = false;
     finEmployees = [];
     finAllowances = [];
@@ -3958,6 +4064,9 @@ class AppState extends ChangeNotifier {
     _countDebounce?.cancel();
     final old26 = _channel26;
     if (old26 != null) client.removeChannel(old26);
+    _guaranteeDebounce?.cancel();
+    final old33d = _channel33;
+    if (old33d != null) client.removeChannel(old33d);
     _payrollDebounce?.cancel();
     final old32d = _channel32;
     if (old32d != null) client.removeChannel(old32d);

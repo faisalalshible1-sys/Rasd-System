@@ -458,6 +458,28 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'تراجع عن كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)} (كان ${const {'approved': 'معتمداً', 'locked': 'مقفلاً'}[text(d['from'])] ?? text(d['from'])}) — السبب: ${text(d['reason'])}';
     case 'finance.payroll_delete':
       return 'حذف مسودة كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)}';
+    case 'finance.guar_save':
+      return '${d['created'] == true ? 'سجّل' : 'عدّل'} ${const {'initial': 'ضماناً ابتدائياً', 'final': 'ضماناً نهائياً', 'retention': 'محتجزاً', 'deposit': 'تأميناً نقدياً'}[text(d['kind'])] ?? 'ضماناً'} (${_m(d['amount'])}) من ${text(d['party'])}';
+    case 'finance.guar_delete':
+      return 'حذف ضماناً (${_m(d['amount'])}) من ${text(d['party'])}';
+    case 'finance.guar_release_request':
+      return 'طلب استرداد ضمان ${text(d['party'])} (${_m(d['amount'])}) — السبب: ${text(d['reason'])}';
+    case 'finance.guar_release_approve':
+      return 'وافق على استرداد ضمان ${text(d['party'])} (${_m(d['amount'])})';
+    case 'finance.guar_release_reject':
+      return 'رفض استرداد ضمان ${text(d['party'])} (${_m(d['amount'])}) — السبب: ${text(d['note'])}';
+    case 'finance.acct_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} الحساب «${text(d['name'])}» (افتتاحي ${_m(d['opening'])})';
+    case 'finance.acct_delete':
+      return 'حذف الحساب «${text(d['name'])}»';
+    case 'finance.transfer_create':
+      return 'سجّل تحويل ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}» بانتظار الموافقة';
+    case 'finance.transfer_approve':
+      return 'رحّل تحويل ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}»';
+    case 'finance.transfer_reject':
+      return 'رفض تحويل ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}» — السبب: ${text(d['note'])}';
+    case 'finance.transfer_delete':
+      return 'حذف تحويلاً معلّقاً ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}»';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':
