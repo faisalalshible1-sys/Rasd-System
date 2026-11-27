@@ -15,6 +15,7 @@ import '../registers.dart';
 import '../schedule.dart';
 import '../assets.dart';
 import '../maintenance.dart';
+import '../procurement.dart';
 import '../stores.dart';
 import '../units.dart';
 import 'model.dart';
@@ -81,6 +82,7 @@ const Map<String, String> exportSectionNames = {
   'print': 'الطباعة والتصدير',
   'stores': 'المخازن والأصول',
   'maintenance': 'الصيانة',
+  'procurement': 'المشتريات',
 };
 
 DateTime _d0(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -1506,6 +1508,80 @@ List<ExportSource> _all(AppState app) => [
           x.active ? 'نشطة' : 'موقوفة',
         ],
         summary: (a, l) => [('الخطط', '${l.length}'), ('النشطة', '${l.where((x) => x.active).length}')],
+      ),
+
+      // ============================================================ المشتريات (الترحيل 41)
+      _src<PrRequest>(
+        id: 'procurement:requests',
+        section: 'procurement',
+        title: 'طلبات الاحتياج',
+        icon: Icons.shopping_cart_checkout_rounded,
+        ready: (a) => a.v25Ready && a.prStaff,
+        items: (a) => a.proc.requests.where((r) => r.status != 'draft').toList(),
+        columns: const [
+          _C('no', 'رقم الطلب', flex: 0.9),
+          _C('title', 'العنوان', flex: 1.8),
+          _C('requester', 'مقدّم الطلب', flex: 1.2),
+          _C('priority', 'الأولوية', flex: 0.7),
+          _C('status', 'الحالة', flex: 1.1),
+          _C('lines', 'البنود', type: ColType.number, flex: 0.5),
+          _C('tobuy', 'بنود للشراء', type: ColType.number, flex: 0.6),
+          _C('needed', 'مطلوب قبل', type: ColType.date, flex: 0.9),
+          _C('submitted', 'تاريخ التقديم', type: ColType.date, flex: 0.9),
+          _C('decided', 'تاريخ القرار', type: ColType.date, flex: 0.9, on: false),
+          _C('order', 'أمر الشراء', flex: 0.9),
+        ],
+        row: (a, x) {
+          final ls = a.proc.linesOf(x.id);
+          final o = a.proc.orderOfRequest(x.id);
+          return [
+            x.reqNo,
+            x.title,
+            x.requesterName,
+            prPriorityLabels[x.priority] ?? x.priority,
+            prStatusLabels[x.status] ?? x.status,
+            ls.length,
+            ls.where((l) => l.toBuy > 0).length,
+            x.neededBy,
+            x.submittedAt,
+            x.decidedAt,
+            o == null || o.status == 'cancelled' ? '' : o.poNo,
+          ];
+        },
+        summary: (a, l) => [('الطلبات', '${l.length}'), ('الجارية', '${l.where((x) => x.isOpen).length}'), ('المستلَمة', '${l.where((x) => x.status == 'received').length}')],
+      ),
+      _src<PrOrder>(
+        id: 'procurement:orders',
+        section: 'procurement',
+        title: 'أوامر الشراء',
+        icon: Icons.receipt_long_rounded,
+        ready: (a) => a.v25Ready && a.prStaff,
+        items: (a) => a.proc.orders,
+        columns: const [
+          _C('no', 'رقم الأمر', flex: 0.9),
+          _C('request', 'الطلب', flex: 0.9),
+          _C('supplier', 'المورّد', flex: 1.5),
+          _C('status', 'الحالة', flex: 0.8),
+          _C('total', 'الإجمالي', type: ColType.money, flex: 0.9),
+          _C('expected', 'التوريد المتوقع', type: ColType.date, flex: 0.9),
+          _C('issued', 'تاريخ الإصدار', type: ColType.date, flex: 0.9),
+          _C('waiver', 'استثناء العروض', flex: 1.4, on: false),
+        ],
+        row: (a, x) => [
+          x.poNo,
+          a.proc.request(x.requestId)?.reqNo ?? '',
+          a.proc.supplier(x.supplierId)?.name ?? '',
+          prOrderStatusLabels[x.status] ?? x.status,
+          x.total,
+          x.expectedDate,
+          x.issuedAt,
+          x.waiverNote,
+        ],
+        summary: (a, l) => [
+          ('الأوامر', '${l.length}'),
+          ('القائمة', '${l.where((x) => x.isLive).length}'),
+          ('إجمالي القائمة', fmtMoney(l.where((x) => x.isLive).fold<double>(0, (t, x) => t + x.total))),
+        ],
       ),
 
       // ============================================================ الوسائط والملفات

@@ -56,6 +56,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('33_contract_files', 33, 'ملف العقد ومرفقاته'),
   ManualChapter('34_stores', 34, 'المخازن والأصول والخدمات العامة'),
   ManualChapter('35_maintenance', 35, 'الصيانة والبلاغات'),
+  ManualChapter('36_procurement', 36, 'المشتريات وطلبات الاحتياج'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -86,6 +87,7 @@ const Map<String, List<String>> manualChapterSections = {
   '27_security': ['security'],
   '34_stores': ['stores'],
   '35_maintenance': ['maintenance'],
+  '36_procurement': ['procurement'],
 };
 
 /// فصول الدليل لمستخدم: العامة، وفصول الأقسام التي يراها.
@@ -265,6 +267,15 @@ const Map<int, String> manualTabAnchors = {
   229: '23_admin',
   208: '23_admin',
   209: '23_admin',
+  // المشتريات وطلبات الاحتياج (الترحيل 41)
+  240: '36_procurement',
+  241: '36_procurement',
+  242: '36_procurement',
+  243: '36_procurement',
+  244: '36_procurement',
+  245: '36_procurement',
+  248: '23_admin',
+  249: '23_admin',
 };
 
 /// فصل كل قسم رئيسي (لبطاقات الأقسام والبحث).
@@ -284,6 +295,7 @@ const Map<String, String> manualSectionAnchors = {
   'manual': '24_manual',
   'stores': '34_stores',
   'maintenance': '35_maintenance',
+  'procurement': '36_procurement',
 };
 
 String manualAnchorForTab(int tab) => manualTabAnchors[tab] ?? '00_about';

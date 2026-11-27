@@ -80,6 +80,10 @@ Map<String, String> manualValues(AppState app) {
     'MT_REPEAT_COUNT': '${app.maint.settings.repeatCount}',
     'MT_REPEAT_DAYS': '${app.maint.settings.repeatDays}',
     'MT_PLAN_LEAD_DAYS': '${app.maint.settings.planLeadDays}',
+    'PR_MIN_QUOTES': '${app.proc.settings.minQuotes}',
+    'PR_REVIEW_DAYS': '${app.proc.settings.reviewDays}',
+    'PR_APPROVE_DAYS': '${app.proc.settings.approveDays}',
+    'PR_GRACE_DAYS': '${app.proc.settings.graceDays}',
     'REF_TABLE': manualRefTable([
       for (final r in (app.refSchemes.isEmpty ? defaultRefSchemes : app.refSchemes))
         (name: r.name, pattern: r.pattern, reset: refResetLabels[r.reset] ?? r.reset, example: r.preview(ctx: const {'section': 'cycle'}), active: r.active),

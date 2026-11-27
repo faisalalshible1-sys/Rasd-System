@@ -149,6 +149,15 @@ def mt_num(k):
     return int(v) if isinstance(v, (int, float)) else _MT_NUM[k]
 
 
+_PR = live.get('procurement_settings') or {}
+_PR_NUM = {'min_quotes': 3, 'review_days': 3, 'approve_days': 3, 'grace_days': 3}
+
+
+def pr_num(k):
+    v = _PR.get(k)
+    return int(v) if isinstance(v, (int, float)) else _PR_NUM[k]
+
+
 count = len(forms)
 req = count - 1
 pm_cfg = settings.get('pm.config') if isinstance(settings.get('pm.config'), dict) else {}
@@ -194,6 +203,11 @@ values = {
     'MT_REPEAT_COUNT': str(mt_num('repeat_count')),
     'MT_REPEAT_DAYS': str(mt_num('repeat_days')),
     'MT_PLAN_LEAD_DAYS': str(mt_num('plan_lead_days')),
+    # حدود قسم المشتريات (الترحيل 41)
+    'PR_MIN_QUOTES': str(pr_num('min_quotes')),
+    'PR_REVIEW_DAYS': str(pr_num('review_days')),
+    'PR_APPROVE_DAYS': str(pr_num('approve_days')),
+    'PR_GRACE_DAYS': str(pr_num('grace_days')),
 }
 
 # ---------------------------------------------------------------- محوّل صيغة الدليل إلى HTML

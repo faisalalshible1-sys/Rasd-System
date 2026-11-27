@@ -14,6 +14,7 @@ import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'maintenance.dart';
+import 'procurement.dart';
 import 'docs.dart';
 import 'models.dart';
 import 'pm.dart';
@@ -176,6 +177,10 @@ class AppState extends ChangeNotifier {
   bool v24Ready = false;
   MaintenanceData maint = MaintenanceData.empty();
   DateTime? _mtGeneratedAt;
+
+  // الترحيل 41: قسم المشتريات
+  bool v25Ready = false;
+  ProcurementData proc = ProcurementData.empty();
 
   /// سجل حياة آخر أصل فُتح (مصدر تصديره).
   List<StAssetEvent> assetEvents = [];
@@ -368,6 +373,8 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel22;
   RealtimeChannel? _channel24;
   Timer? _maintDebounce;
+  RealtimeChannel? _channel25;
+  Timer? _procDebounce;
   Timer? _storesDebounce;
   Timer? _debounce;
   Timer? _updateTimer;
@@ -869,6 +876,7 @@ class AppState extends ChangeNotifier {
       await _loadV21();
       await _loadV22();
       await _loadV24();
+      await _loadV25();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -929,7 +937,7 @@ class AppState extends ChangeNotifier {
     // قسم الصيانة يرفع منه كل حساب بلاغاته؛ لا يُحسب قسم عمل إلا لأهله، أو لمن لا قسم عمل غيره له
     final work = [
       for (final s in sc.workSections)
-        if (!(layout.sections[s]?.hidden ?? false) && (s != 'maintenance' || mtStaff)) s,
+        if (!(layout.sections[s]?.hidden ?? false) && (s != 'maintenance' || mtStaff) && (s != 'procurement' || prStaffNow)) s,
       if (canAudit) 'security',
     ];
     if (work.isEmpty && sc.sections.contains('maintenance') && v24Ready) work.add('maintenance');
@@ -939,6 +947,7 @@ class AppState extends ChangeNotifier {
     if (t == 72 && !v15Ready) t = 70;
     if (s == 'stores') t = storesTabFor(t);
     if (s == 'maintenance') t = maintTabFor(t);
+    if (s == 'procurement') t = procTabFor(t);
     _section = s;
     _tab = sectionForTab(t) == s ? t : -1;
     showHub = false;
@@ -952,7 +961,7 @@ class AppState extends ChangeNotifier {
   bool seesSection(String s) {
     if (s == 'security') return canAudit;
     // حساب الموظف (الترحيل 38): صفحته في المخازن والدليل وحدهما
-    if (role == AppRole.employee) return s == 'stores' || s == 'manual' || s == 'maintenance';
+    if (role == AppRole.employee) return s == 'stores' || s == 'manual' || s == 'maintenance' || s == 'procurement';
     final sc = scope;
     if (sc == null) return true;
     return sharedSections.contains(s) || sc.sections.contains(s);
@@ -1936,6 +1945,152 @@ class AppState extends ChangeNotifier {
     return r.map(MtEvent.fromMap).toList();
   }
 
+  // ---------------------------------------------------------------
+  // المشتريات (الإصدار 1.10.0، الترحيل 41)
+  // ---------------------------------------------------------------
+
+  /// بيانات القسم: الطلبات لمن يراها (أهل القسم كل المقدَّم، وغيرهم طلباتهم)، وللأهل الموردون والإعدادات.
+  Future<void> _loadV25() async {
+    if (!isDirector && !seesSection('procurement')) {
+      proc = ProcurementData.empty();
+      v25Ready = false;
+      return;
+    }
+    try {
+      final staff = prStaffNow;
+      const none = <Map<String, dynamic>>[];
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        _allRows('pr_requests', ['created_at', 'id']),
+        _allRows('pr_request_lines', ['request_id', 'line_no']),
+        _allRows('pr_quotes', ['created_at', 'id']),
+        _allRows('pr_orders', ['issued_at', 'id']),
+        _allRows('pr_order_lines', ['order_id', 'id']),
+        staff ? _allRows('pr_suppliers', ['name']) : Future.value(none),
+        staff ? _allRows('pr_settings', ['key']) : Future.value(none),
+      ]);
+      Map<String, dynamic> look = {};
+      final lk = await client.rpc('pr_lookups');
+      if (lk is Map) look = Map<String, dynamic>.from(lk);
+      List<T> list<T>(String k, T Function(Map<String, dynamic>) f) {
+        final v = look[k];
+        return v is List ? [for (final x in v) if (x is Map) f(Map<String, dynamic>.from(x))] : <T>[];
+      }
+
+      (String, String) pair(Map<String, dynamic> m) => ('${m['id']}', '${m['name'] ?? ''}');
+      proc = ProcurementData(
+        requests: r[0].map(PrRequest.fromMap).toList()
+          ..sort((a, b) => (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000))),
+        lines: r[1].map(PrLine.fromMap).toList(),
+        quotes: r[2].map(PrQuote.fromMap).toList(),
+        orders: r[3].map(PrOrder.fromMap).toList()..sort((a, b) => (b.issuedAt ?? DateTime(2000)).compareTo(a.issuedAt ?? DateTime(2000))),
+        orderLines: r[4].map(PrOrderLine.fromMap).toList(),
+        suppliers: r[5].map(PrSupplier.fromMap).toList(),
+        settings: PrSettings.fromRows(r[6]),
+        items: list('items', PrItemRef.fromMap),
+        units: list('units', PrUnitRef.fromMap),
+        itemUnits: list('item_units', PrItemUnit.fromMap),
+        departments: list('departments', pair),
+        warehouses: list('warehouses', pair),
+      );
+      v25Ready = true;
+    } catch (_) {
+      proc = ProcurementData.empty();
+      v25Ready = false;
+    }
+  }
+
+  Future<void> _reloadProc() async {
+    await _loadV25();
+    _notify();
+  }
+
+  void _scheduleProcReload() {
+    _procDebounce?.cancel();
+    _procDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV25();
+      _notify();
+    });
+  }
+
+  /// من أهل القسم (يرون كل الطلبات المقدَّمة): المدير ومن له نطاق «المشتريات» ومدير المخازن.
+  bool get prStaffNow => isDirector || grantsOf(me?.id ?? '').any((g) => g.startsWith('procurement:') || g == 'stores:manager');
+  bool get prStaff => v25Ready && prStaffNow;
+
+  /// يرفع طلب احتياج: كل حساب عدا مسؤول الأمن، ما لم يكن النظام في وضع القراءة فقط.
+  bool get canPrRequest => v25Ready && !frozenForMe && role != AppRole.securityAuditor;
+
+  /// مراجعة التوفر: المدير ومدير المخازن.
+  bool get canPrReview => v25Ready && !frozenForMe && (isDirector || hasGrant('stores:manager'));
+
+  /// عروض الأسعار وأوامر الشراء: المدير ومسؤول المشتريات ومدير النظام في القسم.
+  bool get canPrBuy => v25Ready && !frozenForMe && (isDirector || hasGrant('procurement:buyer') || hasGrant('procurement:admin'));
+
+  /// الموردون والإعدادات: المدير ومدير النظام في القسم.
+  bool get canPrAdmin => v25Ready && !frozenForMe && (isDirector || hasGrant('procurement:admin'));
+
+  /// الاعتماد للمدير وحده.
+  bool get canPrDecide => v25Ready && !frozenForMe && isDirector;
+
+  /// الاستلام: أمناء المخازن ومسؤول الأصول ومدير المخازن ومسؤول المشتريات والمدير (والخادم يتحقق).
+  bool get canPrReceive =>
+      v25Ready && !frozenForMe && (canPrBuy || isDirector || grantsOf(me?.id ?? '').any((g) => g.startsWith('stores:') && g != 'stores:audit'));
+
+  /// الصفحة الملائمة في المشتريات: من ليس من أهل القسم صفحته «طلباتي» وحدها.
+  int procTabFor(int t) {
+    if (!v25Ready || !prStaffNow) return procMineTab;
+    if (t == procSetupTab && !canPrAdmin) return procDashboardTab;
+    if (t < 240 || t > 245) return procDashboardTab;
+    return t;
+  }
+
+  static const int procDashboardTab = 240;
+  static const int procRequestsTab = 241;
+  static const int procOrdersTab = 242;
+  static const int procSuppliersTab = 243;
+  static const int procMineTab = 244;
+  static const int procSetupTab = 245;
+
+  Future<T> _prRpc<T>(String fn, Map<String, dynamic> params) async {
+    final res = await client.rpc(fn, params: params);
+    await _reloadProc();
+    return res as T;
+  }
+
+  /// يحفظ طلباً (جديداً أو مسودة) ويعيد رقمه الداخلي.
+  Future<String> prSaveRequest(String? id, Map<String, dynamic> data) async =>
+      '${await _prRpc<Object?>('pr_save_request', {'p_id': id, 'p_data': data})}';
+  Future<void> prSubmit(String id) => _prRpc<Object?>('pr_submit', {'p_id': id});
+
+  /// يعيد حالة الطلب بعد المراجعة (reviewed أو fulfilled).
+  Future<String> prReview(String id, Map<String, dynamic> data) async => '${await _prRpc<Object?>('pr_review', {'p_id': id, 'p_data': data})}';
+  Future<void> prReject(String id, String note) => _prRpc<Object?>('pr_reject', {'p_id': id, 'p_note': note.trim()});
+  Future<void> prDecide(String id, bool approve, {String note = ''}) =>
+      _prRpc<Object?>('pr_decide', {'p_id': id, 'p_approve': approve, 'p_note': note.trim()});
+  Future<void> prCancel(String id, {String note = ''}) => _prRpc<Object?>('pr_cancel', {'p_id': id, 'p_note': note.trim()});
+  Future<void> prComment(String id, String note) => _prRpc<Object?>('pr_comment', {'p_id': id, 'p_note': note.trim()});
+  Future<String> prSaveSupplier(String? id, Map<String, dynamic> data) async =>
+      '${await _prRpc<Object?>('pr_save_supplier', {'p_id': id, 'p_data': data})}';
+  Future<void> prSaveQuote(String requestId, Map<String, dynamic> data) => _prRpc<Object?>('pr_save_quote', {'p_request': requestId, 'p_data': data});
+  Future<void> prDeleteQuote(String id) => _prRpc<Object?>('pr_delete_quote', {'p_id': id});
+  Future<String> prIssueOrder(String requestId, Map<String, dynamic> data) async =>
+      '${await _prRpc<Object?>('pr_issue_order', {'p_request': requestId, 'p_data': data})}';
+  Future<void> prCancelOrder(String id, String note) => _prRpc<Object?>('pr_cancel_order', {'p_id': id, 'p_note': note.trim()});
+  Future<void> prReceive(String orderId, Map<String, dynamic> data) => _prRpc<Object?>('pr_receive', {'p_order': orderId, 'p_data': data});
+  Future<void> prSaveSettings(Map<String, dynamic> data) => _prRpc<Object?>('pr_save_settings', {'p_data': data});
+
+  /// سجل أحداث طلب بترتيبها.
+  Future<List<PrEvent>> prEventsOf(String requestId) async {
+    final r = await client.from('pr_events').select().eq('request_id', requestId).order('id', ascending: true).limit(500);
+    return r.map(PrEvent.fromMap).toList();
+  }
+
+  /// دفعات استلام أمر.
+  Future<List<PrReceipt>> prReceiptsOf(String orderId) async {
+    final r = await client.from('pr_receipts').select().eq('order_id', orderId).order('received_at', ascending: true).limit(200);
+    return r.map(PrReceipt.fromMap).toList();
+  }
+
   Future<String> _stSave(String fn, String? id, Map<String, dynamic> data) async {
     final res = await client.rpc(fn, params: {'p_id': id, 'p_data': data});
     await _reloadStores();
@@ -2627,6 +2782,19 @@ class AppState extends ChangeNotifier {
       ch24.subscribe();
       _channel24 = ch24;
     }
+
+    // قناة المشتريات (الترحيل 41)
+    final old25 = _channel25;
+    if (old25 != null) client.removeChannel(old25);
+    _channel25 = null;
+    if (v25Ready) {
+      final ch25 = client.channel('dc-v25');
+      for (final t in const ['pr_requests', 'pr_orders', 'pr_quotes', 'pr_suppliers', 'pr_settings']) {
+        ch25.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => _scheduleProcReload());
+      }
+      ch25.subscribe();
+      _channel25 = ch25;
+    }
   }
 
   void _scheduleStoresReload() {
@@ -2736,6 +2904,12 @@ class AppState extends ChangeNotifier {
     final old24 = _channel24;
     if (old24 != null) client.removeChannel(old24);
     _channel24 = null;
+    v25Ready = false;
+    proc = ProcurementData.empty();
+    _procDebounce?.cancel();
+    final old25 = _channel25;
+    if (old25 != null) client.removeChannel(old25);
+    _channel25 = null;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -2762,7 +2936,8 @@ class AppState extends ChangeNotifier {
       ..['chat'] = 140
       ..['security'] = 150
       ..['stores'] = 200
-      ..['maintenance'] = 220;
+      ..['maintenance'] = 220
+      ..['procurement'] = 240;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -2845,6 +3020,9 @@ class AppState extends ChangeNotifier {
     if (old24 != null) client.removeChannel(old24);
     _storesDebounce?.cancel();
     _maintDebounce?.cancel();
+    _procDebounce?.cancel();
+    final old25 = _channel25;
+    if (old25 != null) client.removeChannel(old25);
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();
@@ -2917,6 +3095,7 @@ class AppState extends ChangeNotifier {
         >= 20 && < 30 => 'risks',
         >= 200 && < 220 => 'stores',
         >= 220 && < 240 => 'maintenance',
+        >= 240 && < 260 => 'procurement',
         _ => 'cycle',
       };
   final Map<String, int> _lastTab = {
@@ -2935,6 +3114,7 @@ class AppState extends ChangeNotifier {
     'security': 150,
     'stores': 200,
     'maintenance': 220,
+    'procurement': 240,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.

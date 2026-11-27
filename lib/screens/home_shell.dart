@@ -57,6 +57,7 @@ import 'stores_assets.dart';
 import 'stores_docs.dart';
 import 'stores_setup.dart';
 import 'maintenance.dart';
+import 'procurement.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -205,6 +206,14 @@ class Tabs {
   static const maintMine = 224;
   static const maintSetup = 225;
   static const maintTasks = 226;
+
+  // المشتريات (الترحيل 41)
+  static const procDashboard = 240;
+  static const procRequests = 241;
+  static const procOrders = 242;
+  static const procSuppliers = 243;
+  static const procMine = 244;
+  static const procSetup = 245;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -321,7 +330,7 @@ List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> m
 List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final sec = section ?? app.section;
   final base = _baseDestinations(app, sec);
-  if (sec == 'cycle' || sec == 'stores' || sec == 'maintenance' || !app.v2Ready) return base;
+  if (sec == 'cycle' || sec == 'stores' || sec == 'maintenance' || sec == 'procurement' || !app.v2Ready) return base;
   final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
       badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
   final i = base.indexWhere((d) => d.admin);
@@ -545,6 +554,27 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       ..._adminDests(app, 220),
     ];
   }
+  if (sec == 'procurement') {
+    final p = app.proc;
+    final now = DateTime.now();
+    // من ليس من أهل القسم: طلباته وحدها
+    if (!app.prStaff) {
+      return [
+        const _Dest(Tabs.procMine, 'طلباتي', Icons.shopping_basket_outlined, Icons.shopping_basket_rounded),
+        ..._adminDests(app, 240),
+      ];
+    }
+    final wait = p.awaitingReview.length + p.awaitingDecision.length + p.awaitingOrder.length;
+    return [
+      _Dest(Tabs.procDashboard, 'لوحة المشتريات', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, badge: p.alerts(now).length),
+      _Dest(Tabs.procRequests, 'طلبات الاحتياج', Icons.fact_check_outlined, Icons.fact_check_rounded, badge: wait),
+      _Dest(Tabs.procOrders, 'أوامر الشراء', Icons.receipt_long_outlined, Icons.receipt_long_rounded, badge: p.liveOrders.length),
+      const _Dest(Tabs.procSuppliers, 'الموردون', Icons.storefront_outlined, Icons.storefront_rounded),
+      const _Dest(Tabs.procMine, 'طلباتي', Icons.shopping_basket_outlined, Icons.shopping_basket_rounded),
+      if (app.canPrAdmin) const _Dest(Tabs.procSetup, 'الإعدادات', Icons.settings_suggest_outlined, Icons.settings_suggest_rounded),
+      ..._adminDests(app, 240),
+    ];
+  }
   if (sec == 'print') {
     return [
       const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
@@ -618,8 +648,8 @@ Widget _page(int id) => switch (id) {
       >= Tabs.ideasRisks && <= Tabs.ideasManual => IdeasPage(key: ValueKey('ideas-$id'), section: AppState.ideasSections[id - Tabs.ideasRisks]),
       >= Tabs.assignedDocs && <= Tabs.assignedAcceptance =>
         AssignedWorkPage(key: ValueKey('assigned-$id'), section: AppState.assignedSections[id - Tabs.assignedDocs]),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 || 209 || 229 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 || 208 || 228 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 || 209 || 229 || 249 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 || 208 || 228 || 248 => const AssistantPage(),
       Tabs.storesDashboard => const StoresDashboardPage(),
       Tabs.storesItems => const StoresItemsPage(),
       Tabs.storesDocs => const StoresDocsPage(),
@@ -636,6 +666,12 @@ Widget _page(int id) => switch (id) {
       Tabs.maintMine => const MaintMinePage(),
       Tabs.maintSetup => const MaintSetupPage(),
       Tabs.maintTasks => const MaintTasksPage(),
+      Tabs.procDashboard => const ProcDashboardPage(),
+      Tabs.procRequests => const ProcRequestsPage(),
+      Tabs.procOrders => const ProcOrdersPage(),
+      Tabs.procSuppliers => const ProcSuppliersPage(),
+      Tabs.procMine => const ProcMinePage(),
+      Tabs.procSetup => const ProcSetupPage(),
       Tabs.printRefs => const RefNumbersPage(),
       Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
       Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),
