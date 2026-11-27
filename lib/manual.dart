@@ -255,6 +255,8 @@ const Map<int, String> manualTabAnchors = {
   206: '34_stores',
   207: '34_stores',
   210: '34_stores',
+  211: '34_stores',
+  212: '34_stores',
   // الصيانة والبلاغات (الترحيل 40)
   220: '35_maintenance',
   221: '35_maintenance',

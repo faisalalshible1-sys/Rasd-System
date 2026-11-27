@@ -55,7 +55,9 @@ import 'swot_presentation.dart';
 import 'stores.dart';
 import 'stores_assets.dart';
 import 'stores_docs.dart';
+import 'stores_reports.dart';
 import 'stores_setup.dart';
+import 'stores_stocktake.dart';
 import 'maintenance.dart';
 import 'procurement.dart';
 import 'units.dart';
@@ -197,6 +199,8 @@ class Tabs {
   static const storesMine = 206;
   static const storesAssets = 207;
   static const storesCustody = 210;
+  static const storesStocktake = 211;
+  static const storesReports = 212;
 
   // الصيانة (الترحيل 40)
   static const maintDashboard = 220;
@@ -509,6 +513,9 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
         _Dest(Tabs.storesDocs, 'المستندات', Icons.receipt_long_outlined, Icons.receipt_long_rounded,
             badge: app.canStoresApprove ? s.pendingApproval : s.awaitingPost),
         const _Dest(Tabs.storesBalances, 'الأرصدة', Icons.stacked_bar_chart_outlined, Icons.stacked_bar_chart_rounded),
+        if (app.v26Ready)
+          _Dest(Tabs.storesStocktake, 'الجرد', Icons.fact_check_outlined, Icons.fact_check_rounded, badge: app.canStocktakeDecide ? app.stocktake.awaitingDecision : 0),
+        const _Dest(Tabs.storesReports, 'التقارير', Icons.analytics_outlined, Icons.analytics_rounded),
       ],
       if (assets) ...[
         _Dest(Tabs.storesAssets, 'الأصول', Icons.chair_alt_outlined, Icons.chair_alt_rounded,
@@ -659,6 +666,8 @@ Widget _page(int id) => switch (id) {
       Tabs.storesMine => const StoresMinePage(),
       Tabs.storesAssets => const StoresAssetsPage(),
       Tabs.storesCustody => const StoresCustodyPage(),
+      Tabs.storesStocktake => const StocktakePage(),
+      Tabs.storesReports => const StoreReportsPage(),
       Tabs.maintDashboard => const MaintDashboardPage(),
       Tabs.maintRequests => const MaintRequestsPage(),
       Tabs.maintPlans => const MaintPlansPage(),

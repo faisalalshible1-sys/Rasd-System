@@ -6,6 +6,7 @@ import '../models.dart';
 import '../print/export_dialog.dart' show ExportButton;
 import '../print/labels.dart';
 import '../print/output.dart' show openBytes;
+import '../stocktaking.dart';
 import '../stores.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -229,6 +230,8 @@ class StoresDashboardPage extends StatelessWidget {
     final low = s.lowStock();
     final exp = s.expiring(today);
     final recent = s.docs.take(8).toList();
+    final stagnant = s.stagnant(today, stDefaultStagnantDays);
+    final liveCounts = app.v26Ready ? app.stocktake.live : const <StCount>[];
     return PageBody(
       onRefresh: app.loadAll,
       children: [
@@ -283,8 +286,47 @@ class StoresDashboardPage extends StatelessWidget {
             icon: Icons.local_shipping_outlined,
             onTap: () => app.openStoresDocs(status: 'approved'),
           ),
+          StatCard(
+            label: 'أصناف راكدة',
+            value: '${stagnant.length}',
+            sub: 'بلا صرف منذ $stDefaultStagnantDays يوماً',
+            icon: Icons.hourglass_bottom_rounded,
+            color: stagnant.isEmpty ? sem.ok : sem.wip,
+            onTap: () => app.setTab(AppState.storeReportsTab),
+          ),
+          if (app.v26Ready)
+            StatCard(
+              label: 'جلسات جرد قائمة',
+              value: '${liveCounts.length}',
+              sub: app.stocktake.awaitingDecision == 0 ? 'عدّ جارٍ' : '${app.stocktake.awaitingDecision} بانتظار القرار',
+              icon: Icons.fact_check_outlined,
+              color: liveCounts.isEmpty ? null : sem.na,
+              onTap: () => app.setTab(AppState.stocktakeTab),
+            ),
         ]),
         const SizedBox(height: 14),
+        if (app.prStaff || app.mtStaff) ...[
+          SectionCard(
+            title: 'من الأقسام المرتبطة',
+            icon: Icons.hub_outlined,
+            subtitle: 'طلبات الاحتياج المفتوحة للمخزون، وبلاغات الصيانة المفتوحة.',
+            child: Wrap(spacing: 10, runSpacing: 10, children: [
+              if (app.prStaff)
+                ActionChip(
+                  avatar: const Icon(Icons.shopping_cart_checkout_rounded, size: 18),
+                  label: Text('طلبات احتياج جارية: ${app.proc.open.length}'),
+                  onPressed: () => app.setTab(app.procTabFor(AppState.procRequestsTab)),
+                ),
+              if (app.mtStaff)
+                ActionChip(
+                  avatar: const Icon(Icons.build_circle_outlined, size: 18),
+                  label: Text('بلاغات صيانة مفتوحة: ${app.maint.open.length}'),
+                  onPressed: () => app.setTab(221),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 14),
+        ],
         SectionCard(
           title: 'أصناف تحتاج توريداً',
           icon: Icons.production_quantity_limits_rounded,
