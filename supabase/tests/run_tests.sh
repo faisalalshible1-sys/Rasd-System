@@ -230,3 +230,11 @@ $P -d dctest -1 -f "$DIR/migrations/20261208000047_finance_settings.sql" >/dev/n
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/129_finance_settings_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261208000047_finance_settings_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 47 مع وجود تغييرات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'finance_rates'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وإصدارات مسجَّلة، والمنظومة كما هي"
+# المرتبات والموظفون والحضور (الترحيل 48)
+$P -d dctest -f "$DIR/migrations/20261209000048_payroll.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261209000048_payroll.sql"
+$P -d dctest -f "$DIR/migrations/20261209000048_payroll.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261209000048_payroll.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261209000048_payroll_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 48 ولا بيانات"
+$P -d dctest -1 -f "$DIR/migrations/20261209000048_payroll.sql" >/dev/null && echo "PASS: إعادة الترحيل 48 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/130_payroll_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261209000048_payroll_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 48 مع وجود بيانات"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'fin_employees'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وبيانات مسجَّلة، والمنظومة كما هي"

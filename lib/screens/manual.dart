@@ -40,6 +40,9 @@ String _finRate(AppState app, String code, double fallback, {String? offText}) {
 /// نسبة مئوية بمنازلها الفعلية حتى أربع منازل (3.75% لا 3.8%).
 String _pctText(double p) => '${p.toStringAsFixed(4).replaceFirst(RegExp(r'\.?0+$'), '')}%';
 
+/// رقم بمنازله الفعلية دون أصفار زائدة (30 لا 30.00، و1.5 لا 1.50).
+String _numText(double v) => v.toStringAsFixed(4).replaceFirst(RegExp(r'\.?0+$'), '');
+
 /// القيم الحية التي تُستبدل في نص الدليل.
 Map<String, String> manualValues(AppState app) {
   final count = app.formDefs.length;
@@ -74,6 +77,9 @@ Map<String, String> manualValues(AppState app) {
     'INCOME_TAX_RATE': _finRate(app, 'income_tax', 3),
     'INSURANCE_RATE': _finRate(app, 'insurance', 5),
     'EXTRA_RULE_RATE': _finRate(app, 'extra_rule', 3.75, offText: 'معطّلة'),
+    'PAY_DAYS': _numText(app.payrollConfig.daysInMonth),
+    'PAY_HOURS': _numText(app.payrollConfig.weeklyHours),
+    'PAY_OT_FACTOR': _numText(app.payrollConfig.overtimeFactor),
     'ST_DONE': FormStatus.done.label,
     'ST_WIP': FormStatus.wip.label,
     'ST_TODO': FormStatus.todo.label,

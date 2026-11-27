@@ -420,6 +420,44 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'حذف الخصم «${text(d['name'])}» من الدليل';
     case 'finance.perm_set':
       return '${d['on'] == true ? 'منح' : 'سحب'} صلاحية «${const {'view': 'الاطّلاع', 'edit': 'التحرير', 'approve': 'الاعتماد'}[text(d['perm'])] ?? text(d['perm'])}» المالية ${d['on'] == true ? 'إلى' : 'من'} ${text(d['name'])}';
+    case 'finance.emp_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} الموظف «${text(d['name'])}» في السجل المالي (الأساسي ${_m(d['basic'])}، ${text(d['status']) == 'inactive' ? 'موقوف' : 'على رأس العمل'})';
+    case 'finance.emp_delete':
+      return 'حذف الموظف «${text(d['name'])}» من السجل المالي';
+    case 'finance.allowance_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} بدل «${text(d['name'])}» (${_m(d['amount'])}) للموظف ${text(d['employee'])}';
+    case 'finance.allowance_delete':
+      return 'حذف بدل «${text(d['name'])}» (${_m(d['amount'])}) من الموظف ${text(d['employee'])}';
+    case 'finance.empded_set':
+      return '${d['on'] == true ? 'أسند' : 'سحب'} الخصم «${text(d['deduction'])}» ${d['on'] == true ? 'إلى' : 'من'} الموظف ${text(d['employee'])}';
+    case 'finance.att_set':
+      return 'سجّل حضور ${text(d['employee'])} يوم ${text(d['day']).replaceAll('-', '/')} (${const {'present': 'حاضر', 'absent': 'غائب', 'leave': 'إجازة', 'holiday': 'عطلة'}[text(d['status'])] ?? text(d['status'])}، إضافي ${text(d['overtime'])} ساعة)';
+    case 'finance.att_clear':
+      return 'حذف حضور ${text(d['employee'])} ليوم ${text(d['day']).replaceAll('-', '/')}';
+    case 'finance.attm_set':
+      return 'حفظ ملخص حضور ${text(d['employee'])} لشهر ${text(d['period']).replaceAll('-', '/')} (غياب ${text(d['absent'])}، إجازة ${text(d['leave'])}، إضافي ${text(d['overtime'])} ساعة)';
+    case 'finance.attm_clear':
+      return 'حذف ملخص حضور ${text(d['employee'])} لشهر ${text(d['period']).replaceAll('-', '/')}';
+    case 'finance.bonus_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} مكافأة «${text(d['name'])}» (${_m(d['amount'])}) للموظف ${text(d['employee'])} عن ${text(d['period']).replaceAll('-', '/')}';
+    case 'finance.bonus_delete':
+      return 'حذف مكافأة «${text(d['name'])}» (${_m(d['amount'])}) من الموظف ${text(d['employee'])}';
+    case 'finance.loan_save':
+      return '${d['created'] == true ? 'سجّل' : 'عدّل'} سلفة ${_m(d['total'])} على ${text(d['count'])} قسطاً للموظف ${text(d['employee'])} من ${text(d['start']).replaceAll('-', '/')}';
+    case 'finance.loan_delete':
+      return 'حذف سلفة ${_m(d['total'])} للموظف ${text(d['employee'])}';
+    case 'finance.config_set':
+      return 'غيّر إعداد احتساب المرتبات ${const {'days_in_month': 'أيام الشهر', 'weekly_hours': 'ساعات الأسبوع', 'overtime_factor': 'معامل الإضافي'}[text(d['key'])] ?? text(d['key'])} إلى ${text(d['value'])}';
+    case 'finance.payroll_generate':
+      return 'ولّد كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)} لـ ${text(d['employees'])} موظفاً';
+    case 'finance.payroll_approve':
+      return 'اعتمد كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)} بصافي ${_m(d['net'])}';
+    case 'finance.payroll_lock':
+      return 'قفل كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)}';
+    case 'finance.payroll_reopen':
+      return 'تراجع عن كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)} (كان ${const {'approved': 'معتمداً', 'locked': 'مقفلاً'}[text(d['from'])] ?? text(d['from'])}) — السبب: ${text(d['reason'])}';
+    case 'finance.payroll_delete':
+      return 'حذف مسودة كشف مرتبات ${text(d['period']).replaceAll('-', '/').substring(0, 7)}';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':
