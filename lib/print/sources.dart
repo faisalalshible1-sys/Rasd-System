@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../docs.dart';
+import '../contractor_account.dart';
 import '../models.dart';
 import '../pm.dart';
 import '../prices.dart';
@@ -377,6 +378,49 @@ List<ExportSource> _all(AppState app) => [
           ('المستخلصات', '${l.length}'),
           ('الصافي', fmtNumber(l.fold<double>(0, (s, x) => s + x.net))),
           ('غير المدفوع', fmtNumber(l.fold<double>(0, (s, x) => s + x.unpaid))),
+        ],
+      ),
+      _src<ContractorAccount>(
+        id: 'cycle:contractors',
+        section: 'cycle',
+        title: 'كشف حساب المقاولين',
+        icon: Icons.groups_2_outlined,
+        ready: (a) => a.v4Ready,
+        items: (a) => contractorAccounts(a.scoped, a.extracts, DateTime.now()),
+        columns: const [
+          _C('name', 'المقاول', flex: 2),
+          _C('projects', 'عدد العقود', type: ColType.number, flex: 0.6),
+          _C('contract', 'قيمة العقود', type: ColType.money),
+          _C('variations', 'صافي أوامر التغيير', type: ColType.money, on: false),
+          _C('adjusted', 'القيمة بعد التغيير', type: ColType.money),
+          _C('executed', 'المنفذ', type: ColType.money),
+          _C('paid', 'المدفوع', type: ColType.money),
+          _C('unpaid', 'مستحق غير مدفوع', type: ColType.money),
+          _C('remaining', 'المتبقي للدفع', type: ColType.money, on: false),
+          _C('retention', 'التأمين المحتجز', type: ColType.money, on: false),
+          _C('a30', 'حتى 30 يوماً', type: ColType.money, on: false),
+          _C('a60', '31–60 يوماً', type: ColType.money, on: false),
+          _C('a90', '61–90 يوماً', type: ColType.money, on: false),
+          _C('a90p', 'أكثر من 90 يوماً', type: ColType.money, on: false),
+          _C('aNone', 'بلا تاريخ اعتماد', type: ColType.money, on: false),
+        ],
+        row: (a, c) => [
+          c.name,
+          c.projects.length,
+          c.contract,
+          c.variationsNet,
+          c.adjusted,
+          c.executed,
+          c.paid,
+          c.unpaid,
+          c.remainingToPay,
+          c.retention,
+          ...c.aging,
+        ],
+        summary: (a, l) => [
+          ('المقاولون', '${l.length}'),
+          ('المدفوع', fmtNumber(l.fold<double>(0, (s, c) => s + c.paid))),
+          ('مستحق غير مدفوع', fmtNumber(l.fold<double>(0, (s, c) => s + c.unpaid))),
         ],
       ),
       _src<ExtractPayment>(
