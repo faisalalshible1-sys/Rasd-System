@@ -14,6 +14,7 @@ import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
 import 'budget.dart';
+import 'finance_kpi.dart';
 import 'maintenance.dart';
 import 'milestones.dart';
 import 'procurement.dart';
@@ -2228,6 +2229,11 @@ class AppState extends ChangeNotifier {
       final active = stores.items.where((i) => i.active).length;
       out.add(kpiStoresHealth(active, stores.lowStock().length));
     }
+    if (canManageProjects && v4Ready) {
+      out.add(kpiFinancePayOnTime(extracts, now));
+      out.add(kpiFinanceOldDue(extracts, now));
+    }
+    if (canSeeBudget) out.add(kpiBudgetHealth(budgetLines, budgetCommitments, now.year));
     return out;
   }
 

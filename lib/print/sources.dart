@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../docs.dart';
 import '../contractor_account.dart';
+import '../finance_kpi.dart';
 import '../models.dart';
 import '../pm.dart';
 import '../prices.dart';
@@ -378,6 +379,30 @@ List<ExportSource> _all(AppState app) => [
           ('المستخلصات', '${l.length}'),
           ('الصافي', fmtNumber(l.fold<double>(0, (s, x) => s + x.net))),
           ('غير المدفوع', fmtNumber(l.fold<double>(0, (s, x) => s + x.unpaid))),
+        ],
+      ),
+      _src<FinanceMonth>(
+        id: 'cycle:monthly',
+        section: 'cycle',
+        title: 'التقرير المالي الشهري',
+        icon: Icons.calendar_month_rounded,
+        ready: (a) => a.v4Ready,
+        items: (a) {
+          final ids = {for (final p in a.scoped) p.id};
+          return monthlyFinance(a.extracts.where((x) => ids.contains(x.projectId)), a.paymentsOf, DateTime.now());
+        },
+        columns: const [
+          _C('month', 'الشهر', flex: 1.2),
+          _C('count', 'عدد المستخلصات المعتمدة', type: ColType.number, flex: 0.8),
+          _C('approved', 'صافي المعتمد', type: ColType.money),
+          _C('referred', 'صافي المحال للصرف', type: ColType.money),
+          _C('paid', 'المدفوع', type: ColType.money),
+          _C('gap', 'الفرق (المعتمد − المدفوع)', type: ColType.money),
+        ],
+        row: (a, m) => ['${m.month.year}/${m.month.month.toString().padLeft(2, '0')}', m.approvedCount, m.approvedNet, m.referredNet, m.paid, m.gap],
+        summary: (a, l) => [
+          ('المعتمد', fmtNumber(l.fold<double>(0, (s, m) => s + m.approvedNet))),
+          ('المدفوع', fmtNumber(l.fold<double>(0, (s, m) => s + m.paid))),
         ],
       ),
       _src<ContractorAccount>(
