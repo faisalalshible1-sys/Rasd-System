@@ -55,6 +55,7 @@ const List<ManualChapter> manualChapters = [
   ManualChapter('32_section_isolation', 32, 'عزل الأقسام والمهام المسندة'),
   ManualChapter('33_contract_files', 33, 'ملف العقد ومرفقاته'),
   ManualChapter('34_stores', 34, 'المخازن والأصول والخدمات العامة'),
+  ManualChapter('35_maintenance', 35, 'الصيانة والبلاغات'),
   ManualChapter('25_appendix', -1, 'ملحق: مرجع سريع للمعادلات'),
 ];
 
@@ -84,6 +85,7 @@ const Map<String, List<String>> manualChapterSections = {
   '22_acceptance': ['acceptance'],
   '27_security': ['security'],
   '34_stores': ['stores'],
+  '35_maintenance': ['maintenance'],
 };
 
 /// فصول الدليل لمستخدم: العامة، وفصول الأقسام التي يراها.
@@ -251,6 +253,16 @@ const Map<int, String> manualTabAnchors = {
   206: '34_stores',
   207: '34_stores',
   210: '34_stores',
+  // الصيانة والبلاغات (الترحيل 40)
+  220: '35_maintenance',
+  221: '35_maintenance',
+  222: '35_maintenance',
+  223: '35_maintenance',
+  224: '35_maintenance',
+  225: '35_maintenance',
+  226: '35_maintenance',
+  228: '23_admin',
+  229: '23_admin',
   208: '23_admin',
   209: '23_admin',
 };
@@ -271,6 +283,7 @@ const Map<String, String> manualSectionAnchors = {
   'security': '27_security',
   'manual': '24_manual',
   'stores': '34_stores',
+  'maintenance': '35_maintenance',
 };
 
 String manualAnchorForTab(int tab) => manualTabAnchors[tab] ?? '00_about';

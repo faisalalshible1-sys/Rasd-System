@@ -4,6 +4,7 @@ import '../docs.dart' show docCategoryLabel, fmtBytes;
 import '../models.dart';
 import '../rasd.dart' show grantLabel, sectionDefaultNames;
 import '../registers.dart';
+import '../maintenance.dart';
 import '../stores.dart' show fmtQty;
 import '../units.dart';
 
@@ -222,6 +223,22 @@ String auditDescription(AppState app, AuditEntry e) {
     case 'stores.assets_import':
     case 'stores.asset_policy':
       return _storesAsset(e.action, d, e.projectLabel);
+    case 'maintenance.report':
+    case 'maintenance.assign':
+    case 'maintenance.start':
+    case 'maintenance.hold':
+    case 'maintenance.resume':
+    case 'maintenance.done':
+    case 'maintenance.close':
+    case 'maintenance.reopen':
+    case 'maintenance.reject':
+    case 'maintenance.cancel':
+    case 'maintenance.plan':
+    case 'maintenance.plan_delete':
+    case 'maintenance.generate':
+    case 'maintenance.settings':
+    case 'maintenance.technician':
+      return _maintenance(e.action, d, e.projectLabel);
     case 'finance.guarantee_initial':
       return d['na'] == true
           ? 'سجّل أن الضمان الابتدائي لا ينطبق على العقد'
@@ -806,6 +823,53 @@ String _storesDocAction(String action, Map<String, dynamic> d, String no) {
 }
 
 /// أحداث الأصول والعهد (الترحيل 39).
+/// وصف إجراءات الصيانة (الترحيل 40) في سجل التدقيق.
+String _maintenance(String action, Map<String, dynamic> d, String label) {
+  String t(Object? v) => v == null ? '' : '$v'.trim();
+  final no = t(d['req_no']).isEmpty ? label : t(d['req_no']);
+  final title = t(d['title']);
+  final req = title.isEmpty ? 'البلاغ $no' : 'البلاغ $no «$title»';
+  String why(Object? v) => t(v).isEmpty ? '' : ' — ${t(v)}';
+  switch (action) {
+    case 'maintenance.report':
+      final tag = t(d['tag']);
+      return 'رفع $req (${mtCategoryLabels[t(d['category'])] ?? t(d['category'])}، أولوية ${mtPriorityLabels[t(d['priority'])] ?? t(d['priority'])})'
+          '${tag.isEmpty ? '' : ' على الأصل $tag'}${t(d['reporter']).isEmpty ? '' : ' بصفته ${t(d['reporter'])}'}';
+    case 'maintenance.assign':
+      return 'أسند $req إلى ${t(d['assignee'])} (أولوية ${mtPriorityLabels[t(d['priority'])] ?? t(d['priority'])})';
+    case 'maintenance.start':
+      return 'بدأ تنفيذ $req';
+    case 'maintenance.hold':
+      return 'علّق $req${why(d['reason'])}';
+    case 'maintenance.resume':
+      return 'استأنف تنفيذ $req';
+    case 'maintenance.done':
+      return 'أنجز $req${why(d['resolution'])}';
+    case 'maintenance.close':
+      final r = d['rating'];
+      return '${d['by_reporter'] == true ? 'أكّد صاحب البلاغ' : 'أكّد مدير الصيانة'} إصلاح $req${r is num ? ' بتقييم ${r.toInt()}/5' : ''}';
+    case 'maintenance.reopen':
+      return 'أعاد فتح $req${why(d['reason'])}';
+    case 'maintenance.reject':
+      return 'رفض $req${why(d['reason'])}';
+    case 'maintenance.cancel':
+      return 'ألغى $req (كان «${mtStatusLabels[t(d['from'])] ?? t(d['from'])}»)${why(d['note'])}';
+    case 'maintenance.plan':
+      final unit = mtUnitLabels[t(d['unit'])] ?? t(d['unit']);
+      return '${d['created'] == true ? 'أنشأ' : 'عدّل'} خطة الصيانة الدورية ${t(d['plan_no'])} «${t(d['title'])}» (كل ${t(d['every'])} $unit)';
+    case 'maintenance.plan_delete':
+      return 'حذف خطة الصيانة الدورية ${t(d['plan_no'])} «${t(d['title'])}» وبقيت بلاغاتها';
+    case 'maintenance.generate':
+      return 'ولّد ${t(d['created'])} بلاغ صيانة دورية${(d['skipped'] as num? ?? 0) > 0 ? ' (وتخطّى ${t(d['skipped'])} لوجود بلاغ مفتوح للخطة)' : ''}';
+    case 'maintenance.settings':
+      final ch = d['changed'] is Map ? (d['changed'] as Map).keys.join('، ') : '';
+      return 'عدّل إعدادات الصيانة: $ch';
+    default:
+      final trade = mtTradeLabels[t(d['trade'])] ?? t(d['trade']);
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} الفني ${t(d['name'])} ($trade${d['active'] == false ? '، موقوف' : ''})';
+  }
+}
+
 String _storesAsset(String action, Map<String, dynamic> d, String label) {
   String t(Object? v) => v == null ? '' : '$v'.trim();
   final tag = t(d['tag']).isEmpty ? label : t(d['tag']);

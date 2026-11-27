@@ -159,3 +159,12 @@ $P -d dctest -1 -f "$DIR/migrations/20261130000039_stores_assets.sql" >/dev/null
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/121_stores_assets_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261130000039_stores_assets_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 39 مع وجود أصول وعهد"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'st_assets'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي السجل أصول وعهد، والمنظومة كما هي"
+# قسم الصيانة: البلاغات والفرز والإسناد وتنفيذ الفني وتأكيد صاحب البلاغ، وربط الأصول، والصيانة الدورية، والتنبيهات، والإعدادات (الترحيل 40)
+$P -d dctest -f "$DIR/migrations/20261201000040_maintenance.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261201000040_maintenance.sql"
+$P -d dctest -f "$DIR/migrations/20261201000040_maintenance.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261201000040_maintenance.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261201000040_maintenance_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 40 ولا بيانات صيانة، والدوال كما كانت"
+$P -d dctest -tAc "select count(*) from pg_class where relname like 'mt\_%' escape '\\' and relkind = 'r'" | grep -qx 0 && echo "PASS: ولا جداول للصيانة بعد التراجع"
+$P -d dctest -1 -f "$DIR/migrations/20261201000040_maintenance.sql" >/dev/null && echo "PASS: إعادة الترحيل 40 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/122_maintenance_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261201000040_maintenance_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 40 مع وجود بلاغات"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'mt_requests'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وفي القسم بلاغات، والمنظومة كما هي"

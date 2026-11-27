@@ -57,6 +57,14 @@ List<GrantScope> grantCatalog(List<FormDef> forms, {List<(String, String)> wareh
       for (final w in warehouses)
         GrantScope('stores:keeper:${w.$1}', 'أمين مخزن: ${w.$2}', 'المخازن والأصول',
             note: 'إعداد مستندات المخزن وتقديمها، وترحيلها بعد اعتمادها'),
+      // قسم الصيانة (الترحيل 40)
+      const GrantScope('maintenance:admin', 'مدير النظام في الصيانة', 'الصيانة',
+          note: 'الفنيون والإعدادات، وكل ما يفعله مدير الصيانة'),
+      const GrantScope('maintenance:manager', 'مدير الصيانة', 'الصيانة',
+          note: 'فرز البلاغات وإسنادها ورفضها وإلغاؤها، وخطط الصيانة الدورية، ورؤية كل البلاغات'),
+      const GrantScope('maintenance:tech', 'فني صيانة', 'الصيانة',
+          note: 'يرى البلاغات المسنَدة إليه وينفّذها (بدء وتعليق وإنجاز). يلزم ربط سجل موظف بحسابه، ولا يُمنح لحساب «موظف»'),
+      const GrantScope('maintenance:audit', 'مراجع الصيانة', 'الصيانة', note: 'اطلاع على كل القسم وتقاريره دون تعديل'),
     ];
 
 String grantLabel(String scope, List<FormDef> forms, {List<(String, String)> warehouses = const []}) {
@@ -113,6 +121,7 @@ const Map<String, String> refSectionNames = {
   'security': 'الأمن السيبراني',
   'chat': 'المراسلات الداخلية',
   'stores': 'المخازن والأصول',
+  'maintenance': 'الصيانة',
 };
 
 class RefScheme {
@@ -370,6 +379,7 @@ const Map<String, String> sectionDefaultNames = {
   'print': 'الطباعة والتصدير',
   'manual': 'دليل الاستخدام',
   'stores': 'المخازن والأصول',
+  'maintenance': 'الصيانة',
 };
 
 /// أنماط عرض شاشة الدخول: بطاقات بمؤشراتها، ومدمجة، وأيقونات.

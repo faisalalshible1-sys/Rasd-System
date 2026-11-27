@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart' show launchUrl;
 import 'assets.dart';
 import 'boq_import.dart' show PdfRun;
 import 'config.dart';
+import 'maintenance.dart';
 import 'docs.dart';
 import 'models.dart';
 import 'pm.dart';
@@ -170,6 +171,11 @@ class AppState extends ChangeNotifier {
 
   /// عهد الموظف المرتبط بالحساب (صفحة «ما صُرف لي»).
   List<MyCustody> myCustody = [];
+
+  // الترحيل 40: قسم الصيانة
+  bool v24Ready = false;
+  MaintenanceData maint = MaintenanceData.empty();
+  DateTime? _mtGeneratedAt;
 
   /// سجل حياة آخر أصل فُتح (مصدر تصديره).
   List<StAssetEvent> assetEvents = [];
@@ -360,6 +366,8 @@ class AppState extends ChangeNotifier {
   RealtimeChannel? _channel14;
   RealtimeChannel? _channel15;
   RealtimeChannel? _channel22;
+  RealtimeChannel? _channel24;
+  Timer? _maintDebounce;
   Timer? _storesDebounce;
   Timer? _debounce;
   Timer? _updateTimer;
@@ -860,6 +868,7 @@ class AppState extends ChangeNotifier {
       await _loadV20();
       await _loadV21();
       await _loadV22();
+      await _loadV24();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -917,15 +926,19 @@ class AppState extends ChangeNotifier {
   void _landInSection() {
     final sc = scope;
     if (sc == null || sc.full) return;
+    // قسم الصيانة يرفع منه كل حساب بلاغاته؛ لا يُحسب قسم عمل إلا لأهله، أو لمن لا قسم عمل غيره له
     final work = [
-      for (final s in sc.workSections) if (!(layout.sections[s]?.hidden ?? false)) s,
+      for (final s in sc.workSections)
+        if (!(layout.sections[s]?.hidden ?? false) && (s != 'maintenance' || mtStaff)) s,
       if (canAudit) 'security',
     ];
+    if (work.isEmpty && sc.sections.contains('maintenance') && v24Ready) work.add('maintenance');
     if (!showHub || work.length != 1) return;
     final s = work.single;
     var t = _lastTab[s] ?? 0;
     if (t == 72 && !v15Ready) t = 70;
     if (s == 'stores') t = storesTabFor(t);
+    if (s == 'maintenance') t = maintTabFor(t);
     _section = s;
     _tab = sectionForTab(t) == s ? t : -1;
     showHub = false;
@@ -939,7 +952,7 @@ class AppState extends ChangeNotifier {
   bool seesSection(String s) {
     if (s == 'security') return canAudit;
     // حساب الموظف (الترحيل 38): صفحته في المخازن والدليل وحدهما
-    if (role == AppRole.employee) return s == 'stores' || s == 'manual';
+    if (role == AppRole.employee) return s == 'stores' || s == 'manual' || s == 'maintenance';
     final sc = scope;
     if (sc == null) return true;
     return sharedSections.contains(s) || sc.sections.contains(s);
@@ -1756,6 +1769,173 @@ class AppState extends ChangeNotifier {
     return assetEvents;
   }
 
+
+  // ---------------------------------------------------------------
+  // الصيانة (الإصدار 1.9.0، الترحيل 40)
+  // ---------------------------------------------------------------
+
+  /// بيانات القسم: البلاغات لمن يراها (أهل القسم كلها، والفني بلاغاته المسنَدة، والموظف بلاغاته)،
+  /// والخطط والفنيون والإعدادات لأهل القسم، والتنبيهات تُحسب في الخادم.
+  Future<void> _loadV24() async {
+    if (!isDirector && !seesSection('maintenance')) {
+      maint = MaintenanceData.empty();
+      v24Ready = false;
+      return;
+    }
+    try {
+      final staff = mtStaff;
+      final r = await Future.wait<List<Map<String, dynamic>>>([
+        _allRows('mt_requests', ['reported_at', 'id']),
+        staff ? _allRows('mt_plans', ['plan_no']) : Future.value(const <Map<String, dynamic>>[]),
+        staff ? _allRows('mt_settings', ['key']) : Future.value(const <Map<String, dynamic>>[]),
+      ]);
+      Map<String, dynamic> look = {};
+      final lk = await client.rpc('mt_lookups');
+      if (lk is Map) look = Map<String, dynamic>.from(lk);
+      List<T> list<T>(String k, T Function(Map<String, dynamic>) f) {
+        final v = look[k];
+        return v is List ? [for (final x in v) if (x is Map) f(Map<String, dynamic>.from(x))] : <T>[];
+      }
+
+      // الصيانة الدورية تُولَّد حين يفتح أحد أهل القسم القسم (لا مجدول في الخادم)، مرة كل ساعة على الأكثر
+      final nowT = DateTime.now();
+      if (staff && !frozenForMe && (_mtGeneratedAt == null || nowT.difference(_mtGeneratedAt!).inMinutes >= 60)) {
+        _mtGeneratedAt = nowT;
+        try {
+          final g = await client.rpc('mt_generate_due');
+          if (g is Map && (g['created'] ?? 0) is num && (g['created'] as num) > 0) {
+            r[0] = await _allRows('mt_requests', ['reported_at', 'id']);
+            r[1] = await _allRows('mt_plans', ['plan_no']);
+          }
+        } catch (_) {}
+      }
+      var alerts = <MtAlert>[];
+      if (staff) {
+        final a = await client.rpc('mt_alerts');
+        if (a is List) alerts = [for (final x in a) if (x is Map) MtAlert.fromMap(Map<String, dynamic>.from(x))];
+      }
+      maint = MaintenanceData(
+        requests: r[0].map(MtRequest.fromMap).toList()
+          ..sort((a, b) => (b.reportedAt ?? DateTime(2000)).compareTo(a.reportedAt ?? DateTime(2000))),
+        plans: r[1].map(MtPlan.fromMap).toList(),
+        settings: MtSettings.fromRows(r[2]),
+        technicians: list('technicians', MtTechnician.fromMap),
+        locations: list('locations', MtLocation.fromMap),
+        assets: list('assets', MtAssetRef.fromMap),
+        employees: list('employees', MtEmployeeRef.fromMap),
+        alerts: alerts,
+      );
+      v24Ready = true;
+    } catch (_) {
+      maint = MaintenanceData.empty();
+      v24Ready = false;
+    }
+  }
+
+  Future<void> _reloadMaint() async {
+    await _loadV24();
+    _notify();
+  }
+
+  void _scheduleMaintReload() {
+    _maintDebounce?.cancel();
+    _maintDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV24();
+      _notify();
+    });
+  }
+
+  /// من أهل القسم: المدير أو من له نطاق «الصيانة» (مدير النظام أو المدير أو الفني أو المراجع).
+  bool get mtStaff => v24Ready && (isDirector || grantsOf(me?.id ?? '').any((g) => g.startsWith('maintenance:')));
+
+  /// يرى كل البلاغات: المدير ومدير النظام والمدير والمراجع.
+  bool get mtSeesAll {
+    if (!v24Ready) return false;
+    if (isDirector) return true;
+    final g = grantsOf(me?.id ?? '');
+    return g.contains('maintenance:admin') || g.contains('maintenance:manager') || g.contains('maintenance:audit');
+  }
+
+  /// يفرز البلاغات ويُسند ويرفض ويلغي ويضع الخطط: المدير ومدير النظام والمدير في القسم.
+  bool get canMtManage =>
+      v24Ready && !frozenForMe && (isDirector || hasGrant('maintenance:manager') || hasGrant('maintenance:admin'));
+
+  /// الإعدادات والفنيون: المدير ومدير النظام في القسم.
+  bool get canMtAdmin => v24Ready && !frozenForMe && (isDirector || hasGrant('maintenance:admin'));
+
+  /// فني بحساب: ينفّذ ما أُسنِد إليه.
+  bool get isMtTech => v24Ready && hasGrant('maintenance:tech');
+
+  /// يرفع بلاغاً: كل حساب عدا مسؤول الأمن، ما لم يكن النظام في وضع القراءة فقط.
+  bool get canMtReport => v24Ready && !frozenForMe && role != AppRole.securityAuditor;
+
+  /// ينفّذ هذا البلاغ: المدير ومن يديرون، أو الفني المسنَد إليه (يتحقق الخادم من الإسناد).
+  bool canMtWork(MtRequest r) => v24Ready && !frozenForMe && (canMtManage || (isMtTech && r.assigneeId != null)) && r.isOpen;
+
+  /// يؤكد إغلاق هذا البلاغ أو يعيد فتحه: صاحبه، أو المدير للبلاغ بلا صاحب حساب.
+  bool canMtConfirm(MtRequest r) =>
+      v24Ready &&
+      !frozenForMe &&
+      r.status == 'done' &&
+      ((r.reporterId != null && r.reporterId == me?.id) || (r.reporterId == null && canMtManage));
+
+  /// الصفحة الملائمة في الصيانة: من ليس من أهل القسم صفحته «بلاغاتي» وحدها، والفني مهامه، والمراجع والمدير كل الصفحات.
+  int maintTabFor(int t) {
+    if (!v24Ready) return maintMineTab;
+    if (!mtStaff) return maintMineTab;
+    if (!mtSeesAll) return const {223, 224, 226}.contains(t) ? t : maintTasksTab;
+    if (t == maintTasksTab) return maintDashboardTab;
+    if (t == maintSetupTab && !canMtAdmin) return maintDashboardTab;
+    return t;
+  }
+
+  static const int maintDashboardTab = 220;
+  static const int maintRequestsTab = 221;
+  static const int maintPlansTab = 222;
+  static const int maintAlertsTab = 223;
+  static const int maintMineTab = 224;
+  static const int maintSetupTab = 225;
+  static const int maintTasksTab = 226;
+
+  Future<T> _mtRpc<T>(String fn, Map<String, dynamic> params) async {
+    final res = await client.rpc(fn, params: params);
+    await _reloadMaint();
+    return res as T;
+  }
+
+  /// يرفع بلاغاً (ويعيد رقمه الداخلي).
+  Future<String> mtReport(Map<String, dynamic> data) async => '${await _mtRpc<Object?>('mt_report', {'p_data': data})}';
+  Future<void> mtAssign(String id, Map<String, dynamic> data) => _mtRpc<Object?>('mt_assign', {'p_id': id, 'p_data': data});
+
+  /// start / hold / resume / done.
+  Future<void> mtProgress(String id, String action, {Map<String, dynamic> data = const {}}) =>
+      _mtRpc<Object?>('mt_progress', {'p_id': id, 'p_action': action, 'p_data': data});
+  Future<void> mtConfirm(String id, bool accept, {String note = '', int? rating}) =>
+      _mtRpc<Object?>('mt_confirm', {'p_id': id, 'p_accept': accept, 'p_note': note.trim(), 'p_rating': rating});
+  Future<void> mtReject(String id, String reason) => _mtRpc<Object?>('mt_reject', {'p_id': id, 'p_reason': reason.trim()});
+  Future<void> mtCancel(String id, {String note = ''}) => _mtRpc<Object?>('mt_cancel', {'p_id': id, 'p_note': note.trim()});
+  Future<void> mtComment(String id, String note) => _mtRpc<Object?>('mt_comment', {'p_id': id, 'p_note': note.trim()});
+  Future<String> mtSavePlan(String? id, Map<String, dynamic> data) async =>
+      '${await _mtRpc<Object?>('mt_save_plan', {'p_id': id, 'p_data': data})}';
+  Future<void> mtDeletePlan(String id) => _mtRpc<Object?>('mt_delete_plan', {'p_id': id});
+  Future<void> mtSaveSettings(Map<String, dynamic> data) => _mtRpc<Object?>('mt_save_settings', {'p_data': data});
+  Future<void> mtSaveTechnician(String employeeId, Map<String, dynamic> data) =>
+      _mtRpc<Object?>('mt_save_technician', {'p_employee': employeeId, 'p_data': data});
+
+  /// يولّد بلاغات الصيانة الدورية المستحقة الآن (يعيد المولَّد والمتخطّى).
+  Future<({int created, int skipped})> mtGenerateDue() async {
+    final g = await _mtRpc<Object?>('mt_generate_due', {});
+    final m = g is Map ? g : const {};
+    return (created: (m['created'] as num?)?.toInt() ?? 0, skipped: (m['skipped'] as num?)?.toInt() ?? 0);
+  }
+
+  /// سجل أحداث بلاغ بترتيبه.
+  Future<List<MtEvent>> mtEventsOf(String requestId) async {
+    final r = await client.from('mt_request_events').select().eq('request_id', requestId).order('id', ascending: true).limit(500);
+    return r.map(MtEvent.fromMap).toList();
+  }
+
   Future<String> _stSave(String fn, String? id, Map<String, dynamic> data) async {
     final res = await client.rpc(fn, params: {'p_id': id, 'p_data': data});
     await _reloadStores();
@@ -2434,6 +2614,19 @@ class AppState extends ChangeNotifier {
       ch22.subscribe();
       _channel22 = ch22;
     }
+
+    // قناة الصيانة (الترحيل 40)
+    final old24 = _channel24;
+    if (old24 != null) client.removeChannel(old24);
+    _channel24 = null;
+    if (v24Ready) {
+      final ch24 = client.channel('dc-v24');
+      for (final t in const ['mt_requests', 'mt_plans', 'mt_technicians', 'mt_settings']) {
+        ch24.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: t, callback: (_) => _scheduleMaintReload());
+      }
+      ch24.subscribe();
+      _channel24 = ch24;
+    }
   }
 
   void _scheduleStoresReload() {
@@ -2536,6 +2729,13 @@ class AppState extends ChangeNotifier {
     final old22 = _channel22;
     if (old22 != null) client.removeChannel(old22);
     _channel22 = null;
+    v24Ready = false;
+    maint = MaintenanceData.empty();
+    _mtGeneratedAt = null;
+    _maintDebounce?.cancel();
+    final old24 = _channel24;
+    if (old24 != null) client.removeChannel(old24);
+    _channel24 = null;
     scope = null;
     hubEditRequested = false;
     formDates = {};
@@ -2561,7 +2761,8 @@ class AppState extends ChangeNotifier {
       ..['print'] = 130
       ..['chat'] = 140
       ..['security'] = 150
-      ..['stores'] = 200;
+      ..['stores'] = 200
+      ..['maintenance'] = 220;
     _heartbeat?.cancel();
     _appearancePreview = null;
     variations = [];
@@ -2640,7 +2841,10 @@ class AppState extends ChangeNotifier {
     if (old15 != null) client.removeChannel(old15);
     final old22 = _channel22;
     if (old22 != null) client.removeChannel(old22);
+    final old24 = _channel24;
+    if (old24 != null) client.removeChannel(old24);
     _storesDebounce?.cancel();
+    _maintDebounce?.cancel();
     chat.dispose();
     _heartbeat?.cancel();
     super.dispose();
@@ -2712,6 +2916,7 @@ class AppState extends ChangeNotifier {
         >= 30 && < 40 => 'swot',
         >= 20 && < 30 => 'risks',
         >= 200 && < 220 => 'stores',
+        >= 220 && < 240 => 'maintenance',
         _ => 'cycle',
       };
   final Map<String, int> _lastTab = {
@@ -2729,6 +2934,7 @@ class AppState extends ChangeNotifier {
     'chat': 140,
     'security': 150,
     'stores': 200,
+    'maintenance': 220,
   };
 
   /// فتح قسم رئيسي على آخر صفحة زارها المستخدم فيه.
@@ -2738,6 +2944,7 @@ class AppState extends ChangeNotifier {
     if (t == 72 && !v15Ready) t = 70;
     // الموظف (الترحيل 38): صفحته «ما صُرف لي» وحدها في المخازن، ومسؤول الأصول (الترحيل 39) يبدأ بالأصول
     if (s == 'stores') t = storesTabFor(t);
+    if (s == 'maintenance') t = maintTabFor(t);
     _section = s;
     // صفحة نقلها المدير إلى قسم آخر: يعرض القسم أول صفحاته ويثبّتها الهيكل
     _tab = sectionForTab(t) == s ? t : -1;

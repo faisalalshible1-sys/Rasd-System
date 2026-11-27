@@ -56,6 +56,7 @@ import 'stores.dart';
 import 'stores_assets.dart';
 import 'stores_docs.dart';
 import 'stores_setup.dart';
+import 'maintenance.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -195,6 +196,15 @@ class Tabs {
   static const storesMine = 206;
   static const storesAssets = 207;
   static const storesCustody = 210;
+
+  // الصيانة (الترحيل 40)
+  static const maintDashboard = 220;
+  static const maintRequests = 221;
+  static const maintPlans = 222;
+  static const maintAlerts = 223;
+  static const maintMine = 224;
+  static const maintSetup = 225;
+  static const maintTasks = 226;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -311,7 +321,7 @@ List<LayoutPage> layoutPagesFor(AppState app, String section, Map<int, String> m
 List<_Dest> _sectionDestinations(AppState app, [String? section]) {
   final sec = section ?? app.section;
   final base = _baseDestinations(app, sec);
-  if (sec == 'cycle' || sec == 'stores' || !app.v2Ready) return base;
+  if (sec == 'cycle' || sec == 'stores' || sec == 'maintenance' || !app.v2Ready) return base;
   final ideas = _Dest(AppState.ideasTabOf(sec), 'الأفكار والتطوير', Icons.lightbulb_outline_rounded, Icons.lightbulb_rounded,
       badge: app.isDirector ? app.newIdeasIn(sec) : 0, tail: true);
   final i = base.indexWhere((d) => d.admin);
@@ -502,6 +512,39 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       ..._adminDests(app, 200),
     ];
   }
+  if (sec == 'maintenance') {
+    final m = app.maint;
+    final now = DateTime.now();
+    // من ليس من أهل القسم: بلاغاته وحدها
+    if (!app.mtStaff) {
+      return [
+        const _Dest(Tabs.maintMine, 'بلاغاتي', Icons.report_problem_outlined, Icons.report_problem_rounded),
+        ..._adminDests(app, 220),
+      ];
+    }
+    // الفني: مهامه وتنبيهاته وبلاغاته
+    if (!app.mtSeesAll) {
+      return [
+        _Dest(Tabs.maintTasks, 'مهامي', Icons.engineering_outlined, Icons.engineering_rounded,
+            badge: m.requests.where((r) => r.isOpen && r.reporterId != app.me?.id).length),
+        _Dest(Tabs.maintAlerts, 'التنبيهات', Icons.notification_important_outlined, Icons.notification_important_rounded,
+            badge: m.alerts.length),
+        const _Dest(Tabs.maintMine, 'بلاغاتي', Icons.report_problem_outlined, Icons.report_problem_rounded),
+        ..._adminDests(app, 220),
+      ];
+    }
+    return [
+      _Dest(Tabs.maintDashboard, 'لوحة الصيانة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded,
+          badge: m.overdue(now).length),
+      _Dest(Tabs.maintRequests, 'البلاغات', Icons.build_circle_outlined, Icons.build_circle_rounded, badge: m.unassigned.length),
+      const _Dest(Tabs.maintPlans, 'الصيانة الدورية', Icons.event_repeat_outlined, Icons.event_repeat_rounded),
+      _Dest(Tabs.maintAlerts, 'التنبيهات', Icons.notification_important_outlined, Icons.notification_important_rounded,
+          badge: m.alerts.where((a) => a.isCritical).length),
+      const _Dest(Tabs.maintMine, 'بلاغاتي', Icons.report_problem_outlined, Icons.report_problem_rounded),
+      if (app.canMtAdmin) const _Dest(Tabs.maintSetup, 'الفنيون والإعدادات', Icons.settings_suggest_outlined, Icons.settings_suggest_rounded),
+      ..._adminDests(app, 220),
+    ];
+  }
   if (sec == 'print') {
     return [
       const _Dest(Tabs.printCenter, 'لوحة الطباعة', Icons.space_dashboard_outlined, Icons.space_dashboard_rounded),
@@ -575,8 +618,8 @@ Widget _page(int id) => switch (id) {
       >= Tabs.ideasRisks && <= Tabs.ideasManual => IdeasPage(key: ValueKey('ideas-$id'), section: AppState.ideasSections[id - Tabs.ideasRisks]),
       >= Tabs.assignedDocs && <= Tabs.assignedAcceptance =>
         AssignedWorkPage(key: ValueKey('assigned-$id'), section: AppState.assignedSections[id - Tabs.assignedDocs]),
-      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 || 209 => const ControlPanelPage(),
-      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 || 208 => const AssistantPage(),
+      Tabs.control || 29 || 39 || 69 || 79 || 89 || 99 || 109 || 119 || 129 || 139 || 149 || 169 || 209 || 229 => const ControlPanelPage(),
+      Tabs.assistant || 28 || 38 || 68 || 78 || 88 || 98 || 108 || 118 || 128 || 138 || 148 || 168 || 208 || 228 => const AssistantPage(),
       Tabs.storesDashboard => const StoresDashboardPage(),
       Tabs.storesItems => const StoresItemsPage(),
       Tabs.storesDocs => const StoresDocsPage(),
@@ -586,6 +629,13 @@ Widget _page(int id) => switch (id) {
       Tabs.storesMine => const StoresMinePage(),
       Tabs.storesAssets => const StoresAssetsPage(),
       Tabs.storesCustody => const StoresCustodyPage(),
+      Tabs.maintDashboard => const MaintDashboardPage(),
+      Tabs.maintRequests => const MaintRequestsPage(),
+      Tabs.maintPlans => const MaintPlansPage(),
+      Tabs.maintAlerts => const MaintAlertsPage(),
+      Tabs.maintMine => const MaintMinePage(),
+      Tabs.maintSetup => const MaintSetupPage(),
+      Tabs.maintTasks => const MaintTasksPage(),
       Tabs.printRefs => const RefNumbersPage(),
       Tabs.chat => const ChatPage(key: ValueKey('chat-all')),
       Tabs.chatChannels => const ChatPage(key: ValueKey('chat-channels'), channels: true),
