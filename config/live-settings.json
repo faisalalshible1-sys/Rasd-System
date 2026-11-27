@@ -451,8 +451,8 @@
     "finance.advance_recovery_rate": 0,
     "finance.currency": "د.ل",
     "finance.deduction_types": [],
-    "finance.guarantee_final_rate": 0.02,
-    "finance.guarantee_initial_rate": 0.05,
+    "finance.guarantee_final_rate": 0.05,
+    "finance.guarantee_initial_rate": 0.02,
     "finance.retention_rate": 0.0,
     "finance.tax_rate": 0,
     "pm.config": {
@@ -762,5 +762,9 @@
       "idx": 4,
       "name": "الاستلام النهائي وإقفال العقد"
     }
-  ]
+  ],
+  "stores_settings": {
+    "expiry_days": 60,
+    "separation": true
+  }
 }
