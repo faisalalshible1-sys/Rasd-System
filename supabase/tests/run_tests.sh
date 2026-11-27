@@ -222,3 +222,11 @@ psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/
 psql -h "$H" -p "$PORT" -U postgres -d dctest -qc "insert into public.budget_lines (fiscal_year, category, name, allocated) values (2026, 'ب', 'باقٍ', 1)" >/dev/null
 if $P -d dctest -1 -f "$DIR/rollbacks/20261207000046_budget_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 46 مع وجود بنود"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'budget_lines'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وبنود مسجَّلة، والمنظومة كما هي"
+# المالية والمرتبات: النسب والخصومات والصلاحيات (الترحيل 47)
+$P -d dctest -f "$DIR/migrations/20261208000047_finance_settings.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261208000047_finance_settings.sql"
+$P -d dctest -f "$DIR/migrations/20261208000047_finance_settings.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261208000047_finance_settings.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261208000047_finance_settings_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 47 والإعدادات ابتدائية"
+$P -d dctest -1 -f "$DIR/migrations/20261208000047_finance_settings.sql" >/dev/null && echo "PASS: إعادة الترحيل 47 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/129_finance_settings_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261208000047_finance_settings_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 47 مع وجود تغييرات"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'finance_rates'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وإصدارات مسجَّلة، والمنظومة كما هي"
