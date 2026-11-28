@@ -50,8 +50,11 @@ class FinGuarantee {
     this.note = '',
     this.releaseReason = '',
     this.decisionNote = '',
+    this.extractId,
   });
   final String id;
+  /// المستخلص الذي خُصم منه هذا المحتجز (الترحيل 51)؛ فارغ للضمانات الأخرى.
+  final String? extractId;
   final String kind;
   final String? projectId;
   final String party;
@@ -81,6 +84,7 @@ class FinGuarantee {
         status: '${m['status'] ?? 'held'}',
         releaseReason: '${m['release_reason'] ?? ''}',
         decisionNote: '${m['decision_note'] ?? ''}',
+        extractId: m['extract_id'] == null ? null : '${m['extract_id']}',
       );
 }
 

@@ -496,6 +496,20 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'رحّل القيد رقم ${text(d['no'])} «${text(d['memo'])}» (${_m(d['amount'])})';
     case 'finance.journal_reverse':
       return 'عكس القيد رقم ${text(d['no'])} «${text(d['memo'])}» — السبب: ${text(d['reason'])}';
+    case 'finance.disb_request':
+      return 'طلب صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])} من «${text(d['account'])}»';
+    case 'finance.disb_review':
+      return 'راجع مالياً طلب صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])}';
+    case 'finance.disb_return':
+      return 'أعاد طلب صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])} — السبب: ${text(d['note'])}';
+    case 'finance.disb_cancel':
+      return 'ألغى طلب صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])}';
+    case 'finance.disb_approve':
+      return 'اعتمد صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])} من «${text(d['account'])}»';
+    case 'finance.disb_reject':
+      return 'رفض صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])} — السبب: ${text(d['note'])}';
+    case 'finance.disb_reverse':
+      return 'عكس صرف ${_m(d['amount'])} لمستخلص رقم ${text(d['extract'])} — السبب: ${text(d['reason'])}';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':

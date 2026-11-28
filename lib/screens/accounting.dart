@@ -111,7 +111,7 @@ class _ChartOfAccountsPageState extends State<ChartOfAccountsPage> {
     final ok = await showPmForm(
       context,
       title: spec.$1,
-      note: 'يستعمله قيد كشف المرتبات الآلي عند الاعتماد. يغيّره من يملك صلاحية الاعتماد، ولا أثر له على قيود سبقت.',
+      note: 'يستعمله القيد الآلي لكشف المرتبات ولصرف المستخلصات عند الاعتماد. يغيّره من يملك صلاحية الاعتماد، ولا أثر له على قيود سبقت.',
       sections: [
         PmSection('الحساب', [
           PmField('gl', 'الحساب', PmKind.select, required: true, options: [for (final g in options) (g.id, g.label)]),

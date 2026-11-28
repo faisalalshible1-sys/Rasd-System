@@ -25,6 +25,8 @@ const Map<String, String> journalSourceNames = {
   'payroll': 'كشف مرتبات',
   'payroll_reversal': 'عكس كشف مرتبات',
   'transfer': 'تحويل بين حسابين',
+  'disbursement': 'صرف مستخلص',
+  'disbursement_reversal': 'عكس صرف مستخلص',
 };
 
 /// تعيينات حسابات القيد الآلي لكشف المرتبات: المفتاح ← (الاسم، نوع الحساب المسموح).
@@ -35,6 +37,7 @@ const Map<String, (String, String)> glMapKeys = {
   'payroll_tax': ('الضرائب المستحقة (الدخل والقاعدة الإضافية)', 'liability'),
   'payroll_other': ('الاستقطاعات الأخرى المستحقة', 'liability'),
   'payroll_loan': ('سلف الموظفين (أقساط)', 'asset'),
+  'extract_payable': ('مستحقات المقاولين (صرف المستخلصات)', 'liability'),
 };
 
 /// الجانب الطبيعي للحساب: المدين للأصول والمصروفات، والدائن لغيرهما.

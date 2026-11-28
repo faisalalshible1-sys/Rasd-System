@@ -22,6 +22,7 @@ import 'finance_rates.dart';
 import 'payroll.dart';
 import 'accounting.dart';
 import 'guarantees.dart';
+import 'disbursement.dart';
 import 'docs.dart';
 import 'geo.dart';
 import 'models.dart';
@@ -247,6 +248,12 @@ class AppState extends ChangeNotifier {
   Map<String, String> glMap = {};
   RealtimeChannel? _channel34;
   Timer? _accountingDebounce;
+
+  // اعتماد الصرف (الترحيل 51)
+  bool v35Ready = false;
+  List<FinDisbursement> finDisbursements = [];
+  RealtimeChannel? _channel35;
+  Timer? _disbDebounce;
   Timer? _financeDebounce;
   Timer? _budgetDebounce;
   List<RiskAction> riskActions = [];
@@ -961,6 +968,7 @@ class AppState extends ChangeNotifier {
       await _loadV32();
       await _loadV33();
       await _loadV34();
+      await _loadV35();
       _progressCache.clear();
       loadError = null;
       loadedOnce = true;
@@ -2211,6 +2219,50 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------
+  // اعتماد الصرف (الإصدار 3.4.0، الترحيل 51)
+  // ---------------------------------------------------------------
+
+  Future<void> _loadV35() async {
+    try {
+      final ds = await _allRows('fin_disbursements', ['requested_at', 'id']);
+      finDisbursements = ds.map(FinDisbursement.fromMap).toList();
+      v35Ready = true;
+    } catch (_) {
+      finDisbursements = [];
+      v35Ready = false;
+    }
+  }
+
+  void _scheduleDisbReload() {
+    _disbDebounce?.cancel();
+    _disbDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (_disposed) return;
+      await _loadV35();
+      await _loadV34();
+      _notify();
+    });
+  }
+
+  List<FinDisbursement> disbursementsOf(String extractId) => finDisbursements.where((d) => d.extractId == extractId).toList();
+
+  /// المتبقي للصرف لمستخلص (صافيه − مدفوعه − الطلبات المفتوحة).
+  double extractRemainingOf(ContractExtract e, {String? exceptId}) =>
+      extractRemaining(net: e.net, paid: e.paidAmount, disbursements: disbursementsOf(e.id), exceptId: exceptId);
+
+  Future<String> requestDisbursement({required String extractId, required double amount, required String accountId, required DateTime date, required String method, String refNo = '', String note = ''}) async =>
+      await _finRpc<Object?>('fin_disb_request', {'p_extract': extractId, 'p_amount': amount, 'p_account': accountId, 'p_date': _isoDay(date), 'p_method': method, 'p_ref': refNo, 'p_note': note}) as String;
+
+  Future<void> reviewDisbursement(String id, bool ok, String note) => _finRpc<Object?>('fin_disb_review', {'p_id': id, 'p_ok': ok, 'p_note': note});
+
+  Future<void> cancelDisbursement(String id) => _finRpc<Object?>('fin_disb_cancel', {'p_id': id});
+
+  Future<void> decideDisbursement(String id, bool approve, String note) => _finRpc<Object?>('fin_disb_decide', {'p_id': id, 'p_approve': approve, 'p_note': note});
+
+  Future<void> reverseDisbursement(String id, String reason) => _finRpc<Object?>('fin_disb_reverse', {'p_id': id, 'p_reason': reason});
+
+  Future<void> registerRetentionGuarantee(String extractId, String party) => _finRpc<Object?>('fin_guarantee_from_extract', {'p_extract': extractId, 'p_party': party});
+
   void _scheduleAccountingReload() {
     _accountingDebounce?.cancel();
     _accountingDebounce = Timer(const Duration(milliseconds: 450), () async {
@@ -2250,7 +2302,8 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  double balanceOf(FinAccount a) => accountBalance(a, finTransfers);
+  /// الرصيد بعد التحويلات المرحَّلة والصرف المعتمد (الترحيل 51).
+  double balanceOf(FinAccount a) => balanceAfterDisbursements(accountBalance(a, finTransfers), finDisbursements, a.id);
 
   Future<void> saveFinGuarantee({
     String? id,
@@ -2365,6 +2418,7 @@ class AppState extends ChangeNotifier {
     await _loadV32();
     await _loadV33();
     await _loadV34();
+    await _loadV35();
     _notify();
     return r as T;
   }
@@ -3774,6 +3828,17 @@ class AppState extends ChangeNotifier {
       _channel34 = ch34;
     }
 
+    // قناة اعتماد الصرف (الترحيل 51)
+    final old35 = _channel35;
+    if (old35 != null) client.removeChannel(old35);
+    _channel35 = null;
+    if (v35Ready) {
+      final ch35 = client.channel('dc-v35');
+      ch35.onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'fin_disbursements', callback: (_) => _scheduleDisbReload());
+      ch35.subscribe();
+      _channel35 = ch35;
+    }
+
     // قناة المرتبات (الترحيل 48)
     final old32 = _channel32;
     if (old32 != null) client.removeChannel(old32);
@@ -3985,6 +4050,12 @@ class AppState extends ChangeNotifier {
     final old34r = _channel34;
     if (old34r != null) client.removeChannel(old34r);
     _channel34 = null;
+    v35Ready = false;
+    finDisbursements = [];
+    _disbDebounce?.cancel();
+    final old35r = _channel35;
+    if (old35r != null) client.removeChannel(old35r);
+    _channel35 = null;
     v32Ready = false;
     finEmployees = [];
     finAllowances = [];
@@ -4155,6 +4226,9 @@ class AppState extends ChangeNotifier {
     _guaranteeDebounce?.cancel();
     final old33d = _channel33;
     if (old33d != null) client.removeChannel(old33d);
+    _disbDebounce?.cancel();
+    final old35d = _channel35;
+    if (old35d != null) client.removeChannel(old35d);
     _accountingDebounce?.cancel();
     final old34d = _channel34;
     if (old34d != null) client.removeChannel(old34d);
