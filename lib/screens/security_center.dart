@@ -647,9 +647,70 @@ class SecPosturePage extends StatelessWidget {
                     ),
                 ]),
               ),
+            const _AuditChainCard(),
           ];
         },
       );
+}
+
+/// سلامة سجل التدقيق (الإصدار 3.5.0، الترحيل 54): فحص سلسلة البصمات كاملة بطلب المسؤول.
+class _AuditChainCard extends StatefulWidget {
+  const _AuditChainCard();
+
+  @override
+  State<_AuditChainCard> createState() => _AuditChainCardState();
+}
+
+class _AuditChainCardState extends State<_AuditChainCard> {
+  Map<String, dynamic>? _res;
+  bool _busy = false;
+  String? _err;
+
+  Future<void> _verify() async {
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
+    try {
+      final r = _map(await _rpc(AppScope.of(context), 'security_audit_verify'));
+      if (mounted) setState(() => _res = r);
+    } catch (e) {
+      if (mounted) setState(() => _err = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sem = Sem.of(context);
+    final r = _res;
+    final ok = r?['ok'] == true;
+    return SectionCard(
+      title: 'سلامة سجل التدقيق',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          'كل حدث في السجل مربوط ببصمة SHA-256 بما قبله، فيُكشف أي تعديل أو حذف أو إدراج في الوسط. يفحص هذا الزر السلسلة كاملة.',
+          style: TextStyle(color: sem.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 8),
+        if (_err != null) InfoBanner(text: _err!, level: 'critical'),
+        if (r != null)
+          InfoBanner(
+            text: ok
+                ? 'السلسلة سليمة: ${_int(r['checked'])} حدثاً. بصمة الرأس عند الحدث ${_int(r['head_no'])}: ${'${r['head_hash']}'.substring(0, 16)}… (يُحفظ خارج المنظومة للتثبيت).'
+                : 'السلسلة مكسورة عند الحدث ${_int(r['bad_chain_no'])}: ${r['reason']}. أبلغ مدير المكتب وافتح حادثة أمنية.',
+            level: ok ? 'ok' : 'critical',
+          ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: _busy ? null : _verify,
+          icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.verified_outlined),
+          label: const Text('فحص سلامة السجل'),
+        ),
+      ]),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------
