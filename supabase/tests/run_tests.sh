@@ -268,3 +268,9 @@ $P -d dctest -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql" >/dev
 $P -d dctest -1 -f "$DIR/rollbacks/20261213000052_tripoli_purchase_date_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 52"
 $P -d dctest -1 -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql" >/dev/null && echo "PASS: إعادة الترحيل 52 بعد التراجع في معاملة واحدة"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/134_tripoli_purchase_date_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# تحصين الأمان (الترحيل 53)
+$P -d dctest -f "$DIR/migrations/20261214000053_security_hardening.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261214000053_security_hardening.sql"
+$P -d dctest -f "$DIR/migrations/20261214000053_security_hardening.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261214000053_security_hardening.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261214000053_security_hardening_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 53"
+$P -d dctest -1 -f "$DIR/migrations/20261214000053_security_hardening.sql" >/dev/null && echo "PASS: إعادة الترحيل 53 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/135_security_hardening_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
