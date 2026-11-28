@@ -246,3 +246,11 @@ $P -d dctest -1 -f "$DIR/migrations/20261210000049_guarantees.sql" >/dev/null &&
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/131_guarantees_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261210000049_guarantees_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 49 مع وجود بيانات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'fin_guarantees'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وضمانات مسجَّلة، والمنظومة كما هي"
+# المحاسبة (الترحيل 50)
+$P -d dctest -f "$DIR/migrations/20261211000050_accounting.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261211000050_accounting.sql"
+$P -d dctest -f "$DIR/migrations/20261211000050_accounting.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261211000050_accounting.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261211000050_accounting_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 50 ولا قيود"
+$P -d dctest -1 -f "$DIR/migrations/20261211000050_accounting.sql" >/dev/null && echo "PASS: إعادة الترحيل 50 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/132_accounting_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+if $P -d dctest -1 -f "$DIR/rollbacks/20261211000050_accounting_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 50 مع وجود قيود"; exit 1; fi
+$P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'fin_journals'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وقيود مسجَّلة، والمنظومة كما هي"

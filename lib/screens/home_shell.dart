@@ -65,6 +65,7 @@ import 'procurement.dart';
 import 'accounts.dart';
 import 'payroll.dart';
 import 'guarantees.dart';
+import 'accounting.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -237,6 +238,9 @@ class Tabs {
   static const acctAttendance = 266;
   static const acctGuarantees = 270;
   static const acctTransfers = 271;
+  static const acctChart = 272;
+  static const acctJournal = 273;
+  static const acctLedger = 274;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -615,6 +619,9 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       const _Dest(Tabs.acctAttendance, 'الحضور والمكافآت', Icons.event_available_outlined, Icons.event_available_rounded),
       const _Dest(Tabs.acctGuarantees, 'الضمانات والتأمينات', Icons.verified_user_outlined, Icons.verified_user_rounded),
       const _Dest(Tabs.acctTransfers, 'الحسابات والتحويلات', Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
+      const _Dest(Tabs.acctChart, 'دليل الحسابات', Icons.account_tree_outlined, Icons.account_tree_rounded),
+      const _Dest(Tabs.acctJournal, 'قيود اليومية', Icons.menu_book_outlined, Icons.menu_book_rounded),
+      const _Dest(Tabs.acctLedger, 'الأستاذ وميزان المراجعة', Icons.balance_outlined, Icons.balance_rounded),
       const _Dest(Tabs.acctRates, 'النسب والضرائب', Icons.percent_outlined, Icons.percent_rounded),
       const _Dest(Tabs.acctDeductions, 'الخصومات', Icons.remove_circle_outline_rounded, Icons.remove_circle_rounded),
       if (app.isDirector) const _Dest(Tabs.acctPerms, 'الصلاحيات المالية', Icons.admin_panel_settings_outlined, Icons.admin_panel_settings_rounded),
@@ -726,6 +733,9 @@ Widget _page(int id) => switch (id) {
       Tabs.acctAttendance => const PayrollAttendancePage(),
       Tabs.acctGuarantees => const GuaranteesPage(),
       Tabs.acctTransfers => const TransfersPage(),
+      Tabs.acctChart => const ChartOfAccountsPage(),
+      Tabs.acctJournal => const JournalPage(),
+      Tabs.acctLedger => const LedgerPage(),
       Tabs.acctRates => const AccountsRatesPage(),
       Tabs.acctDeductions => const AccountsDeductionsPage(),
       Tabs.acctPerms => const AccountsPermsPage(),

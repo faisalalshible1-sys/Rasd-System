@@ -480,6 +480,22 @@ String auditDescription(AppState app, AuditEntry e) {
       return 'رفض تحويل ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}» — السبب: ${text(d['note'])}';
     case 'finance.transfer_delete':
       return 'حذف تحويلاً معلّقاً ${_m(d['amount'])} من «${text(d['from'])}» إلى «${text(d['to'])}»';
+    case 'finance.gl_save':
+      return '${d['created'] == true ? 'أضاف' : 'عدّل'} حساباً في الدليل «${text(d['code'])} ${text(d['name'])}»';
+    case 'finance.gl_delete':
+      return 'حذف الحساب «${text(d['code'])} ${text(d['name'])}» من الدليل';
+    case 'finance.gl_link':
+      return text(d['gl']).isEmpty ? 'فكّ ربط الحساب المالي «${text(d['account'])}» بالدليل' : 'ربط الحساب المالي «${text(d['account'])}» بحساب ${text(d['gl'])}';
+    case 'finance.gl_map_set':
+      return 'عيّن حساب قيد المرتبات الآلي (${text(d['key'])}) إلى ${text(d['gl'])}';
+    case 'finance.journal_save':
+      return '${d['created'] == true ? 'كتب' : 'عدّل'} مسودة قيد «${text(d['memo'])}» (${text(d['lines'])} سطراً)';
+    case 'finance.journal_delete':
+      return 'حذف مسودة قيد «${text(d['memo'])}»';
+    case 'finance.journal_post':
+      return 'رحّل القيد رقم ${text(d['no'])} «${text(d['memo'])}» (${_m(d['amount'])})';
+    case 'finance.journal_reverse':
+      return 'عكس القيد رقم ${text(d['no'])} «${text(d['memo'])}» — السبب: ${text(d['reason'])}';
     case 'milestone.save':
       return '${d['created'] == true ? 'أضاف' : 'عدّل'} معلم «${text(d['title'])}» في ${e.projectLabel} (المخطط ${text(d['planned']).replaceAll('-', '/')})';
     case 'milestone.status':
