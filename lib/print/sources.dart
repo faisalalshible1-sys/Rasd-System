@@ -11,6 +11,7 @@ import '../contractor_account.dart';
 import '../finance_kpi.dart';
 import '../models.dart';
 import '../payroll.dart';
+import '../guarantees.dart';
 import '../pm.dart';
 import '../prices.dart';
 import '../rasd.dart' show sectionDefaultNames;
@@ -436,6 +437,70 @@ List<ExportSource> _all(AppState app) => [
           ('الإجمالي', fmtNumber(l.fold<double>(0, (s, x) => s + x.gross))),
           ('الصافي', fmtNumber(l.fold<double>(0, (s, x) => s + x.net))),
         ],
+      ),
+      _src<FinGuarantee>(
+        id: 'finance:guarantees',
+        section: 'accounts',
+        title: 'سجل الضمانات والتأمينات',
+        icon: Icons.verified_user_outlined,
+        ready: (a) => a.v33Ready,
+        items: (a) => a.finGuarantees,
+        project: (g) => g.projectId,
+        date: (g) => g.issued,
+        dateLabel: 'تاريخ الإصدار',
+        columns: const [
+          _C('kind', 'النوع', flex: 1.1),
+          _C('party', 'الجهة', flex: 1.6),
+          _C('contract', 'العقد', flex: 2),
+          _C('amount', 'المبلغ', type: ColType.money),
+          _C('issued', 'الإصدار', type: ColType.date, flex: 0.9),
+          _C('expires', 'الانتهاء', type: ColType.date, flex: 0.9),
+          _C('status', 'الحالة', flex: 1),
+          _C('ref', 'المرجع', flex: 1, on: false),
+          _C('note', 'ملاحظة', type: ColType.long, on: false),
+        ],
+        row: (a, g) => [
+          guaranteeKindNames[g.kind] ?? g.kind,
+          g.party,
+          g.projectId == null ? '' : _pj(a, g.projectId!),
+          g.amount,
+          g.issued,
+          g.expires,
+          guaranteeStatusNames[g.status] ?? g.status,
+          g.reference,
+          g.note,
+        ],
+        summary: (a, l) => [
+          ('المحتجز', fmtNumber(l.where((g) => g.isHeld).fold<double>(0, (s, g) => s + g.amount))),
+          ('المُسترد', fmtNumber(l.where((g) => g.isReleased).fold<double>(0, (s, g) => s + g.amount))),
+        ],
+      ),
+      _src<FinTransfer>(
+        id: 'finance:transfers',
+        section: 'accounts',
+        title: 'التحويلات بين الحسابات',
+        icon: Icons.swap_horiz_rounded,
+        ready: (a) => a.v33Ready,
+        items: (a) => a.finTransfers,
+        date: (t) => t.date,
+        dateLabel: 'تاريخ التحويل',
+        columns: const [
+          _C('date', 'التاريخ', type: ColType.date, flex: 0.9),
+          _C('from', 'من', flex: 1.4),
+          _C('to', 'إلى', flex: 1.4),
+          _C('amount', 'المبلغ', type: ColType.money),
+          _C('status', 'الحالة', flex: 1),
+          _C('note', 'ملاحظة', type: ColType.long),
+        ],
+        row: (a, t) => [
+          t.date,
+          a.finAccounts.where((x) => x.id == t.fromId).map((x) => x.name).firstOrNull ?? '',
+          a.finAccounts.where((x) => x.id == t.toId).map((x) => x.name).firstOrNull ?? '',
+          t.amount,
+          transferStatusNames[t.status] ?? t.status,
+          [t.note, t.decisionNote].where((s) => s.trim().isNotEmpty).join(' — '),
+        ],
+        summary: (a, l) => [('المرحَّل', fmtNumber(l.where((t) => t.isPosted).fold<double>(0, (s, t) => s + t.amount)))],
       ),
       _src<ContractorAccount>(
         id: 'cycle:contractors',

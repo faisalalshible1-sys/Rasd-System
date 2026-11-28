@@ -64,6 +64,7 @@ import 'maintenance.dart';
 import 'procurement.dart';
 import 'accounts.dart';
 import 'payroll.dart';
+import 'guarantees.dart';
 import 'units.dart';
 
 /// معرّفات الصفحات الرئيسية (قيمة app.tab).
@@ -234,6 +235,8 @@ class Tabs {
   static const acctPayroll = 264;
   static const acctEmployees = 265;
   static const acctAttendance = 266;
+  static const acctGuarantees = 270;
+  static const acctTransfers = 271;
 }
 
 /// مفاتيح صفحات القائمة كما تُحفظ في إعداد ui.nav.
@@ -610,6 +613,8 @@ List<_Dest> _baseDestinations(AppState app, String sec) {
       const _Dest(Tabs.acctPayroll, 'كشف المرتبات', Icons.payments_outlined, Icons.payments_rounded),
       const _Dest(Tabs.acctEmployees, 'الموظفون', Icons.badge_outlined, Icons.badge_rounded),
       const _Dest(Tabs.acctAttendance, 'الحضور والمكافآت', Icons.event_available_outlined, Icons.event_available_rounded),
+      const _Dest(Tabs.acctGuarantees, 'الضمانات والتأمينات', Icons.verified_user_outlined, Icons.verified_user_rounded),
+      const _Dest(Tabs.acctTransfers, 'الحسابات والتحويلات', Icons.swap_horiz_outlined, Icons.swap_horiz_rounded),
       const _Dest(Tabs.acctRates, 'النسب والضرائب', Icons.percent_outlined, Icons.percent_rounded),
       const _Dest(Tabs.acctDeductions, 'الخصومات', Icons.remove_circle_outline_rounded, Icons.remove_circle_rounded),
       if (app.isDirector) const _Dest(Tabs.acctPerms, 'الصلاحيات المالية', Icons.admin_panel_settings_outlined, Icons.admin_panel_settings_rounded),
@@ -719,6 +724,8 @@ Widget _page(int id) => switch (id) {
       Tabs.acctPayroll => const PayrollSheetPage(),
       Tabs.acctEmployees => const PayrollEmployeesPage(),
       Tabs.acctAttendance => const PayrollAttendancePage(),
+      Tabs.acctGuarantees => const GuaranteesPage(),
+      Tabs.acctTransfers => const TransfersPage(),
       Tabs.acctRates => const AccountsRatesPage(),
       Tabs.acctDeductions => const AccountsDeductionsPage(),
       Tabs.acctPerms => const AccountsPermsPage(),
