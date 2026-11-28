@@ -280,3 +280,9 @@ $P -d dctest -f "$DIR/migrations/20261215000054_audit_chain.sql" >/dev/null 2>&1
 $P -d dctest -1 -f "$DIR/rollbacks/20261215000054_audit_chain_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 54"
 $P -d dctest -1 -f "$DIR/migrations/20261215000054_audit_chain.sql" >/dev/null && echo "PASS: إعادة الترحيل 54 بعد التراجع في معاملة واحدة"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/136_audit_chain_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# تحديد معدل الإجراءات الحساسة (الترحيل 55)
+$P -d dctest -f "$DIR/migrations/20261216000055_rate_limit.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261216000055_rate_limit.sql"
+$P -d dctest -f "$DIR/migrations/20261216000055_rate_limit.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261216000055_rate_limit.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261216000055_rate_limit_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 55"
+$P -d dctest -1 -f "$DIR/migrations/20261216000055_rate_limit.sql" >/dev/null && echo "PASS: إعادة الترحيل 55 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/137_rate_limit_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
