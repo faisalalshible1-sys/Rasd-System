@@ -567,7 +567,7 @@ begin
   v_buy := public.st_date(p_data, 'purchase_date');
   v_start := coalesce(public.st_date(p_data, 'in_service_date'), v_buy);
   v_warr := public.st_date(p_data, 'warranty_until');
-  if v_buy is not null and v_buy > current_date then
+  if v_buy is not null and v_buy > (now() at time zone 'Africa/Tripoli')::date then
     raise exception 'تاريخ الشراء في المستقبل' using errcode = '22023';
   end if;
   if v_buy is not null and v_start < v_buy then
@@ -1209,7 +1209,7 @@ begin
     if v_cost < 0 then
       raise exception 'الصف %: التكلفة رقم موجب', n using errcode = '22023';
     end if;
-    if v_buy is not null and v_buy > current_date then
+    if v_buy is not null and v_buy > (now() at time zone 'Africa/Tripoli')::date then
       raise exception 'الصف %: تاريخ الشراء في المستقبل', n using errcode = '22023';
     end if;
     begin
