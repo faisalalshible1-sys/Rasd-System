@@ -262,3 +262,9 @@ $P -d dctest -1 -f "$DIR/migrations/20261212000051_disbursement.sql" >/dev/null 
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/133_disbursement_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
 if $P -d dctest -1 -f "$DIR/rollbacks/20261212000051_disbursement_down.sql" >/dev/null 2>&1; then echo "FAIL: تراجع الترحيل 51 مع وجود طلبات"; exit 1; fi
 $P -d dctest -tAc "select count(*) from information_schema.tables where table_name = 'fin_disbursements'" | grep -qx 1 && echo "PASS (رُفض كما يجب): التراجع وطلبات صرف مسجَّلة، والمنظومة كما هي"
+# فحص تاريخ شراء الأصل بتوقيت طرابلس (الترحيل 52)
+$P -d dctest -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql"
+$P -d dctest -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261213000052_tripoli_purchase_date_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 52"
+$P -d dctest -1 -f "$DIR/migrations/20261213000052_tripoli_purchase_date.sql" >/dev/null && echo "PASS: إعادة الترحيل 52 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/134_tripoli_purchase_date_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
