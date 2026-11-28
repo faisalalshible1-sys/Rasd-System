@@ -104,11 +104,19 @@ jobs:
         run: |
           set +e
           flutter build apk --release --split-per-abi --build-name=$VERSION --build-number=$BUILD \
+            --obfuscate --split-debug-info=build/symbols-android \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
             --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
           [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "build apk"
           exit $code
+      - name: رموز فك التعتيم (أندرويد)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-android-${{ env.VERSION }}
+          path: build/symbols-android
+          retention-days: 90
       - name: التوقيع بمفتاح المؤسسة
         env:
           ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
@@ -140,6 +148,7 @@ jobs:
         run: |
           set +e
           flutter build windows --release --build-name=$VERSION --build-number=$BUILD \
+            --obfuscate --split-debug-info=build/symbols-windows \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
             --dart-define=APP_VERSION=$VERSION --dart-define=APP_BUILD=$BUILD > out.txt 2>&1; code=$?; cat out.txt
@@ -152,6 +161,13 @@ jobs:
           bash tool/build_windows_installer.sh "$VERSION" > out.txt 2>&1; code=$?; cat out.txt
           [ $code -ne 0 ] && bash tool/ci_annotate.sh out.txt "installer"
           exit $code
+      - name: رموز فك التعتيم (ويندوز)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-windows-${{ env.VERSION }}
+          path: build/symbols-windows
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         with:
           name: release-windows
