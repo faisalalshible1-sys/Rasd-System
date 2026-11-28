@@ -274,3 +274,9 @@ $P -d dctest -f "$DIR/migrations/20261214000053_security_hardening.sql" >/dev/nu
 $P -d dctest -1 -f "$DIR/rollbacks/20261214000053_security_hardening_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 53"
 $P -d dctest -1 -f "$DIR/migrations/20261214000053_security_hardening.sql" >/dev/null && echo "PASS: إعادة الترحيل 53 بعد التراجع في معاملة واحدة"
 psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/135_security_hardening_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
+# سلسلة سجل التدقيق (الترحيل 54)
+$P -d dctest -f "$DIR/migrations/20261215000054_audit_chain.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261215000054_audit_chain.sql"
+$P -d dctest -f "$DIR/migrations/20261215000054_audit_chain.sql" >/dev/null 2>&1 || $P -d dctest -f "$DIR/migrations/20261215000054_audit_chain.sql"
+$P -d dctest -1 -f "$DIR/rollbacks/20261215000054_audit_chain_down.sql" >/dev/null && echo "PASS: التراجع عن الترحيل 54"
+$P -d dctest -1 -f "$DIR/migrations/20261215000054_audit_chain.sql" >/dev/null && echo "PASS: إعادة الترحيل 54 بعد التراجع في معاملة واحدة"
+psql -h "$H" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -d dctest -f "$DIR/tests/136_audit_chain_test.sql" 2>&1 | sed 's/^psql:[^ ]* //' | grep -v '^$'
